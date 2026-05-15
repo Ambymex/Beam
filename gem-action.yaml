@@ -1,0 +1,85 @@
+openapi: 3.1.0
+info:
+  title: Beam Glucose
+  description: Live blood glucose data from a FreeStyle Libre 2 sensor via LibreLinkUp.
+  version: "1.0.0"
+servers:
+  - url: https://REPLACE-WITH-YOUR-FLY-APP.fly.dev
+paths:
+  /glucose/current:
+    get:
+      operationId: getCurrentGlucose
+      summary: Get the most recent blood glucose reading
+      description: >
+        Returns the latest glucose measurement (typically less than one minute old)
+        along with trend direction. Use this whenever the user asks how their
+        glucose is right now, or to interpret how they're feeling.
+      responses:
+        "200":
+          description: Latest reading
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mg_per_dl:
+                    type: number
+                    description: Glucose value in mg/dL.
+                  mmol_per_l:
+                    type: number
+                    description: Glucose value in mmol/L.
+                  trend:
+                    type: string
+                    description: One of "falling quickly", "falling", "stable", "rising", "rising quickly".
+                  timestamp_utc:
+                    type: string
+                    format: date-time
+                  minutes_old:
+                    type: integer
+                    description: Age of the reading in minutes.
+                  is_high:
+                    type: boolean
+                  is_low:
+                    type: boolean
+  /glucose/history:
+    get:
+      operationId: getGlucoseHistory
+      summary: Get glucose readings over a recent time window
+      description: >
+        Returns a time series of readings from the last N minutes (default 180,
+        max 720). Use when the user asks about a trend, a meal response, or
+        wants to compare against a recent activity.
+      parameters:
+        - in: query
+          name: minutes
+          required: false
+          schema:
+            type: integer
+            default: 180
+            minimum: 15
+            maximum: 720
+      responses:
+        "200":
+          description: Time series of readings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  points:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        mg_per_dl: { type: number }
+                        mmol_per_l: { type: number }
+                        timestamp_utc: { type: string, format: date-time }
+                  count: { type: integer }
+                  window_minutes: { type: integer }
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+security:
+  - BearerAuth: []
