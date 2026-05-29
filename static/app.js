@@ -424,6 +424,47 @@ function renderGlucose() {
   }
 }
 
+/* ---- insights: cross-day food → spike ranking ---- */
+function openInsights() {
+  const unit = state.settings.units;
+  const { trackedEvents, ranked } = BeamGlucose.foodInsights(loadLog(), BeamGlucose.loadSeries());
+  const sub = document.getElementById("insightsSub");
+  const body = document.getElementById("insightsBody");
+  body.innerHTML = "";
+
+  if (!ranked.length) {
+    sub.textContent = `Tracked ${trackedEvents} eating event${trackedEvents === 1 ? "" : "s"} so far.`;
+    body.innerHTML = `<div class="empty">Keep logging meals with your CGM connected. A food appears here once it has at least 2 tracked responses — then you'll see which ones spike you most.</div>`;
+    document.getElementById("insightsSheet").hidden = false;
+    return;
+  }
+
+  sub.textContent = `Average glucose rise per food, across ${trackedEvents} tracked meals. A meal's spike is shared by all its foods, so patterns sharpen over time.`;
+
+  const row = (r) => {
+    const cls = BeamGlucose.spikeClass(r.avgDelta);
+    const sign = r.avgDelta >= 0 ? "+" : "";
+    return `<div class="result">
+      <div class="r-main">
+        <div class="r-name">${escapeHtml(r.name)}</div>
+        <div class="r-sub">${r.n} meals · ~${r1(r.avgCarbs)}g net · peak Δ ${BeamGlucose.fmtDelta(r.maxDelta, unit)}</div>
+      </div>
+      <span class="spike ${cls}">▲ ${sign}${BeamGlucose.fmtDelta(r.avgDelta, unit)}</span>
+    </div>`;
+  };
+
+  // Worst spikers up top; if there's a decent spread, also surface the steadiest.
+  const worst = ranked.slice(0, 8);
+  let html = `<div class="insight-group">Worst offenders 🔴</div>` + worst.map(row).join("");
+  if (ranked.length > 6) {
+    const steady = ranked.slice().reverse().slice(0, 5);
+    html += `<div class="insight-group">Steadiest — your safe bets 🟢</div>` + steady.map(row).join("");
+  }
+  body.innerHTML = html;
+  document.getElementById("insightsSheet").hidden = false;
+}
+function closeInsights() { document.getElementById("insightsSheet").hidden = true; }
+
 /* =========================================================================
  * Settings
  * ====================================================================== */
@@ -508,6 +549,8 @@ function bind() {
   document.getElementById("exportBtn").onclick = exportData;
   document.getElementById("clearBtn").onclick = clearData;
   document.getElementById("glucoseRefresh").onclick = () => { refreshGlucose(); syncGlucose(); };
+  document.getElementById("insightsBtn").onclick = openInsights;
+  document.querySelectorAll("[data-iclose]").forEach((el) => (el.onclick = closeInsights));
 }
 function stepQty(d) {
   const input = document.getElementById("qtyInput");

@@ -145,6 +145,39 @@ const BeamGlucose = (() => {
     };
   }
 
+  // Aggregate every tracked eating event across all logged days into a
+  // per-food ranking by average glucose spike. A meal's spike is attributed to
+  // all foods in it, so combos share the blame — but over many meals the real
+  // culprits separate out. Foods need >= minSamples tracked responses to rank.
+  function foodInsights(log, series, { minSamples = 2 } = {}) {
+    const agg = new Map();
+    let trackedEvents = 0;
+    for (const date of Object.keys(log || {})) {
+      for (const ev of mealEvents(log[date] || [])) {
+        const r = responseFor(ev, series);
+        if (!r) continue;
+        trackedEvents++;
+        for (const item of ev.items) {
+          const a = agg.get(item.name) || { deltas: [], carbs: [] };
+          a.deltas.push(r.delta);
+          a.carbs.push(item.net_carbs_g || 0);
+          agg.set(item.name, a);
+        }
+      }
+    }
+    const avg = (xs) => xs.reduce((s, x) => s + x, 0) / xs.length;
+    const ranked = [...agg.entries()]
+      .map(([name, a]) => ({
+        name, n: a.deltas.length,
+        avgDelta: avg(a.deltas),
+        maxDelta: Math.max(...a.deltas),
+        avgCarbs: avg(a.carbs),
+      }))
+      .filter((r) => r.n >= minSamples)
+      .sort((a, b) => b.avgDelta - a.avgDelta);
+    return { trackedEvents, ranked };
+  }
+
   function seriesForDay(series, dateKey) {
     const [a, b] = dayBounds(dateKey);
     return series.filter(([t]) => t * 1000 >= a && t * 1000 < b);
@@ -199,7 +232,7 @@ const BeamGlucose = (() => {
 
   return {
     loadSeries, saveSeries, clear, mergePoints, sync,
-    mealEvents, responseFor, seriesForDay, buildDayChart,
+    mealEvents, responseFor, foodInsights, seriesForDay, buildDayChart,
     fmt, fmtDelta, unitLabel, spikeClass, toMmol,
     GAP_MIN, RANGE_LO, RANGE_HI,
   };

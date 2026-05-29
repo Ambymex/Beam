@@ -22,7 +22,9 @@ Designed around three overlapping needs:
   thing MyFitnessPal structurally can't do. Beam clusters your log into eating
   events and scores each against your real CGM data: **baseline → peak → spike
   (Δ) and time-to-peak**, drawn on a day chart with meal markers. Over time you
-  learn which "keto-safe" foods actually spike *you*.
+  learn which "keto-safe" foods actually spike *you*. A **"biggest spikers"**
+  leaderboard ranks every food by its average glucose rise across all your
+  tracked meals (and surfaces your steadiest "safe bets").
 
 Your food log lives entirely in your browser's local storage — no account, no
 cloud database, nothing to leak. The only network feature is the **optional**

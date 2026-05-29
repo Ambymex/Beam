@@ -119,6 +119,10 @@ main { padding: 0 14px; max-width: 520px; margin: 0 auto; }
 .gmeal-dot { fill: var(--text); }
 .gmeal-label { fill: var(--muted); font-size: 9px; }
 
+.gsync { font-size: 12px; margin: -6px 0 8px; }
+.insight-group { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin: 16px 4px 4px; }
+.insight-group:first-child { margin-top: 6px; }
+
 .gevent { border-top: 1px solid var(--line); padding: 10px 0; }
 .gevent:first-child { border-top: none; }
 .gevent-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
