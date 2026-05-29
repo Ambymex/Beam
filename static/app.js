@@ -753,6 +753,73 @@ function exportData() {
   a.click();
   URL.revokeObjectURL(a.href);
 }
+// Additive merge of a previously-exported backup. Idempotent: re-importing the
+// same file changes nothing (entries dedupe by name+time+carbs, glucose by the
+// minute, favourites by name, meals by id/name). Existing data is never deleted.
+async function importData(file) {
+  let data;
+  try { data = JSON.parse(await file.text()); }
+  catch { toast("Couldn't read that file"); return; }
+  if (!data || typeof data !== "object") { toast("Not a Beam backup"); return; }
+
+  const days = data.log && typeof data.log === "object" ? Object.keys(data.log).length : 0;
+  const gpts = Array.isArray(data.glucose) ? data.glucose.length : 0;
+  const nFav = Array.isArray(data.favourites) ? data.favourites.length : 0;
+  const nMeal = Array.isArray(data.meals) ? data.meals.length : 0;
+  if (!confirm(
+    `Import & merge this backup?\n\n` +
+    `• ${days} day(s) of food log\n• ${nFav} favourites, ${nMeal} saved meals\n• ${gpts} glucose readings\n\n` +
+    `Your existing data is kept; duplicates are skipped.`
+  )) return;
+
+  const keyOf = (e) => `${e.name}|${e.time}|${e.net_carbs_g}`;
+  if (data.log && typeof data.log === "object") {
+    const log = loadLog();
+    for (const [date, entries] of Object.entries(data.log)) {
+      if (!Array.isArray(entries)) continue;
+      const cur = log[date] || [];
+      const seen = new Set(cur.map(keyOf));
+      for (const e of entries) {
+        if (e && e.name && !seen.has(keyOf(e))) { cur.push(e); seen.add(keyOf(e)); }
+      }
+      log[date] = cur;
+    }
+    saveLog(log);
+  }
+  if (Array.isArray(data.favourites)) {
+    const favs = loadFavs();
+    const names = new Set(favs.map((f) => f.name));
+    for (const f of data.favourites) if (f && f.name && !names.has(f.name)) { favs.push(f); names.add(f.name); }
+    saveFavs(favs);
+  }
+  if (Array.isArray(data.meals)) {
+    const meals = loadMeals();
+    const ids = new Set(meals.map((m) => m.id));
+    const mnames = new Set(meals.map((m) => m.name));
+    for (const m of data.meals) {
+      if (m && m.name && Array.isArray(m.items) && !ids.has(m.id) && !mnames.has(m.name)) {
+        meals.push(m); ids.add(m.id); mnames.add(m.name);
+      }
+    }
+    saveMeals(meals);
+  }
+  if (Array.isArray(data.glucose)) {
+    const pts = data.glucose
+      .filter((p) => Array.isArray(p) && p.length === 2 && Number.isFinite(p[0]) && Number.isFinite(p[1]))
+      .map(([t, v]) => ({ t: t * 1000, mgdl: v }));
+    BeamGlucose.mergePoints(pts);
+  }
+  if (data.settings && typeof data.settings === "object") {
+    state.settings = { ...state.settings, ...data.settings };
+    saveSettings();
+  }
+
+  openSettings();   // refresh the visible settings fields from merged state
+  render();
+  refreshGlucose();
+  toast("Backup imported");
+}
+
 function clearData() {
   if (!confirm("Delete ALL logged food and settings on this device? This can't be undone.")) return;
   localStorage.removeItem("beam.log");
@@ -822,6 +889,12 @@ function bind() {
   document.getElementById("settingsBtn").onclick = openSettings;
   document.querySelectorAll("[data-sclose]").forEach((el) => (el.onclick = closeSettings));
   document.getElementById("exportBtn").onclick = exportData;
+  document.getElementById("importBtn").onclick = () => document.getElementById("importFile").click();
+  document.getElementById("importFile").addEventListener("change", (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (f) importData(f);
+    e.target.value = ""; // allow re-importing the same file
+  });
   document.getElementById("clearBtn").onclick = clearData;
   document.getElementById("glucoseRefresh").onclick = () => { refreshGlucose(); syncGlucose(); };
   document.getElementById("insightsBtn").onclick = openInsights;

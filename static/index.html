@@ -207,7 +207,12 @@
       <p class="hint">Leave blank to hide the glucose panel. The token is your Beam <code>API_TOKEN</code>; stored only on this device.</p>
       <div class="divider"></div>
       <div class="btn-row">
-        <button id="exportBtn" class="secondary">Export data</button>
+        <button id="exportBtn" class="secondary">Export</button>
+        <button id="importBtn" class="secondary">Import</button>
+      </div>
+      <p class="hint">Export a JSON backup, or import one to merge it back in (duplicates are skipped — safe to re-import).</p>
+      <input id="importFile" type="file" accept="application/json,.json" hidden />
+      <div class="btn-row">
         <button id="clearBtn" class="danger">Clear all data</button>
       </div>
       <button class="primary" data-sclose>Done</button>

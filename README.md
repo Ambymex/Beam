@@ -62,7 +62,11 @@ Screen**. It then works offline, launches full-screen, and remembers your log.
   into one eating event, so a saved meal correlates as a single glucose response.
 - **Budget ring**: green → amber at 80% → red when you blow past your budget.
 - **Settings (⚙)**: change the daily budget, glucose units, paste a glucose
-  token, or export/clear your data.
+  token, or export / import / clear your data. **Export** writes a JSON backup
+  of everything (log, favourites, saved meals, glucose, settings); **Import**
+  merges a backup back in — additive and idempotent, so re-importing skips
+  duplicates and never deletes what's already there. Handy for moving devices
+  or keeping a backup.
 
 ## Run locally
 

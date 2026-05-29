@@ -1,6 +1,6 @@
 // Beam service worker — offline-first for the app shell, network-first for
 // the glucose API (which must stay live). Bump CACHE to invalidate.
-const CACHE = "beam-v6";
+const CACHE = "beam-v7";
 const SHELL = [
   "./",
   "./index.html",
