@@ -83,6 +83,39 @@ main { padding: 0 14px; max-width: 520px; margin: 0 auto; }
 .macro span { display: block; font-size: 20px; font-weight: 700; }
 .macro label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
 
+/* ---- Quick add (favourites & recents) ---- */
+.quick-add { margin: 0 0 12px; }
+.quick-add-row { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.quick-add-row::-webkit-scrollbar { display: none; }
+.qchip {
+  display: inline-flex; align-items: stretch; flex: 0 0 auto;
+  background: var(--card); border-radius: 12px; overflow: hidden; border: 1px solid var(--line);
+}
+.qchip.is-fav { border-color: #3b5; }
+.qchip-main {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  background: none; border: none; color: var(--text); cursor: pointer;
+  padding: 8px 4px 8px 12px; max-width: 150px;
+}
+.qchip-main:active { background: var(--card-2); }
+.qchip-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px; }
+.qchip-net { font-size: 11px; color: var(--teal); font-weight: 700; }
+.qchip-star {
+  background: none; border: none; color: var(--muted); cursor: pointer;
+  padding: 0 8px; font-size: 14px; display: grid; place-items: center;
+}
+.qchip.is-fav .qchip-star { color: var(--green); }
+
+.qty-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 4px 0 10px; }
+.qty-title-row .qty-title { margin: 0; }
+.favbtn { background: none; border: none; color: var(--muted); font-size: 26px; cursor: pointer; line-height: 1; padding: 2px 6px; }
+.favbtn.on { color: var(--green); }
+
+.toast-undo {
+  background: none; border: none; color: var(--teal); font-weight: 800;
+  font-size: 14px; cursor: pointer; margin-left: 14px; padding: 0;
+}
+
 /* ---- Safety / glucose ---- */
 .safety-row { margin-bottom: 12px; }
 .chip {

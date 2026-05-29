@@ -35,6 +35,59 @@ function loadLog() {
 function saveLog(log) { localStorage.setItem("beam.log", JSON.stringify(log)); }
 function dayEntries(date = state.date) { return loadLog()[date] || []; }
 
+/* ---- favourites & recents (one-tap re-logging) ---- */
+// A "template" is a ready-to-log entry minus meal/time: the exact thing you ate
+// last, including quantity and already-scaled macros.
+const TEMPLATE_KEYS = ["name", "serving", "qty", "net_carbs_g", "protein_g", "fat_g", "calories", "fiber_g", "gf", "df", "histamine", "leftover_risk"];
+function toTemplate(o) {
+  const t = {};
+  for (const k of TEMPLATE_KEYS) if (o[k] !== undefined) t[k] = o[k];
+  return t;
+}
+function loadFavs() {
+  try { const a = JSON.parse(localStorage.getItem("beam.favourites") || "[]"); return Array.isArray(a) ? a : []; }
+  catch { return []; }
+}
+function saveFavs(a) { localStorage.setItem("beam.favourites", JSON.stringify(a)); }
+function isFav(name) { return loadFavs().some((f) => f.name === name); }
+function toggleFav(template) {
+  const favs = loadFavs();
+  const i = favs.findIndex((f) => f.name === template.name);
+  if (i >= 0) favs.splice(i, 1);
+  else favs.unshift(toTemplate(template));
+  saveFavs(favs);
+}
+// Most-recently-logged distinct foods (by name), newest first, excluding favs.
+function getRecents(limit = 12) {
+  const log = loadLog();
+  const all = [];
+  for (const date of Object.keys(log)) for (const e of log[date]) all.push(e);
+  all.sort((a, b) => (Date.parse(b.time) || 0) - (Date.parse(a.time) || 0));
+  const seen = new Set(loadFavs().map((f) => f.name));
+  const out = [];
+  for (const e of all) {
+    if (seen.has(e.name)) continue;
+    seen.add(e.name);
+    out.push(toTemplate(e));
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+// Guess the meal slot from the clock, matching how meals cluster naturally.
+function mealForHour(h) {
+  if (h < 11) return "breakfast";
+  if (h < 15) return "lunch";
+  if (h < 21) return "dinner";
+  return "snack";
+}
+// A timestamp that lands on the viewed day (real clock time if it's today).
+function entryTimeForDate(dateKey) {
+  const now = new Date();
+  if (dateKey === todayKey()) return now.toISOString();
+  const [y, m, d] = dateKey.split("-").map(Number);
+  return new Date(y, m - 1, d, now.getHours(), now.getMinutes()).toISOString();
+}
+
 /* ---- date helpers ---- */
 function todayKey(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -134,6 +187,7 @@ function render() {
   document.getElementById("dateSub").textContent = state.date;
 
   renderLog(entries);
+  renderQuickAdd();
   if (typeof renderGlucose === "function") renderGlucose();
 }
 
@@ -250,27 +304,9 @@ function renderResults(q) {
 }
 
 /* ---- quantity sheet ---- */
-function openQty(food) {
-  state.pending = food;
-  document.getElementById("qtyTitle").textContent = food.name;
-  document.getElementById("qtyFlags").innerHTML = flagChips(food);
-  document.getElementById("qtyNote").textContent = food.note || "";
-  const input = document.getElementById("qtyInput");
-  input.value = 1;
-  updateQtyPreview();
-  document.getElementById("qtySheet").hidden = false;
-}
-function closeQty() { document.getElementById("qtySheet").hidden = true; state.pending = null; }
-function updateQtyPreview() {
-  const f = state.pending; if (!f) return;
-  const qty = Math.max(0.25, parseFloat(document.getElementById("qtyInput").value) || 1);
-  document.getElementById("qtyPreview").innerHTML =
-    `<b>${r1(f.net_carbs_g * qty)}g</b> net carbs · ${r1((f.protein_g || 0) * qty)}p / ${r1((f.fat_g || 0) * qty)}f · ${Math.round((f.calories || 0) * qty)} kcal`;
-}
-function confirmQty() {
-  const f = state.pending; if (!f) return;
-  const qty = Math.max(0.25, parseFloat(document.getElementById("qtyInput").value) || 1);
-  addEntry({
+// Scale a food (per-serving) to qty servings, producing a template (no meal/time).
+function scaledTemplate(f, qty) {
+  return {
     name: f.name, serving: f.serving, qty,
     net_carbs_g: r1(f.net_carbs_g * qty),
     protein_g: r1((f.protein_g || 0) * qty),
@@ -278,11 +314,87 @@ function confirmQty() {
     calories: Math.round((f.calories || 0) * qty),
     fiber_g: r1((f.fiber_g || 0) * qty),
     gf: f.gf, df: f.df, histamine: f.histamine, leftover_risk: f.leftover_risk,
-    meal: state.meal, time: new Date().toISOString(),
-  });
+  };
+}
+function curQty() { return Math.max(0.25, parseFloat(document.getElementById("qtyInput").value) || 1); }
+function openQty(food) {
+  state.pending = food;
+  document.getElementById("qtyTitle").textContent = food.name;
+  document.getElementById("qtyFlags").innerHTML = flagChips(food);
+  document.getElementById("qtyNote").textContent = food.note || "";
+  document.getElementById("qtyInput").value = 1;
+  updateFavBtn();
+  updateQtyPreview();
+  document.getElementById("qtySheet").hidden = false;
+}
+function closeQty() { document.getElementById("qtySheet").hidden = true; state.pending = null; }
+function updateFavBtn() {
+  const btn = document.getElementById("qtyFav");
+  const on = state.pending && isFav(state.pending.name);
+  btn.textContent = on ? "★" : "☆";
+  btn.classList.toggle("on", !!on);
+}
+function updateQtyPreview() {
+  const f = state.pending; if (!f) return;
+  const qty = curQty();
+  document.getElementById("qtyPreview").innerHTML =
+    `<b>${r1(f.net_carbs_g * qty)}g</b> net carbs · ${r1((f.protein_g || 0) * qty)}p / ${r1((f.fat_g || 0) * qty)}f · ${Math.round((f.calories || 0) * qty)} kcal`;
+}
+function toggleQtyFav() {
+  if (!state.pending) return;
+  toggleFav(scaledTemplate(state.pending, curQty()));
+  updateFavBtn();
+  renderQuickAdd();
+}
+function confirmQty() {
+  if (!state.pending) return;
+  addEntry({ ...scaledTemplate(state.pending, curQty()), meal: state.meal, time: new Date().toISOString() });
   closeQty();
   closeSheet();
-  toast(`Added ${f.name}`);
+  toast(`Added ${state.pending ? state.pending.name : "food"}`);
+}
+
+/* ---- quick add: one-tap re-logging from favourites & recents ---- */
+function quickAdd(template) {
+  const date = state.date;
+  const meal = mealForHour(new Date().getHours());
+  addEntry({ ...template, meal, time: entryTimeForDate(date) });
+  toastUndo(`Added ${template.name} → ${meal}`, () => {
+    const log = loadLog();
+    const arr = log[date];
+    if (!arr || !arr.length) return;
+    arr.pop(); // quick-add appended to the end
+    if (!arr.length) delete log[date];
+    saveLog(log);
+    render();
+  });
+}
+function renderQuickAdd() {
+  const section = document.getElementById("quickAdd");
+  const row = document.getElementById("quickChips");
+  const favs = loadFavs();
+  const recents = getRecents(12 - Math.min(favs.length, 6));
+  const items = [...favs.slice(0, 6).map((t) => ({ t, fav: true })), ...recents.map((t) => ({ t, fav: false }))];
+  if (!items.length) { section.hidden = true; return; }
+  section.hidden = false;
+  row.innerHTML = "";
+  for (const { t, fav } of items) {
+    const chip = document.createElement("div");
+    chip.className = "qchip" + (fav ? " is-fav" : "");
+    chip.innerHTML = `
+      <button class="qchip-main">
+        <span class="qchip-name">${escapeHtml(t.name)}</span>
+        <span class="qchip-net">${r1(t.net_carbs_g)}g</span>
+      </button>
+      <button class="qchip-star" aria-label="${fav ? "Unpin" : "Pin"}">${fav ? "★" : "☆"}</button>`;
+    chip.querySelector(".qchip-main").addEventListener("click", () => quickAdd(t));
+    chip.querySelector(".qchip-star").addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleFav(t);
+      renderQuickAdd();
+    });
+    row.appendChild(chip);
+  }
 }
 
 /* ---- custom food ---- */
@@ -487,7 +599,7 @@ function closeSettings() {
   syncGlucose();
 }
 function exportData() {
-  const blob = new Blob([JSON.stringify({ settings: state.settings, log: loadLog(), glucose: BeamGlucose.loadSeries() }, null, 2)],
+  const blob = new Blob([JSON.stringify({ settings: state.settings, log: loadLog(), favourites: loadFavs(), glucose: BeamGlucose.loadSeries() }, null, 2)],
     { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -499,6 +611,7 @@ function clearData() {
   if (!confirm("Delete ALL logged food and settings on this device? This can't be undone.")) return;
   localStorage.removeItem("beam.log");
   localStorage.removeItem("beam.settings");
+  localStorage.removeItem("beam.favourites");
   BeamGlucose.clear();
   state.settings = { ...DEFAULTS };
   render();
@@ -514,6 +627,20 @@ function toast(msg) {
   el.hidden = false;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => (el.hidden = true), 1800);
+}
+function toastUndo(msg, undoFn) {
+  const el = document.getElementById("toast");
+  el.innerHTML = "";
+  const span = document.createElement("span");
+  span.textContent = msg;
+  const btn = document.createElement("button");
+  btn.className = "toast-undo";
+  btn.textContent = "Undo";
+  btn.onclick = () => { clearTimeout(toastTimer); el.hidden = true; undoFn(); };
+  el.append(span, btn);
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => (el.hidden = true), 5000);
 }
 
 /* =========================================================================
@@ -536,6 +663,7 @@ function bind() {
 
   document.querySelectorAll("[data-qclose]").forEach((el) => (el.onclick = closeQty));
   document.getElementById("qtyInput").addEventListener("input", updateQtyPreview);
+  document.getElementById("qtyFav").onclick = toggleQtyFav;
   document.getElementById("qtyMinus").onclick = () => { stepQty(-0.25); };
   document.getElementById("qtyPlus").onclick = () => { stepQty(0.25); };
   document.getElementById("qtyAdd").onclick = confirmQty;

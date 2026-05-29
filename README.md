@@ -46,6 +46,10 @@ Screen**. It then works offline, launches full-screen, and remembers your log.
 
 - **Add food**: tap `+ Add food`, search the database (or add a custom food),
   pick the meal and servings, done.
+- **One-tap re-logging**: a Quick-add row on the home screen shows your pinned
+  **favourites** (★ them from the quantity sheet) and your **recents** (auto,
+  newest-first). Tap once to log your usual — at the same quantity, into the
+  meal slot that matches the clock — with an Undo. Built for predictable eaters.
 - **Budget ring**: green → amber at 80% → red when you blow past your budget.
 - **Settings (⚙)**: change the daily budget, glucose units, paste a glucose
   token, or export/clear your data.

@@ -51,6 +51,11 @@
       <div class="macro"><span id="mFiber">0</span><label>fiber</label></div>
     </section>
 
+    <!-- Quick add: one-tap favourites & recents -->
+    <section id="quickAdd" class="quick-add" hidden>
+      <div class="quick-add-row" id="quickChips"></div>
+    </section>
+
     <!-- Safety / MCAS load -->
     <section id="safetyRow" class="safety-row" hidden>
       <div id="histLoad" class="chip hist"></div>
@@ -119,7 +124,10 @@
     <div class="sheet-backdrop" data-qclose></div>
     <div class="sheet-panel small">
       <div class="sheet-grab"></div>
-      <div id="qtyTitle" class="qty-title"></div>
+      <div class="qty-title-row">
+        <div id="qtyTitle" class="qty-title"></div>
+        <button id="qtyFav" class="favbtn" aria-label="Pin to favourites">☆</button>
+      </div>
       <div id="qtyFlags" class="flags"></div>
       <div id="qtyNote" class="qty-note"></div>
       <label class="qty-row">
