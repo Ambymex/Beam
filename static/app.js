@@ -423,10 +423,11 @@ function toggleQtyFav() {
 }
 function confirmQty() {
   if (!state.pending) return;
+  const name = state.pending.name;
   addEntry({ ...scaledTemplate(state.pending, curQty()), meal: state.meal, time: new Date().toISOString() });
   closeQty();
   closeSheet();
-  toast(`Added ${state.pending ? state.pending.name : "food"}`);
+  toast(`Added ${name}`);
 }
 
 /* ---- quick add: one-tap re-logging from favourites & recents ---- */
@@ -872,7 +873,11 @@ function bind() {
   document.getElementById("mealTabs").addEventListener("click", (e) => {
     const btn = e.target.closest(".meal-tab"); if (!btn) return;
     state.meal = btn.dataset.meal;
-    document.querySelectorAll(".meal-tab").forEach((b) => b.classList.toggle("active", b === btn));
+    document.querySelectorAll(".meal-tab").forEach((b) => {
+      const on = b === btn;
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
   });
 
   document.querySelectorAll("[data-qclose]").forEach((el) => (el.onclick = closeQty));
@@ -906,10 +911,65 @@ function stepQty(d) {
   updateQtyPreview();
 }
 
+/* =========================================================================
+ * Accessibility: sheet focus management (trap, Escape, focus return)
+ * ====================================================================== */
+const SHEET_CLOSERS = {
+  sheet: closeSheet,
+  qtySheet: closeQty,
+  customSheet: closeCustom,
+  insightsSheet: closeInsights,
+  settingsSheet: closeSettings,
+};
+const focusStack = [];
+function focusablesIn(panel) {
+  return [...panel.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+    .filter((el) => !el.disabled && !el.hidden && el.offsetParent !== null);
+}
+function topSheet() {
+  const open = [...document.querySelectorAll(".sheet")].filter((s) => !s.hidden);
+  return open[open.length - 1] || null;
+}
+function setupSheetA11y() {
+  // When a sheet shows, remember focus and move it inside; when it hides,
+  // restore focus to wherever it came from (LIFO handles stacked sheets).
+  document.querySelectorAll(".sheet").forEach((sheet) => {
+    new MutationObserver(() => {
+      if (!sheet.hidden) {
+        focusStack.push(document.activeElement);
+        const panel = sheet.querySelector(".sheet-panel");
+        const f = focusablesIn(panel);
+        if (f.length) f[0].focus();
+      } else {
+        const prev = focusStack.pop();
+        if (prev && document.body.contains(prev)) prev.focus();
+      }
+    }).observe(sheet, { attributes: true, attributeFilter: ["hidden"] });
+  });
+
+  document.addEventListener("keydown", (e) => {
+    const top = topSheet();
+    if (!top) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      (SHEET_CLOSERS[top.id] || (() => (top.hidden = true)))();
+      return;
+    }
+    if (e.key === "Tab") {
+      const f = focusablesIn(top.querySelector(".sheet-panel"));
+      if (!f.length) return;
+      const first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  });
+}
+
 /* ---- boot ---- */
 async function boot() {
   loadSettings();
   bind();
+  setupSheetA11y();
   render();
 
   try {

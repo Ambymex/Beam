@@ -32,6 +32,12 @@ Designed around three overlapping needs:
   When the Libre bridge is on, each day also shows **time-in-range** (% of
   readings in target) with an average — the standard CGM metric.
 
+- **Accessible by default** — built with the high MCAS/neurodivergent overlap in
+  mind: honours `prefers-reduced-motion` (no slide/fade/animation), clear
+  keyboard focus rings, sheets are proper dialogs with focus trapping, Escape to
+  close and focus return, screen-reader announcements for actions, and large
+  touch targets.
+
 Your food log lives entirely in your browser's local storage — no account, no
 cloud database, nothing to leak. The only network feature is the **optional**
 glucose bridge below.

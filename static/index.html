@@ -104,17 +104,17 @@
   <!-- Add-food sheet -->
   <div id="sheet" class="sheet" hidden>
     <div class="sheet-backdrop" data-close></div>
-    <div class="sheet-panel">
+    <div class="sheet-panel" role="dialog" aria-modal="true" aria-label="Add food">
       <div class="sheet-grab"></div>
       <div class="sheet-head">
-        <input id="search" class="search" type="search" placeholder="Search foods…" autocomplete="off" />
+        <input id="search" class="search" type="search" placeholder="Search foods…" autocomplete="off" aria-label="Search foods" />
         <button class="textbtn" data-close>Done</button>
       </div>
-      <div class="meal-tabs" id="mealTabs">
-        <button class="meal-tab active" data-meal="breakfast">Breakfast</button>
-        <button class="meal-tab" data-meal="lunch">Lunch</button>
-        <button class="meal-tab" data-meal="dinner">Dinner</button>
-        <button class="meal-tab" data-meal="snack">Snack</button>
+      <div class="meal-tabs" id="mealTabs" role="group" aria-label="Meal">
+        <button class="meal-tab active" data-meal="breakfast" aria-pressed="true">Breakfast</button>
+        <button class="meal-tab" data-meal="lunch" aria-pressed="false">Lunch</button>
+        <button class="meal-tab" data-meal="dinner" aria-pressed="false">Dinner</button>
+        <button class="meal-tab" data-meal="snack" aria-pressed="false">Snack</button>
       </div>
       <div id="results" class="results"></div>
       <button id="customBtn" class="custombtn">+ Add a custom food</button>
@@ -124,7 +124,7 @@
   <!-- Quantity / detail sheet -->
   <div id="qtySheet" class="sheet" hidden>
     <div class="sheet-backdrop" data-qclose></div>
-    <div class="sheet-panel small">
+    <div class="sheet-panel small" role="dialog" aria-modal="true" aria-label="Food details">
       <div class="sheet-grab"></div>
       <div class="qty-title-row">
         <div id="qtyTitle" class="qty-title"></div>
@@ -148,7 +148,7 @@
   <!-- Custom food sheet -->
   <div id="customSheet" class="sheet" hidden>
     <div class="sheet-backdrop" data-cclose></div>
-    <div class="sheet-panel small">
+    <div class="sheet-panel small" role="dialog" aria-modal="true" aria-label="Custom food">
       <div class="sheet-grab"></div>
       <div class="qty-title">Custom food</div>
       <label class="field"><span>Name</span><input id="cName" type="text" placeholder="e.g. Mum's frittata" /></label>
@@ -177,7 +177,7 @@
   <!-- Insights sheet (cross-day food → spike ranking) -->
   <div id="insightsSheet" class="sheet" hidden>
     <div class="sheet-backdrop" data-iclose></div>
-    <div class="sheet-panel">
+    <div class="sheet-panel" role="dialog" aria-modal="true" aria-label="Your biggest spikers">
       <div class="sheet-grab"></div>
       <div class="sheet-head">
         <div class="qty-title" style="margin:0">Your biggest spikers</div>
@@ -191,7 +191,7 @@
   <!-- Settings sheet -->
   <div id="settingsSheet" class="sheet" hidden>
     <div class="sheet-backdrop" data-sclose></div>
-    <div class="sheet-panel small">
+    <div class="sheet-panel small" role="dialog" aria-modal="true" aria-label="Settings">
       <div class="sheet-grab"></div>
       <div class="qty-title">Settings</div>
       <label class="field"><span>Daily net carb budget (g)</span><input id="setBudget" type="number" min="5" step="1" inputmode="numeric" /></label>
@@ -219,7 +219,7 @@
     </div>
   </div>
 
-  <div id="toast" class="toast" hidden></div>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="glucose.js"></script>
   <script src="app.js"></script>

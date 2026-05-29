@@ -18,6 +18,23 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
+/* Keyboard focus: a clear, consistent ring for everyone tabbing through. */
+:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Respect reduced-motion: kill the slide/fade/ring animations entirely. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 html, body {
   margin: 0;
   background: var(--bg);
@@ -129,7 +146,7 @@ main { padding: 0 14px; max-width: 520px; margin: 0 auto; }
 .qchip-net { font-size: 11px; color: var(--teal); font-weight: 700; }
 .qchip-star {
   background: none; border: none; color: var(--muted); cursor: pointer;
-  padding: 0 8px; font-size: 14px; display: grid; place-items: center;
+  padding: 0 10px; min-width: 40px; font-size: 14px; display: grid; place-items: center;
 }
 .qchip.is-fav .qchip-star { color: var(--green); }
 
@@ -228,7 +245,7 @@ main { padding: 0 14px; max-width: 520px; margin: 0 auto; }
 .log-item .li-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
 .log-item .li-carb { font-size: 17px; font-weight: 800; color: var(--teal); white-space: nowrap; }
 .log-item .li-carb small { font-size: 11px; color: var(--muted); font-weight: 500; }
-.li-del { background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; padding: 4px; }
+.li-del { background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; min-width: 40px; min-height: 40px; }
 .li-del:active { color: var(--red); }
 .flags { display: inline-flex; gap: 5px; margin-top: 4px; flex-wrap: wrap; }
 .flag {
