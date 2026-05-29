@@ -72,6 +72,30 @@ main { padding: 0 14px; max-width: 520px; margin: 0 auto; }
 .budget-msg.warn { color: var(--amber); }
 .budget-msg.over { color: var(--red); }
 
+/* ---- Streak (gentle) ---- */
+.streak-line {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  justify-content: center; margin-top: 8px; font-size: 13px;
+}
+.streak-head { color: var(--text); font-weight: 600; }
+.streak-best { color: var(--muted); font-size: 12px; }
+.wk-strip { display: inline-flex; gap: 4px; }
+.wk-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); display: inline-block; }
+.wk-dot.in { background: var(--green); }
+.wk-dot.over { background: var(--amber); }
+.wk-dot.none { background: var(--line); }
+
+/* ---- Time in range ---- */
+.tir-box { margin: 2px 0 12px; }
+.tir-top { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.tir-pct { font-size: 22px; font-weight: 800; color: var(--green); }
+.tir-label { font-size: 12px; color: var(--muted); }
+.tir-bar { display: flex; height: 8px; border-radius: 5px; overflow: hidden; background: var(--line); }
+.tir-seg { display: block; height: 100%; }
+.tir-seg.below { background: var(--red); }
+.tir-seg.in { background: var(--green); }
+.tir-seg.above { background: var(--amber); }
+
 /* ---- Macros ---- */
 .macros {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;

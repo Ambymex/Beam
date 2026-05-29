@@ -26,6 +26,12 @@ Designed around three overlapping needs:
   leaderboard ranks every food by its average glucose rise across all your
   tracked meals (and surfaces your steadiest "safe bets").
 
+- **Gentle streaks + time-in-range** — a days-within-budget streak designed to
+  be kind: a grace day means an un-started morning never "breaks" it, language
+  stays encouraging (a fresh start, never shame), and a 7-day strip just informs.
+  When the Libre bridge is on, each day also shows **time-in-range** (% of
+  readings in target) with an average — the standard CGM metric.
+
 Your food log lives entirely in your browser's local storage — no account, no
 cloud database, nothing to leak. The only network feature is the **optional**
 glucose bridge below.

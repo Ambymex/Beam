@@ -183,6 +183,22 @@ const BeamGlucose = (() => {
     return series.filter(([t]) => t * 1000 >= a && t * 1000 < b);
   }
 
+  // Time-in-range for a day's readings (the standard CGM metric).
+  function timeInRange(series, dateKey) {
+    const day = seriesForDay(series, dateKey);
+    if (!day.length) return null;
+    let inR = 0, below = 0, above = 0, sum = 0;
+    for (const [, v] of day) {
+      sum += v;
+      if (v < RANGE_LO) below++;
+      else if (v > RANGE_HI) above++;
+      else inR++;
+    }
+    const n = day.length;
+    const pct = (x) => Math.round((x / n) * 100);
+    return { n, avgMgdl: sum / n, inPct: pct(inR), belowPct: pct(below), abovePct: pct(above) };
+  }
+
   /* ---- day chart (returns an SVG string; "" if nothing to show) ---- */
   function buildDayChart(series, events, dateKey, unit) {
     const day = seriesForDay(series, dateKey);
@@ -232,7 +248,7 @@ const BeamGlucose = (() => {
 
   return {
     loadSeries, saveSeries, clear, mergePoints, sync,
-    mealEvents, responseFor, foodInsights, seriesForDay, buildDayChart,
+    mealEvents, responseFor, foodInsights, seriesForDay, timeInRange, buildDayChart,
     fmt, fmtDelta, unitLabel, spikeClass, toMmol,
     GAP_MIN, RANGE_LO, RANGE_HI,
   };

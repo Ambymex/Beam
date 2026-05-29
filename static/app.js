@@ -118,6 +118,42 @@ function totals(entries) {
   }), { net: 0, protein: 0, fat: 0, cals: 0, fiber: 0 });
 }
 
+/* ---- streak (kind by design: a grace day, no guilt) ---- */
+// A day "counts" if you logged something and stayed at/under budget.
+function dayQualifies(log, key, budget) {
+  const e = log[key] || [];
+  return e.length > 0 && totals(e).net <= budget;
+}
+function streakStats() {
+  const log = loadLog();
+  const budget = state.settings.budget;
+
+  // Best run ever: longest stretch of consecutive calendar days that qualify.
+  const quals = Object.keys(log).filter((k) => dayQualifies(log, k, budget)).sort();
+  let best = 0, run = 0, prev = null;
+  for (const k of quals) {
+    run = prev && shiftDate(prev, 1) === k ? run + 1 : 1;
+    best = Math.max(best, run);
+    prev = k;
+  }
+
+  // Current run, ending today — but if today simply hasn't been started yet,
+  // we count back from yesterday so an empty morning never "breaks" anything.
+  let key = todayKey();
+  if (!dayQualifies(log, key, budget) && !(log[key] || []).length) key = shiftDate(key, -1);
+  let current = 0;
+  while (dayQualifies(log, key, budget)) { current++; key = shiftDate(key, -1); }
+
+  // Last 7 days status for a gentle, informational strip.
+  const week = [];
+  for (let i = 6; i >= 0; i--) {
+    const k = shiftDate(todayKey(), -i);
+    const e = log[k] || [];
+    week.push(!e.length ? "none" : totals(e).net <= budget ? "in" : "over");
+  }
+  return { current, best, week };
+}
+
 /* ---- flags ---- */
 function flagChips(food, { compact = false } = {}) {
   const chips = [];
@@ -186,9 +222,25 @@ function render() {
   document.getElementById("dateLabel").textContent = prettyDate(state.date);
   document.getElementById("dateSub").textContent = state.date;
 
+  renderStreak();
   renderLog(entries);
   renderQuickAdd();
   if (typeof renderGlucose === "function") renderGlucose();
+}
+
+// Gentle, non-punishing streak display.
+function renderStreak() {
+  const el = document.getElementById("streakLine");
+  const { current, best, week } = streakStats();
+  const dots = week.map((s) => `<span class="wk-dot ${s}" title="${s}"></span>`).join("");
+  let headline;
+  if (current >= 1) {
+    headline = `✨ ${current} day${current === 1 ? "" : "s"} within budget`;
+  } else {
+    headline = `🌱 A fresh start — log a meal to begin`;
+  }
+  const bestBit = best > Math.max(current, 0) ? `<span class="streak-best">best ${best}</span>` : "";
+  el.innerHTML = `<span class="streak-head">${headline}</span>${bestBit}<span class="wk-strip">${dots}</span>`;
 }
 
 function renderLog(entries) {
@@ -478,6 +530,25 @@ function renderGlucose() {
   if (state.glucoseSync && !state.glucoseSync.ok) info.textContent = state.glucoseSync.msg;
   else if (state.glucoseSync) info.textContent = `${state.glucoseSync.total} readings stored`;
   else info.textContent = "";
+
+  // Time-in-range summary for the viewed day.
+  const tirBox = document.getElementById("tirBox");
+  const tir = BeamGlucose.timeInRange(series, state.date);
+  if (tir) {
+    tirBox.hidden = false;
+    tirBox.innerHTML = `
+      <div class="tir-top">
+        <span class="tir-pct">${tir.inPct}%</span>
+        <span class="tir-label">in range · avg ${BeamGlucose.fmt(tir.avgMgdl, unit)} ${BeamGlucose.unitLabel(unit)}</span>
+      </div>
+      <div class="tir-bar">
+        <span class="tir-seg below" style="width:${tir.belowPct}%"></span>
+        <span class="tir-seg in" style="width:${tir.inPct}%"></span>
+        <span class="tir-seg above" style="width:${tir.abovePct}%"></span>
+      </div>`;
+  } else {
+    tirBox.hidden = true;
+  }
 
   document.getElementById("gchartWrap").innerHTML =
     BeamGlucose.buildDayChart(series, events, state.date, unit);
