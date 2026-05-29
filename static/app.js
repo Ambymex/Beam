@@ -525,6 +525,101 @@ function renderQuickAdd() {
   }
 }
 
+/* ---- barcode scanning (Open Food Facts) ---- */
+let scanStream = null, scanTimer = null, barcodeDetector = null;
+
+// Map an Open Food Facts product into a Beam food (one "serving" = the pack's
+// serving size, or 100g). Net carbs = carbs - fiber - sugar alcohols.
+function mapOFFProduct(p, code) {
+  const n = p.nutriments || {};
+  const grams = p.serving_quantity && +p.serving_quantity > 0 ? +p.serving_quantity : 100;
+  const per = (k) => ((+n[`${k}_100g`] || 0) * grams) / 100;
+  const net = Math.max(0, per("carbohydrates") - per("fiber") - per("polyols"));
+
+  const allerg = (p.allergens_tags || []).join(",");
+  const labels = (p.labels_tags || []).join(",");
+  const gf = /gluten-free|no-gluten/.test(labels) ? true : !/gluten|wheat|barley|rye|spelt/.test(allerg);
+  const df = /lactose-free|no-lactose|dairy-free/.test(labels) ? true : !/milk|lactose/.test(allerg);
+
+  return {
+    name: [p.product_name, p.brands].filter(Boolean).join(" · ") || `Barcode ${code}`,
+    serving: p.serving_size || `${grams} g`,
+    net_carbs_g: r1(net),
+    protein_g: r1(per("proteins")),
+    fat_g: r1(per("fat")),
+    calories: Math.round(((+n["energy-kcal_100g"] || 0) * grams) / 100),
+    fiber_g: r1(per("fiber")),
+    gf, df, histamine: undefined,
+    note: "From Open Food Facts — verify the packet for coeliac/dairy safety. Histamine isn't tracked, so judge by your own triggers.",
+  };
+}
+
+async function lookupBarcode(code) {
+  const fields = "product_name,brands,nutriments,serving_size,serving_quantity,allergens_tags,labels_tags";
+  const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=${fields}`);
+  if (!res.ok) throw new Error(`lookup failed (${res.status})`);
+  const data = await res.json();
+  if (data.status !== 1 || !data.product) return null;
+  return mapOFFProduct(data.product, code);
+}
+
+function stopCamera() {
+  if (scanTimer) { clearInterval(scanTimer); scanTimer = null; }
+  if (scanStream) { scanStream.getTracks().forEach((t) => t.stop()); scanStream = null; }
+}
+function setScanStatus(msg) { document.getElementById("scanStatus").textContent = msg; }
+
+async function openScan() {
+  document.getElementById("scanInput").value = "";
+  const view = document.getElementById("scanView");
+  view.classList.remove("off");
+  document.getElementById("scanSheet").hidden = false;
+  setScanStatus("");
+
+  if (!("BarcodeDetector" in window)) {
+    view.classList.add("off");
+    setScanStatus("Live scan isn't supported in this browser — type the number below.");
+    return;
+  }
+  try {
+    barcodeDetector = barcodeDetector || new BarcodeDetector({ formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128"] });
+    scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    const video = document.getElementById("scanVideo");
+    video.srcObject = scanStream;
+    await video.play();
+    setScanStatus("Point the camera at a barcode…");
+    scanTimer = setInterval(async () => {
+      try {
+        const codes = await barcodeDetector.detect(video);
+        if (codes && codes.length) { const code = codes[0].rawValue; stopCamera(); handleBarcode(code); }
+      } catch { /* frame not ready */ }
+    }, 600);
+  } catch {
+    view.classList.add("off");
+    setScanStatus("Camera unavailable — type the barcode number below.");
+  }
+}
+function closeScan() {
+  stopCamera();
+  document.getElementById("scanSheet").hidden = true;
+  document.getElementById("scanView").classList.remove("off");
+}
+async function handleBarcode(code) {
+  setScanStatus(`Looking up ${code}…`);
+  let food = null;
+  try { food = await lookupBarcode(code); }
+  catch { setScanStatus("Lookup failed — check your connection, or enter it manually."); return; }
+  if (!food) { setScanStatus(`No match for ${code}. Try again, or add it as a custom food.`); return; }
+  closeScan();
+  openQty(food);
+}
+function scanManual() {
+  const code = document.getElementById("scanInput").value.trim();
+  if (!code) { toast("Enter a barcode number"); return; }
+  stopCamera();
+  handleBarcode(code);
+}
+
 /* ---- custom food ---- */
 function openCustom() { document.getElementById("customSheet").hidden = false; }
 function closeCustom() {
@@ -887,6 +982,11 @@ function bind() {
   document.getElementById("qtyPlus").onclick = () => { stepQty(0.25); };
   document.getElementById("qtyAdd").onclick = confirmQty;
 
+  document.getElementById("scanBtn").onclick = openScan;
+  document.querySelectorAll("[data-scanclose]").forEach((el) => (el.onclick = closeScan));
+  document.getElementById("scanLookup").onclick = scanManual;
+  document.getElementById("scanInput").addEventListener("keydown", (e) => { if (e.key === "Enter") scanManual(); });
+
   document.getElementById("customBtn").onclick = openCustom;
   document.querySelectorAll("[data-cclose]").forEach((el) => (el.onclick = closeCustom));
   document.getElementById("customAdd").onclick = confirmCustom;
@@ -916,6 +1016,7 @@ function stepQty(d) {
  * ====================================================================== */
 const SHEET_CLOSERS = {
   sheet: closeSheet,
+  scanSheet: closeScan,
   qtySheet: closeQty,
   customSheet: closeCustom,
   insightsSheet: closeInsights,

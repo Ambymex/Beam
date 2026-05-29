@@ -117,7 +117,31 @@
         <button class="meal-tab" data-meal="snack" aria-pressed="false">Snack</button>
       </div>
       <div id="results" class="results"></div>
-      <button id="customBtn" class="custombtn">+ Add a custom food</button>
+      <div class="sheet-actions">
+        <button id="scanBtn" class="custombtn">📷 Scan barcode</button>
+        <button id="customBtn" class="custombtn">＋ Custom food</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Barcode scan sheet -->
+  <div id="scanSheet" class="sheet" hidden>
+    <div class="sheet-backdrop" data-scanclose></div>
+    <div class="sheet-panel small" role="dialog" aria-modal="true" aria-label="Scan barcode">
+      <div class="sheet-grab"></div>
+      <div class="sheet-head">
+        <div class="qty-title" style="margin:0">Scan barcode</div>
+        <button class="textbtn" data-scanclose>Cancel</button>
+      </div>
+      <div id="scanView" class="scan-view">
+        <video id="scanVideo" playsinline muted></video>
+      </div>
+      <div id="scanStatus" class="scan-status"></div>
+      <label class="field"><span>Or enter the barcode number</span>
+        <input id="scanInput" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 5012345678900" />
+      </label>
+      <button id="scanLookup" class="primary">Look up</button>
+      <p class="hint">Product data from Open Food Facts. Always check the packet — flags are a hint, not a guarantee.</p>
     </div>
   </div>
 
