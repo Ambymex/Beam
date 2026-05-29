@@ -1,14 +1,22 @@
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi.staticfiles import StaticFiles
 
-from librelinkup import LibreLinkUp
-
-EMAIL = os.environ["LLU_EMAIL"]
-PASSWORD = os.environ["LLU_PASSWORD"]
-API_TOKEN = os.environ["API_TOKEN"]
+# --- Optional glucose bridge -------------------------------------------------
+# Beam started life as a FreeStyle Libre 2 -> cloud bridge. The food tracker
+# PWA works completely standalone; the glucose endpoints only switch on if you
+# provide Libre credentials. No creds => the app still boots, the glucose panel
+# just stays dormant.
+EMAIL = os.environ.get("LLU_EMAIL")
+PASSWORD = os.environ.get("LLU_PASSWORD")
+API_TOKEN = os.environ.get("API_TOKEN")
 PATIENT_ID = os.environ.get("LLU_PATIENT_ID")
+GLUCOSE_ENABLED = bool(EMAIL and PASSWORD and API_TOKEN)
+
+STATIC_DIR = Path(__file__).parent / "static"
 
 TREND = {
     1: "falling quickly",
@@ -18,11 +26,40 @@ TREND = {
     5: "rising quickly",
 }
 
-app = FastAPI(title="Beam", description="Libre 2 to Gemini bridge")
-client = LibreLinkUp(EMAIL, PASSWORD)
+# Icons are generated, not committed (keeps the repo free of binaries). On Fly
+# they're baked in at Docker build time. For local `uvicorn` runs we generate
+# them lazily in a background thread so they appear without blocking startup
+# (pure-Python supersampling takes a few seconds).
+def _ensure_icons() -> None:
+    if (STATIC_DIR / "icons" / "icon-512.png").exists():
+        return
+    try:
+        import sys
+
+        sys.path.insert(0, str(Path(__file__).parent / "scripts"))
+        import make_icons
+
+        make_icons.main()
+    except Exception as exc:  # never let icon generation affect the app
+        print(f"icon generation skipped: {exc}")
+
+
+import threading
+
+threading.Thread(target=_ensure_icons, daemon=True).start()
+
+app = FastAPI(title="Beam", description="Keto food tracker + Libre glucose bridge")
+
+client = None
+if GLUCOSE_ENABLED:
+    from librelinkup import LibreLinkUp
+
+    client = LibreLinkUp(EMAIL, PASSWORD)
 
 
 def require_token(authorization: str | None) -> None:
+    if not GLUCOSE_ENABLED:
+        raise HTTPException(status_code=503, detail="glucose bridge not configured")
     if authorization != f"Bearer {API_TOKEN}":
         raise HTTPException(status_code=401, detail="invalid token")
 
@@ -88,4 +125,16 @@ async def history(
 
 @app.get("/healthz")
 async def healthz():
-    return {"ok": True}
+    return {"ok": True, "glucose_enabled": GLUCOSE_ENABLED}
+
+
+@app.get("/config")
+async def config():
+    """Public, non-secret runtime info the PWA reads on load."""
+    return {"glucose_enabled": GLUCOSE_ENABLED}
+
+
+# --- PWA static hosting ------------------------------------------------------
+# Mounted last so the API routes above take precedence. html=True serves
+# index.html at "/" and lets the service worker / manifest resolve.
+app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")

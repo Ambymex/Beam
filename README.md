@@ -1,120 +1,106 @@
 # Beam
 
-A tiny HTTPS bridge that lets your Gemini companion read your FreeStyle Libre 2
-blood glucose data directly, as a Gem Action.
+A net-carb-first keto food tracker, built for awkward bodies. It's a
+phone-installable PWA that puts your **net carb budget** front and centre and
+flags every food for **gluten 🌾, dairy 🥛 and histamine 🧬** — the things
+generic trackers like MyFitnessPal bury or ignore entirely.
+
+Designed around three overlapping needs:
+
+- **Keto** — a daily net-carb budget (default 20g) as the hero number, with
+  fiber and sugar alcohols already subtracted. Calories are a footnote, not the
+  headline.
+- **Coeliac** — gluten flagged on every food; sneaky sources (e.g. sausage
+  rusk) called out in notes.
+- **Lactose intolerance** — dairy clearly marked, with dairy-free subs in the
+  database (ghee, coconut cream, etc.).
+- **MCAS** — a per-day **histamine load** indicator plus high/moderate
+  histamine flags and "eat fresh" warnings for leftover-risk foods. Almost no
+  mainstream tracker does this.
+
+Your food log lives entirely in your browser's local storage — no account, no
+cloud database, nothing to leak. The only network feature is the **optional**
+glucose bridge below.
 
 ```
-Libre 2 sensor  --BLE-->  iPhone LibreLink  --upload-->  LibreView cloud
-                                                              |
-                                                              | (LibreLinkUp follower API)
-                                                              v
-                                              Beam (FastAPI on Fly.io)
-                                                              |
-                                                              | (HTTPS, OpenAPI Action)
-                                                              v
-                                                       Gemini Gem
+┌─────────────────────────────┐        ┌──────────────────────────────┐
+│  Beam PWA (this app)         │        │  Optional: Libre 2 glucose   │
+│  • net carb budget ring      │        │  Libre 2 → LibreLinkUp cloud │
+│  • gluten/dairy/histamine    │        │            ↓                 │
+│  • food log (on-device)      │◀───────│  Beam /glucose/* endpoints   │
+└─────────────────────────────┘  token  └──────────────────────────────┘
 ```
 
-## 1. Set up a LibreLinkUp follower
+## Use it
 
-Abbott's official LibreLinkUp app is the "caregiver" companion to LibreLink.
-We piggyback on it: you invite a second account to follow your readings, and
-Beam logs in as that follower.
+The app is fully static — open the served URL on your phone and **Add to Home
+Screen**. It then works offline, launches full-screen, and remembers your log.
 
-1. On any device (a second phone, an old tablet, even a friend's phone you
-   borrow once), install **LibreLinkUp** from the App Store / Play Store.
-2. Sign up for a new account using a **different email** from your main
-   LibreLink account. Pick a strong password.
-3. On your **main** phone, open LibreLink → **Connected Apps** →
-   **LibreLinkUp** → **Add Connection** and enter the follower account's
-   email. The follower will get an email invite — accept it.
-4. Open LibreLinkUp on the follower device and confirm you can see your
-   glucose readings flowing in. (You can uninstall the app afterwards; we
-   only need the credentials.)
+- **Add food**: tap `+ Add food`, search the database (or add a custom food),
+  pick the meal and servings, done.
+- **Budget ring**: green → amber at 80% → red when you blow past your budget.
+- **Settings (⚙)**: change the daily budget, glucose units, paste a glucose
+  token, or export/clear your data.
 
-You now have:
-- `LLU_EMAIL` — the follower account's email
-- `LLU_PASSWORD` — the follower account's password
-
-## 2. Run locally (optional sanity check)
+## Run locally
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env  # fill it in
-set -a; source .env; set +a
 uvicorn app:app --reload --port 8080
 ```
 
-```bash
-curl -H "Authorization: Bearer $API_TOKEN" http://localhost:8080/glucose/current
-```
+Open <http://localhost:8080>. No environment variables are required — the
+glucose panel simply stays hidden until you configure it.
 
-You should see something like:
-
-```json
-{
-  "mg_per_dl": 112,
-  "mmol_per_l": 6.2,
-  "trend": "stable",
-  "timestamp_utc": "2026-05-15T14:23:00+00:00",
-  "minutes_old": 1,
-  "is_high": false,
-  "is_low": false
-}
-```
-
-## 3. Deploy to Fly.io
+Regenerate the app icons (zero dependencies) with:
 
 ```bash
-brew install flyctl     # if you haven't
-fly auth login
-fly launch --no-deploy  # accept name beam-glucose or pick your own; skip Postgres/Redis
-fly secrets set \
-  LLU_EMAIL='your-followup-account@example.com' \
-  LLU_PASSWORD='your-followup-password' \
-  API_TOKEN="$(openssl rand -hex 32)"
+python scripts/make_icons.py
+```
+
+## Deploy to Fly.io
+
+```bash
+fly launch --no-deploy   # pick a name; skip Postgres/Redis
 fly deploy
-fly secrets list   # confirm; copy API_TOKEN value once for the Gem step
 ```
 
-Note the URL Fly prints (e.g. `https://beam-glucose.fly.dev`).
+The app sleeps when idle and wakes on first request, so it costs ~nothing.
 
-The app sleeps when idle and wakes on the first request (~1s cold start),
-so it costs essentially nothing to run.
+## Optional: live glucose from a FreeStyle Libre 2
 
-## 4. Wire it up as a Gem Action
+Beam started as a Libre→cloud bridge and that capability is still here. If you
+wear a Libre 2, you can surface your live reading inside the tracker.
 
-In the Gemini app or web (Google AI Pro / Ultra required for custom Gems):
+1. Set up a **LibreLinkUp follower** account (install LibreLinkUp on any
+   device, sign up with a *different* email from your LibreLink, then in
+   LibreLink go to **Connected Apps → LibreLinkUp → Add Connection** and invite
+   that follower email; accept the invite).
+2. Configure Beam with the follower credentials and a self-chosen API token:
 
-1. **Gems** → **New Gem** → name it whatever (e.g. "Health buddy").
-2. Add the system instructions you'd like — something like *"You can read my
-   live glucose with the Beam Action. Use mg/dL by default."*
-3. Under **Actions** (or **Tools**, depending on UI version), choose **Add
-   custom action** → **Import OpenAPI**.
-4. Paste the contents of [`gem-action.yaml`](./gem-action.yaml), with the
-   `servers.url` line replaced by your real Fly URL.
-5. For **Authentication**, choose **API key** → **Bearer** and paste the
-   `API_TOKEN` value from step 3.
-6. Save. Test by asking him "what's my glucose right now?" — he should call
-   `getCurrentGlucose` and reply with the reading.
+   ```bash
+   fly secrets set \
+     LLU_EMAIL='follower@example.com' \
+     LLU_PASSWORD='follower-password' \
+     API_TOKEN="$(openssl rand -hex 32)"
+   ```
 
-> If your Gemini tier doesn't expose custom Gem Actions, the same server
-> works as a plain URL: ask him to fetch
-> `https://beam-glucose.fly.dev/glucose/current` with header
-> `Authorization: Bearer <token>`. Slightly clunkier, same data.
+   (Locally, `export` the same three variables before running uvicorn.)
+3. In the app's **Settings → API token**, paste the `API_TOKEN` value. The
+   glucose panel appears with your current reading, trend and age.
 
-## Operational notes
+The token is stored only on your device and sent as a Bearer header to Beam's
+`/glucose/current` endpoint. Rotate it anytime with `fly secrets set` to revoke
+a leaked token. If logins start failing, Abbott has likely bumped the minimum
+client version — update the `version` string in `librelinkup.py`.
 
-- **Token rotation**: rotate `API_TOKEN` with `fly secrets set` and update
-  the Gem's auth — that's enough to revoke any leaked URL.
-- **Version drift**: Abbott periodically tightens the minimum LibreLinkUp
-  client version they accept. If logins suddenly start failing, bump the
-  `version` string in `librelinkup.py` to whatever the current LibreLinkUp
-  iOS app reports.
-- **Multiple sensors / accounts**: if your follower account follows more
-  than one person, set `LLU_PATIENT_ID` to disambiguate. You can find IDs
-  by hitting `/glucose/current` once and inspecting Fly logs, or by
-  unsetting it and listing the connections in a quick REPL.
-- **Privacy**: this is a personal-use bridge, not a medical device. Don't
-  share the URL or token; treat both as credentials.
+## Notes & honesty
+
+- This is a personal-use tool, **not medical advice or a medical device**.
+  Histamine tolerance is highly individual — the flags are a starting map, not
+  gospel. Trust your own reactions over any label here.
+- Macros in `static/foods.json` are typical reference values; brands vary, so
+  check labels for anything packaged.
+- The legacy Gemini Gem Action (`gem-action.yaml`) is kept for reference but is
+  no longer the primary interface.

@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+  <meta name="theme-color" content="#0f1f1d" />
+  <meta name="description" content="Net-carb-first keto tracker with gluten, dairy and histamine flags." />
+  <title>Beam</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" type="image/png" href="icons/favicon-32.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Beam" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <button id="prevDay" class="iconbtn" aria-label="Previous day">‹</button>
+    <button id="dateBtn" class="datebtn">
+      <span id="dateLabel">Today</span>
+      <span id="dateSub" class="datesub"></span>
+    </button>
+    <button id="nextDay" class="iconbtn" aria-label="Next day">›</button>
+    <button id="settingsBtn" class="iconbtn settings" aria-label="Settings">⚙</button>
+  </header>
+
+  <main>
+    <!-- HERO: net carb budget ring -->
+    <section class="ring-card">
+      <div class="ring-wrap">
+        <svg viewBox="0 0 200 200" class="ring" aria-hidden="true">
+          <circle class="ring-track" cx="100" cy="100" r="84" />
+          <circle id="ringFill" class="ring-fill" cx="100" cy="100" r="84"
+                  transform="rotate(-90 100 100)" />
+        </svg>
+        <div class="ring-center">
+          <div id="ringValue" class="ring-value">0</div>
+          <div class="ring-unit">net carbs</div>
+          <div id="ringLeft" class="ring-left">20g left</div>
+        </div>
+      </div>
+      <div id="budgetMsg" class="budget-msg"></div>
+    </section>
+
+    <!-- Macro strip -->
+    <section class="macros">
+      <div class="macro"><span id="mProtein">0</span><label>protein</label></div>
+      <div class="macro"><span id="mFat">0</span><label>fat</label></div>
+      <div class="macro"><span id="mCals">0</span><label>kcal</label></div>
+      <div class="macro"><span id="mFiber">0</span><label>fiber</label></div>
+    </section>
+
+    <!-- Safety / MCAS load -->
+    <section id="safetyRow" class="safety-row" hidden>
+      <div id="histLoad" class="chip hist"></div>
+    </section>
+
+    <!-- Optional glucose panel -->
+    <section id="glucoseCard" class="glucose-card" hidden>
+      <div class="glucose-main">
+        <div>
+          <div id="glucoseVal" class="glucose-val">–</div>
+          <div class="glucose-unit" id="glucoseUnit"></div>
+        </div>
+        <div class="glucose-meta">
+          <div id="glucoseTrend" class="glucose-trend"></div>
+          <div id="glucoseAge" class="glucose-age"></div>
+        </div>
+        <button id="glucoseRefresh" class="iconbtn" aria-label="Refresh glucose">⟳</button>
+      </div>
+    </section>
+
+    <!-- Log -->
+    <section class="log">
+      <div class="log-head">
+        <h2>Today's log</h2>
+        <button id="addBtn" class="addbtn">+ Add food</button>
+      </div>
+      <div id="logList" class="log-list"></div>
+      <div id="logEmpty" class="empty">Nothing logged yet. Tap <b>+ Add food</b> to start.</div>
+    </section>
+  </main>
+
+  <!-- Add-food sheet -->
+  <div id="sheet" class="sheet" hidden>
+    <div class="sheet-backdrop" data-close></div>
+    <div class="sheet-panel">
+      <div class="sheet-grab"></div>
+      <div class="sheet-head">
+        <input id="search" class="search" type="search" placeholder="Search foods…" autocomplete="off" />
+        <button class="textbtn" data-close>Done</button>
+      </div>
+      <div class="meal-tabs" id="mealTabs">
+        <button class="meal-tab active" data-meal="breakfast">Breakfast</button>
+        <button class="meal-tab" data-meal="lunch">Lunch</button>
+        <button class="meal-tab" data-meal="dinner">Dinner</button>
+        <button class="meal-tab" data-meal="snack">Snack</button>
+      </div>
+      <div id="results" class="results"></div>
+      <button id="customBtn" class="custombtn">+ Add a custom food</button>
+    </div>
+  </div>
+
+  <!-- Quantity / detail sheet -->
+  <div id="qtySheet" class="sheet" hidden>
+    <div class="sheet-backdrop" data-qclose></div>
+    <div class="sheet-panel small">
+      <div class="sheet-grab"></div>
+      <div id="qtyTitle" class="qty-title"></div>
+      <div id="qtyFlags" class="flags"></div>
+      <div id="qtyNote" class="qty-note"></div>
+      <label class="qty-row">
+        <span>Servings</span>
+        <div class="stepper">
+          <button id="qtyMinus" class="step">−</button>
+          <input id="qtyInput" class="qty-input" type="number" min="0.25" step="0.25" value="1" inputmode="decimal" />
+          <button id="qtyPlus" class="step">+</button>
+        </div>
+      </label>
+      <div id="qtyPreview" class="qty-preview"></div>
+      <button id="qtyAdd" class="primary">Add to log</button>
+    </div>
+  </div>
+
+  <!-- Custom food sheet -->
+  <div id="customSheet" class="sheet" hidden>
+    <div class="sheet-backdrop" data-cclose></div>
+    <div class="sheet-panel small">
+      <div class="sheet-grab"></div>
+      <div class="qty-title">Custom food</div>
+      <label class="field"><span>Name</span><input id="cName" type="text" placeholder="e.g. Mum's frittata" /></label>
+      <label class="field"><span>Net carbs (g)</span><input id="cCarbs" type="number" min="0" step="0.1" inputmode="decimal" placeholder="0" /></label>
+      <div class="field-grid">
+        <label class="field"><span>Protein</span><input id="cProtein" type="number" min="0" step="0.1" inputmode="decimal" placeholder="0" /></label>
+        <label class="field"><span>Fat</span><input id="cFat" type="number" min="0" step="0.1" inputmode="decimal" placeholder="0" /></label>
+        <label class="field"><span>kcal</span><input id="cCals" type="number" min="0" step="1" inputmode="numeric" placeholder="0" /></label>
+        <label class="field"><span>Fiber</span><input id="cFiber" type="number" min="0" step="0.1" inputmode="decimal" placeholder="0" /></label>
+      </div>
+      <div class="flag-toggles">
+        <label class="toggle"><input id="cGf" type="checkbox" checked /> <span>🌾 Gluten-free</span></label>
+        <label class="toggle"><input id="cDf" type="checkbox" checked /> <span>🥛 Dairy-free</span></label>
+      </div>
+      <label class="field"><span>Histamine</span>
+        <select id="cHist">
+          <option value="low">Low</option>
+          <option value="moderate">Moderate</option>
+          <option value="high">High</option>
+        </select>
+      </label>
+      <button id="customAdd" class="primary">Add to log</button>
+    </div>
+  </div>
+
+  <!-- Settings sheet -->
+  <div id="settingsSheet" class="sheet" hidden>
+    <div class="sheet-backdrop" data-sclose></div>
+    <div class="sheet-panel small">
+      <div class="sheet-grab"></div>
+      <div class="qty-title">Settings</div>
+      <label class="field"><span>Daily net carb budget (g)</span><input id="setBudget" type="number" min="5" step="1" inputmode="numeric" /></label>
+      <label class="field"><span>Glucose units</span>
+        <select id="setUnits">
+          <option value="mmol">mmol/L</option>
+          <option value="mgdl">mg/dL</option>
+        </select>
+      </label>
+      <div class="divider"></div>
+      <div class="section-label">Libre glucose bridge <span id="glucoseStatus" class="muted"></span></div>
+      <label class="field"><span>API token</span><input id="setToken" type="password" placeholder="Bearer token from Fly secrets" /></label>
+      <p class="hint">Leave blank to hide the glucose panel. The token is your Beam <code>API_TOKEN</code>; stored only on this device.</p>
+      <div class="divider"></div>
+      <div class="btn-row">
+        <button id="exportBtn" class="secondary">Export data</button>
+        <button id="clearBtn" class="danger">Clear all data</button>
+      </div>
+      <button class="primary" data-sclose>Done</button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
