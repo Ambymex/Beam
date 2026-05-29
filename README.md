@@ -56,6 +56,10 @@ Screen**. It then works offline, launches full-screen, and remembers your log.
   **favourites** (★ them from the quantity sheet) and your **recents** (auto,
   newest-first). Tap once to log your usual — at the same quantity, into the
   meal slot that matches the clock — with an Undo. Built for predictable eaters.
+- **Saved meals**: hit `＋ Save meal` on any logged meal group to bundle it
+  (e.g. "My usual breakfast"). It then appears as a single Quick-add chip that
+  logs every item in one tap. Because the items share a timestamp they cluster
+  into one eating event, so a saved meal correlates as a single glucose response.
 - **Budget ring**: green → amber at 80% → red when you blow past your budget.
 - **Settings (⚙)**: change the daily budget, glucose units, paste a glucose
   token, or export/clear your data.

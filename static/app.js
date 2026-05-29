@@ -88,6 +88,22 @@ function entryTimeForDate(dateKey) {
   return new Date(y, m - 1, d, now.getHours(), now.getMinutes()).toISOString();
 }
 
+/* ---- saved meals: a named bundle of foods logged in one tap ---- */
+function loadMeals() {
+  try { const a = JSON.parse(localStorage.getItem("beam.meals") || "[]"); return Array.isArray(a) ? a : []; }
+  catch { return []; }
+}
+function saveMeals(a) { localStorage.setItem("beam.meals", JSON.stringify(a)); }
+function savedMealNet(m) { return r1(m.items.reduce((s, t) => s + (t.net_carbs_g || 0), 0)); }
+function addSavedMeal(name, items) {
+  const meals = loadMeals();
+  meals.unshift({ id: "m" + Date.now(), name, items: items.map(toTemplate) });
+  saveMeals(meals);
+}
+function deleteSavedMeal(id) {
+  saveMeals(loadMeals().filter((m) => m.id !== id));
+}
+
 /* ---- date helpers ---- */
 function todayKey(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -257,10 +273,17 @@ function renderLog(entries) {
   for (const meal of order) {
     const items = byMeal[meal];
     if (!items || !items.length) continue;
-    const mealNet = r1(items.reduce((s, e) => s + e.net_carbs_g, 0));
+    const groupNet = r1(items.reduce((s, e) => s + e.net_carbs_g, 0));
     const label = document.createElement("div");
     label.className = "meal-group-label";
-    label.textContent = `${meal} · ${mealNet}g net`;
+    label.innerHTML = `<span>${meal} · ${groupNet}g net</span>`;
+    if (items.length >= 2) {
+      const save = document.createElement("button");
+      save.className = "save-meal-btn";
+      save.textContent = "＋ Save meal";
+      save.addEventListener("click", () => saveGroupAsMeal(items, meal[0].toUpperCase() + meal.slice(1)));
+      label.appendChild(save);
+    }
     list.appendChild(label);
 
     for (const e of items) {
@@ -421,16 +444,68 @@ function quickAdd(template) {
     render();
   });
 }
+// Log every food in a saved meal at once; they share a timestamp so they
+// cluster into a single eating event for glucose correlation.
+function logSavedMeal(meal) {
+  const date = state.date;
+  const slot = mealForHour(new Date().getHours());
+  const time = entryTimeForDate(date);
+  const log = loadLog();
+  const arr = (log[date] ||= []);
+  const startLen = arr.length;
+  for (const t of meal.items) arr.push({ ...t, meal: slot, time });
+  saveLog(log);
+  render();
+  toastUndo(`Added ${meal.name} (${meal.items.length} items) → ${slot}`, () => {
+    const l = loadLog();
+    if (l[date]) {
+      l[date].splice(startLen, meal.items.length);
+      if (!l[date].length) delete l[date];
+      saveLog(l);
+      render();
+    }
+  });
+}
+// Build a saved meal from a logged meal group.
+function saveGroupAsMeal(items, defaultName) {
+  const name = (prompt("Name this saved meal:", defaultName) || "").trim();
+  if (!name) return;
+  addSavedMeal(name, items);
+  renderQuickAdd();
+  toast(`Saved "${name}"`);
+}
+
 function renderQuickAdd() {
   const section = document.getElementById("quickAdd");
   const row = document.getElementById("quickChips");
+  const meals = loadMeals();
   const favs = loadFavs();
-  const recents = getRecents(12 - Math.min(favs.length, 6));
-  const items = [...favs.slice(0, 6).map((t) => ({ t, fav: true })), ...recents.map((t) => ({ t, fav: false }))];
-  if (!items.length) { section.hidden = true; return; }
+  const recents = getRecents(12 - Math.min(favs.length, 6) - Math.min(meals.length, 4));
+  if (!meals.length && !favs.length && !recents.length) { section.hidden = true; return; }
   section.hidden = false;
   row.innerHTML = "";
-  for (const { t, fav } of items) {
+
+  // saved meals first (highest-intent shortcuts)
+  for (const m of meals) {
+    const chip = document.createElement("div");
+    chip.className = "qchip is-meal";
+    chip.innerHTML = `
+      <button class="qchip-main">
+        <span class="qchip-name">🍽 ${escapeHtml(m.name)}</span>
+        <span class="qchip-net">${m.items.length} items · ${savedMealNet(m)}g</span>
+      </button>
+      <button class="qchip-star" aria-label="Delete saved meal">×</button>`;
+    chip.querySelector(".qchip-main").addEventListener("click", () => logSavedMeal(m));
+    chip.querySelector(".qchip-star").addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (confirm(`Delete saved meal "${m.name}"?`)) { deleteSavedMeal(m.id); renderQuickAdd(); }
+    });
+    row.appendChild(chip);
+  }
+
+  // then favourites, then recents
+  const foods = [...favs.slice(0, 6).map((t) => ({ t, fav: true })), ...recents.map((t) => ({ t, fav: false }))];
+  for (const { t, fav } of foods) {
     const chip = document.createElement("div");
     chip.className = "qchip" + (fav ? " is-fav" : "");
     chip.innerHTML = `
@@ -670,7 +745,7 @@ function closeSettings() {
   syncGlucose();
 }
 function exportData() {
-  const blob = new Blob([JSON.stringify({ settings: state.settings, log: loadLog(), favourites: loadFavs(), glucose: BeamGlucose.loadSeries() }, null, 2)],
+  const blob = new Blob([JSON.stringify({ settings: state.settings, log: loadLog(), favourites: loadFavs(), meals: loadMeals(), glucose: BeamGlucose.loadSeries() }, null, 2)],
     { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -683,6 +758,7 @@ function clearData() {
   localStorage.removeItem("beam.log");
   localStorage.removeItem("beam.settings");
   localStorage.removeItem("beam.favourites");
+  localStorage.removeItem("beam.meals");
   BeamGlucose.clear();
   state.settings = { ...DEFAULTS };
   render();
