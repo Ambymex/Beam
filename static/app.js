@@ -134,6 +134,7 @@ function render() {
   document.getElementById("dateSub").textContent = state.date;
 
   renderLog(entries);
+  if (typeof renderGlucose === "function") renderGlucose();
 }
 
 function renderLog(entries) {
@@ -339,6 +340,90 @@ async function refreshGlucose() {
   }
 }
 
+// Pull the latest 12h from the bridge into the local series, then re-render.
+async function syncGlucose() {
+  if (!state.glucoseEnabled || !state.settings.token) return;
+  try {
+    const { added, total } = await BeamGlucose.sync(state.settings.token);
+    state.glucoseSync = { ok: true, total, added, at: Date.now() };
+  } catch (e) {
+    state.glucoseSync = { ok: false, msg: e.message };
+  }
+  renderGlucose();
+}
+
+// Render the day's glucose chart + per-meal spike cards for state.date.
+function renderGlucose() {
+  const card = document.getElementById("glucoseResponse");
+  if (!state.glucoseEnabled || !state.settings.token) { card.hidden = true; return; }
+  card.hidden = false;
+
+  const unit = state.settings.units;
+  const series = BeamGlucose.loadSeries();
+  const events = BeamGlucose.mealEvents(dayEntries());
+
+  const info = document.getElementById("gsyncInfo");
+  if (state.glucoseSync && !state.glucoseSync.ok) info.textContent = state.glucoseSync.msg;
+  else if (state.glucoseSync) info.textContent = `${state.glucoseSync.total} readings stored`;
+  else info.textContent = "";
+
+  document.getElementById("gchartWrap").innerHTML =
+    BeamGlucose.buildDayChart(series, events, state.date, unit);
+
+  const list = document.getElementById("gEvents");
+  const empty = document.getElementById("gEmpty");
+  list.innerHTML = "";
+
+  if (!events.length) {
+    empty.hidden = false;
+    empty.textContent = "Log a meal to see how your glucose responds.";
+    return;
+  }
+
+  const dayHasGlucose = BeamGlucose.seriesForDay(series, state.date).length >= 2;
+  if (!dayHasGlucose) {
+    empty.hidden = false;
+    empty.textContent = "No glucose readings stored for this day yet. Open Beam during the day to capture them.";
+    return;
+  }
+  empty.hidden = true;
+
+  for (const ev of events) {
+    const r = BeamGlucose.responseFor(ev, series);
+    const div = document.createElement("div");
+    div.className = "gevent";
+    const time = new Date(ev.startT).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    const foods = escapeHtml(ev.foods.slice(0, 3).join(", ") + (ev.foods.length > 3 ? "…" : ""));
+
+    let badge, detail;
+    if (!r) {
+      badge = `<span class="spike none">no data</span>`;
+      detail = `<div class="gevent-detail">No glucose readings around this time.</div>`;
+    } else {
+      const cls = BeamGlucose.spikeClass(r.delta);
+      const sign = r.delta >= 0 ? "+" : "";
+      badge = `<span class="spike ${cls}">▲ ${sign}${BeamGlucose.fmtDelta(r.delta, unit)}</span>`;
+      detail = `<div class="gevent-detail">
+        ${BeamGlucose.fmt(r.baseline, unit)} → <b>${BeamGlucose.fmt(r.peak, unit)}</b> ${BeamGlucose.unitLabel(unit)}
+        · peak at ${r.timeToPeakMin} min</div>`;
+    }
+
+    div.innerHTML = `
+      <div class="gevent-row">
+        <div class="gevent-main">
+          <div class="gevent-title">${escapeHtml(ev.label)} · ${time}</div>
+          <div class="gevent-foods">${foods}</div>
+        </div>
+        <div class="gevent-right">
+          <div class="gevent-net">${ev.net}g net</div>
+          ${badge}
+        </div>
+      </div>
+      ${detail}`;
+    list.appendChild(div);
+  }
+}
+
 /* =========================================================================
  * Settings
  * ====================================================================== */
@@ -358,9 +443,10 @@ function closeSettings() {
   document.getElementById("settingsSheet").hidden = true;
   render();
   refreshGlucose();
+  syncGlucose();
 }
 function exportData() {
-  const blob = new Blob([JSON.stringify({ settings: state.settings, log: loadLog() }, null, 2)],
+  const blob = new Blob([JSON.stringify({ settings: state.settings, log: loadLog(), glucose: BeamGlucose.loadSeries() }, null, 2)],
     { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -372,6 +458,7 @@ function clearData() {
   if (!confirm("Delete ALL logged food and settings on this device? This can't be undone.")) return;
   localStorage.removeItem("beam.log");
   localStorage.removeItem("beam.settings");
+  BeamGlucose.clear();
   state.settings = { ...DEFAULTS };
   render();
   document.getElementById("settingsSheet").hidden = true;
@@ -420,7 +507,7 @@ function bind() {
   document.querySelectorAll("[data-sclose]").forEach((el) => (el.onclick = closeSettings));
   document.getElementById("exportBtn").onclick = exportData;
   document.getElementById("clearBtn").onclick = clearData;
-  document.getElementById("glucoseRefresh").onclick = refreshGlucose;
+  document.getElementById("glucoseRefresh").onclick = () => { refreshGlucose(); syncGlucose(); };
 }
 function stepQty(d) {
   const input = document.getElementById("qtyInput");
@@ -446,6 +533,7 @@ async function boot() {
     state.glucoseEnabled = !!cfg.glucose_enabled;
   } catch { state.glucoseEnabled = false; }
   refreshGlucose();
+  syncGlucose();
 
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch(() => {});

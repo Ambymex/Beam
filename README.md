@@ -18,6 +18,12 @@ Designed around three overlapping needs:
   histamine flags and "eat fresh" warnings for leftover-risk foods. Almost no
   mainstream tracker does this.
 
+- **Glucose × food correlation** *(optional, needs the Libre bridge)* — the
+  thing MyFitnessPal structurally can't do. Beam clusters your log into eating
+  events and scores each against your real CGM data: **baseline → peak → spike
+  (Δ) and time-to-peak**, drawn on a day chart with meal markers. Over time you
+  learn which "keto-safe" foods actually spike *you*.
+
 Your food log lives entirely in your browser's local storage — no account, no
 cloud database, nothing to leak. The only network feature is the **optional**
 glucose bridge below.
@@ -88,7 +94,14 @@ wear a Libre 2, you can surface your live reading inside the tracker.
 
    (Locally, `export` the same three variables before running uvicorn.)
 3. In the app's **Settings → API token**, paste the `API_TOKEN` value. The
-   glucose panel appears with your current reading, trend and age.
+   glucose panel appears with your current reading, trend and age, plus the
+   **Glucose response** card.
+
+Because Abbott's history endpoint only serves ~12h, Beam appends every reading
+it sees into on-device storage each time you open the app, building its own
+multi-week series. So glucose correlation gets richer the more you use it —
+open Beam at least once during the day to capture that day's curve. Stored
+readings are pruned after ~35 days.
 
 The token is stored only on your device and sent as a Bearer header to Beam's
 `/glucose/current` endpoint. Rotate it anytime with `fly secrets set` to revoke

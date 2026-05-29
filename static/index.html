@@ -71,6 +71,17 @@
       </div>
     </section>
 
+    <!-- Glucose × food correlation -->
+    <section id="glucoseResponse" class="gresp-card" hidden>
+      <div class="gresp-head">
+        <h2>Glucose response</h2>
+        <span id="gsyncInfo" class="muted"></span>
+      </div>
+      <div id="gchartWrap" class="gchart-wrap"></div>
+      <div id="gEvents" class="gevents"></div>
+      <div id="gEmpty" class="empty" hidden></div>
+    </section>
+
     <!-- Log -->
     <section class="log">
       <div class="log-head">
@@ -180,6 +191,7 @@
 
   <div id="toast" class="toast" hidden></div>
 
+  <script src="glucose.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
