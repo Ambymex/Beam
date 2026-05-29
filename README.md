@@ -51,6 +51,12 @@ glucose bridge below.
 └─────────────────────────────┘  token  └──────────────────────────────┘
 ```
 
+## Preview
+
+![Beam home screen](docs/preview.svg)
+
+*Illustration of the home screen (an SVG mockup, not a photo).*
+
 ## Use it
 
 The app is fully static — open the served URL on your phone and **Add to Home
@@ -58,6 +64,9 @@ Screen**. It then works offline, launches full-screen, and remembers your log.
 
 - **Add food**: tap `+ Add food`, search the database (or add a custom food),
   pick the meal and servings, done.
+- **Barcode scanning**: tap `📷 Scan barcode` to look a product up on Open Food
+  Facts — it fills in macros and best-effort gluten/dairy flags (uses the
+  device camera where supported, with manual entry everywhere else).
 - **One-tap re-logging**: a Quick-add row on the home screen shows your pinned
   **favourites** (★ them from the quantity sheet) and your **recents** (auto,
   newest-first). Tap once to log your usual — at the same quantity, into the
@@ -143,3 +152,25 @@ client version — update the `version` string in `librelinkup.py`.
   check labels for anything packaged.
 - The legacy Gemini Gem Action (`gem-action.yaml`) is kept for reference but is
   no longer the primary interface.
+
+## Contributing
+
+Contributions are welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md) for the
+project layout, how to run it, the (browser-free) testing approach, the
+`foods.json` schema, and the accessibility bar new UI is held to.
+
+## License
+
+[MIT](./LICENSE). Use it, fork it, ship it. It's offered in the hope it helps
+someone else with the same awkward mix of dietary needs.
+
+## Acknowledgements
+
+Beam was built collaboratively: the product direction, dietary requirements and
+lived experience (keto + coeliac + lactose intolerance + MCAS, and the
+neurodivergent-friendly design choices) came from its maintainer, and the
+implementation — the PWA, the net-carb engine, the glucose-correlation and
+insights logic, and the accessibility pass — was written by **Claude**
+(Anthropic's Claude Code) working alongside them. Glucose data flows via
+Abbott's LibreLinkUp; packaged-food lookups use the wonderful, openly-licensed
+[Open Food Facts](https://world.openfoodfacts.org/) database.
