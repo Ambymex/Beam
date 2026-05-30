@@ -38,7 +38,7 @@ function dayEntries(date = state.date) { return loadLog()[date] || []; }
 /* ---- favourites & recents (one-tap re-logging) ---- */
 // A "template" is a ready-to-log entry minus meal/time: the exact thing you ate
 // last, including quantity and already-scaled macros.
-const TEMPLATE_KEYS = ["name", "serving", "qty", "net_carbs_g", "protein_g", "fat_g", "calories", "fiber_g", "gf", "df", "histamine", "leftover_risk"];
+const TEMPLATE_KEYS = ["name", "serving", "qty", "net_carbs_g", "protein_g", "fat_g", "calories", "fiber_g", "gf", "df", "histamine", "leftover_risk", "ash_unsafe"];
 function toTemplate(o) {
   const t = {};
   for (const k of TEMPLATE_KEYS) if (o[k] !== undefined) t[k] = o[k];
@@ -173,6 +173,7 @@ function streakStats() {
 /* ---- flags ---- */
 function flagChips(food, { compact = false } = {}) {
   const chips = [];
+  if (food.ash_unsafe) chips.push(`<span class="flag danger">🚫 not Ash safe</span>`);
   if (food.gf === false) chips.push(`<span class="flag danger">🌾 gluten</span>`);
   if (food.df === false) chips.push(`<span class="flag warn">🥛 dairy</span>`);
   if (food.histamine === "high") chips.push(`<span class="flag danger">🧬 high histamine</span>`);
@@ -334,15 +335,22 @@ function openSheet() {
   const s = document.getElementById("search");
   s.value = "";
   renderResults("");
-  setTimeout(() => s.focus(), 50);
 }
 function closeSheet() { document.getElementById("sheet").hidden = true; }
 
 function scoreFood(food, q) {
   const name = food.name.toLowerCase();
-  if (name.startsWith(q)) return 0;
-  if (name.includes(q)) return 1;
-  if ((food.tags || []).some((t) => t.includes(q))) return 2;
+  if (name.startsWith(q) || q.startsWith(name)) return 0;
+  if (name.includes(q) || q.includes(name)) return 1;
+
+  // Try singular version of query if it ends in "s" (helps search for plural words like "eggs")
+  if (q.endsWith("s") && q.length > 2) {
+    const sing = q.slice(0, -1);
+    if (name.startsWith(sing)) return 0;
+    if (name.includes(sing)) return 1;
+  }
+
+  if ((food.tags || []).some((t) => t.includes(q) || (q.endsWith("s") && t.includes(q.slice(0, -1))))) return 2;
   return -1;
 }
 function renderResults(q) {
@@ -388,7 +396,7 @@ function scaledTemplate(f, qty) {
     fat_g: r1((f.fat_g || 0) * qty),
     calories: Math.round((f.calories || 0) * qty),
     fiber_g: r1((f.fiber_g || 0) * qty),
-    gf: f.gf, df: f.df, histamine: f.histamine, leftover_risk: f.leftover_risk,
+    gf: f.gf, df: f.df, histamine: f.histamine, leftover_risk: f.leftover_risk, ash_unsafe: f.ash_unsafe,
   };
 }
 function curQty() { return Math.max(0.25, parseFloat(document.getElementById("qtyInput").value) || 1); }
@@ -625,6 +633,7 @@ function openCustom() { document.getElementById("customSheet").hidden = false; }
 function closeCustom() {
   document.getElementById("customSheet").hidden = true;
   ["cName", "cCarbs", "cProtein", "cFat", "cCals", "cFiber"].forEach((id) => (document.getElementById(id).value = ""));
+  document.getElementById("cAshUnsafe").checked = false;
 }
 function confirmCustom() {
   const name = document.getElementById("cName").value.trim();
@@ -639,6 +648,7 @@ function confirmCustom() {
     gf: document.getElementById("cGf").checked,
     df: document.getElementById("cDf").checked,
     histamine: document.getElementById("cHist").value,
+    ash_unsafe: document.getElementById("cAshUnsafe").checked,
     meal: state.meal, time: new Date().toISOString(),
   });
   closeCustom();
@@ -1036,11 +1046,18 @@ function setupSheetA11y() {
   // restore focus to wherever it came from (LIFO handles stacked sheets).
   document.querySelectorAll(".sheet").forEach((sheet) => {
     new MutationObserver(() => {
+      const openSheets = [...document.querySelectorAll(".sheet")].filter((s) => !s.hidden);
+      if (openSheets.length > 0) {
+        document.body.style.overflow = "hidden";
+      } else {
+        document.body.style.overflow = "";
+      }
+
       if (!sheet.hidden) {
         focusStack.push(document.activeElement);
         const panel = sheet.querySelector(".sheet-panel");
         const f = focusablesIn(panel);
-        if (f.length) f[0].focus();
+        if (f.length) setTimeout(() => f[0].focus(), 300);
       } else {
         const prev = focusStack.pop();
         if (prev && document.body.contains(prev)) prev.focus();

@@ -2,7 +2,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.staticfiles import StaticFiles
 
 # --- Optional glucose bridge -------------------------------------------------
@@ -49,6 +49,18 @@ import threading
 threading.Thread(target=_ensure_icons, daemon=True).start()
 
 app = FastAPI(title="Beam", description="Keto food tracker + Libre glucose bridge")
+
+
+@app.middleware("http")
+async def add_no_cache_headers(request: Request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if path == "/config" or path.startswith("/glucose") or path == "/healthz":
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
 
 client = None
 if GLUCOSE_ENABLED:

@@ -11,7 +11,7 @@ DEFAULT_BASE = "https://api.libreview.io"
 # bump `version` to whatever the current LibreLinkUp iOS release reports.
 HEADERS = {
     "product": "llu.ios",
-    "version": "4.7.0",
+    "version": "4.16.0",
     "accept": "application/json",
     "content-type": "application/json",
     "accept-encoding": "gzip",

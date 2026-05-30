@@ -264,12 +264,17 @@ main { padding: 0 14px; max-width: 520px; margin: 0 auto; }
   position: absolute; left: 0; right: 0; bottom: 0;
   background: var(--bg-elev); border-radius: 22px 22px 0 0;
   padding: 8px 16px calc(20px + var(--safe-bot));
-  max-height: 92vh; display: flex; flex-direction: column;
+  max-height: 92dvh; display: flex; flex-direction: column;
   max-width: 520px; margin: 0 auto;
   animation: slideUp .25s cubic-bezier(.2,.8,.2,1);
 }
-.sheet-panel.small { max-height: 86vh; }
-@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.sheet-panel.small { max-height: 86dvh; overflow-y: auto; }
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
 .sheet-grab { width: 40px; height: 4px; background: var(--line); border-radius: 2px; margin: 6px auto 12px; }
 
 .sheet-head { display: flex; gap: 10px; align-items: center; }

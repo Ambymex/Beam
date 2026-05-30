@@ -180,12 +180,13 @@
       <div class="field-grid">
         <label class="field"><span>Protein</span><input id="cProtein" type="number" min="0" step="0.1" inputmode="decimal" placeholder="0" /></label>
         <label class="field"><span>Fat</span><input id="cFat" type="number" min="0" step="0.1" inputmode="decimal" placeholder="0" /></label>
-        <label class="field"><span>kcal</span><input id="cCals" type="number" min="0" step="1" inputmode="numeric" placeholder="0" /></label>
+        <label class="field"><span>Calories</span><input id="cCals" type="number" min="0" step="1" inputmode="numeric" placeholder="0" /></label>
         <label class="field"><span>Fiber</span><input id="cFiber" type="number" min="0" step="0.1" inputmode="decimal" placeholder="0" /></label>
       </div>
       <div class="flag-toggles">
         <label class="toggle"><input id="cGf" type="checkbox" checked /> <span>🌾 Gluten-free</span></label>
         <label class="toggle"><input id="cDf" type="checkbox" checked /> <span>🥛 Dairy-free</span></label>
+        <label class="toggle" style="color: var(--red);"><input id="cAshUnsafe" type="checkbox" /> <span>🚫 Not Ash safe</span></label>
       </div>
       <label class="field"><span>Histamine</span>
         <select id="cHist">
