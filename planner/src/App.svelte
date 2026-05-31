@@ -5,6 +5,7 @@
   import BlockEditor from './lib/BlockEditor.svelte';
   import CaptureList from './lib/CaptureList.svelte';
   import { currentKey, todayKey } from './lib/days';
+  import { cascadeMode } from './lib/daystate';
 
   let showGallery = false;
   let showCapture = false;
@@ -15,6 +16,17 @@
   <header class="bar">
     <button class="chip" on:click={() => (showGallery = true)} aria-label="Open day gallery">▦ Days</button>
     <button class="chip" on:click={() => (showCapture = true)} aria-label="Open capture list">✎ List</button>
+    <!-- Cascade toggle (§9): off = nudge just this; on = push my day. The "on"
+         state is a non-colour cue — a luminous ring, never a hue. -->
+    <button
+      class="chip push"
+      class:on={$cascadeMode}
+      on:click={() => cascadeMode.update((v) => !v)}
+      aria-pressed={$cascadeMode}
+      aria-label="Toggle push-my-day cascade"
+    >
+      {$cascadeMode ? '⇉ Push my day' : '→ Nudge'}
+    </button>
     {#if !viewingToday}
       <button class="chip back" on:click={() => currentKey.set(todayKey())}>Today →</button>
     {/if}
@@ -69,6 +81,11 @@
   }
   .chip.back {
     margin-left: auto;
+  }
+  /* cascade ON = luminous ring (non-colour, §2) */
+  .chip.push.on {
+    box-shadow: 0 0 0 1px #fdfdff inset;
+    color: #fdfdff;
   }
   .ring {
     flex: 1;

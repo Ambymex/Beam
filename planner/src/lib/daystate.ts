@@ -17,3 +17,8 @@ export interface BlockActions {
 }
 
 export const blockActions = writable<BlockActions | null>(null);
+
+// Cascade vs nudge (§9). Default OFF = "nudge just this" (drag moves only the
+// grabbed block). When ON = "push my day": dragging a block also shoves
+// downstream SAME-LANE soft blocks forward, halting at the next hard edge.
+export const cascadeMode = writable(false);

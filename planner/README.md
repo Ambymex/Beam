@@ -67,6 +67,13 @@ npm run check      # svelte-check (types)
   The ✎ List overlay is the untimed capture zone ("to get: cat, milk, emergency
   bag") — the paper margin list, a non-temporal ADHD capture surface, persisted
   on its own. (Tap-tap a block still toggles done as a shortcut.)
+- **Edit + cascade** (spec §9) — select a block, then drag its body to reschedule
+  or drag a core edge to resize (the taper tail handle from §4 still sets the
+  fade). The bar's **→ Nudge / ⇉ Push my day** toggle chooses behaviour: nudge
+  moves only the grabbed block; cascade shoves downstream SAME-LANE soft blocks
+  forward by the same slip and **halts at the next hard edge** (the world's
+  deadline), flagging it with a luminous pulse rather than trampling it. Pure,
+  unit-tested math in `cascade.ts`.
 - **PWA shell** — manifest, icon, service-worker registration socket (the real
   push spine is step 7).
 
@@ -77,7 +84,7 @@ npm run check      # svelte-check (types)
 3. 🟡 Hub + now-wedge _(now-wedge ✅; spatial cycle entry pending)_
 4. ✅ Local persistence + day-thumbnail gallery + silent migration of undone
 5. Future days + appointments + travel-time wings
-6. On-the-fly editing + cascade
+6. ✅ On-the-fly editing + cascade
 7. Supabase schedule + Web Push spine, with the "active colour" signal exposed
 8. SQL structured search (`vibe_id` as the tag vocabulary)
 9. OpenRouter translator/synthesis, with fallbacks

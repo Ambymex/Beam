@@ -17,7 +17,8 @@
   } from './blocks';
   import { currentKey, currentDay, saveDay } from './days';
   import { todayKey } from './days';
-  import { selectedBlockStore, blockActions } from './daystate';
+  import { selectedBlockStore, blockActions, cascadeMode } from './daystate';
+  import { computeMove, computeResizeStart, computeResizeCore, angDiffHours } from './cascade';
 
   // ----- live "now" (spec §14): not a clock hand — a consumed-vs-remaining
   // wedge that fills in BEHIND now as the day burns down. -----
@@ -70,6 +71,7 @@
   const DEFAULT_TAPER_FRAC = 0.4; // born soft — the fade was everywhere on paper
   const MAX_TAPER_HOURS = 6; // a "maybe it runs over" only stretches so far
   const HANDLE_HIT = 13; // viewBox-unit grab radius for the taper handle
+  const EDGE_HIT_HOURS = 0.6; // how close (in hours) to a core edge counts as grabbing it
 
   // ----- gestures (spec §5): all gestural, no number pads. -----
   let svgEl: SVGSVGElement;
@@ -77,6 +79,13 @@
   let create: CreateDrag | null = null;
   let taperDragId: number | null = null;
   let tapCandidateId: number | null = null; // a block tapped without dragging
+
+  // Editing an existing block (spec §9): move the whole block, or resize an edge.
+  // We recompute from a grab-time SNAPSHOT each move (no accumulation drift).
+  type EditKind = 'move' | 'resizeStart' | 'resizeCore';
+  type EditDrag = { id: number; kind: EditKind; grabHours: number; snapshot: Block[] };
+  let edit: EditDrag | null = null;
+  let cascadeBlockedId: number | null = null; // hard edge that halted a cascade
 
   function localPoint(ev: PointerEvent) {
     // Use the SVG's own screen transform so the mapping respects the viewBox AND
@@ -101,6 +110,21 @@
       const h = handlePos(sel);
       if (Math.hypot(x - h.x, y - h.y) <= HANDLE_HIT) {
         taperDragId = sel.id;
+        svgEl.setPointerCapture(ev.pointerId);
+        return;
+      }
+      // 1b. Grabbing a core EDGE of the selected block (resize), or its BODY
+      // (move). Only the selected block is editable, so edits never fire by
+      // accident on an unselected one. (spec §9)
+      const selLane = laneFor(sel);
+      if (r >= selLane.rInner && r <= selLane.rOuter && blockContains(sel, r, hours)) {
+        const dStart = Math.abs(angDiffHours(hours, sel.startHours));
+        const dCore = Math.abs(angDiffHours(hours, sel.coreEndHours));
+        let kind: EditKind = 'move';
+        if (dStart <= EDGE_HIT_HOURS && dStart <= dCore) kind = 'resizeStart';
+        else if (dCore <= EDGE_HIT_HOURS) kind = 'resizeCore';
+        edit = { id: sel.id, kind, grabHours: hours, snapshot: structuredClone(blocks) };
+        cascadeBlockedId = null;
         svgEl.setPointerCapture(ev.pointerId);
         return;
       }
@@ -143,6 +167,23 @@
       return;
     }
 
+    if (edit) {
+      // Slip = signed angular distance from where the finger grabbed (§9). Recompute
+      // from the snapshot so the result is a clean function of the current finger
+      // position, never an accumulation of per-frame deltas.
+      const slip = angDiffHours(angleToHours(angle), edit.grabHours);
+      const res =
+        edit.kind === 'resizeStart'
+          ? computeResizeStart(edit.snapshot, edit.id, slip)
+          : edit.kind === 'resizeCore'
+            ? computeResizeCore(edit.snapshot, edit.id, slip)
+            : computeMove(edit.snapshot, edit.id, slip, $cascadeMode);
+      blocks = res.blocks;
+      cascadeBlockedId = res.blockedId;
+      tapCandidateId = null;
+      return;
+    }
+
     if (create) {
       let delta = angle - create.lastAngle;
       if (delta > 180) delta -= 360;
@@ -160,6 +201,13 @@
   function onPointerUp() {
     if (taperDragId !== null) {
       taperDragId = null;
+      persist();
+      return;
+    }
+
+    if (edit) {
+      edit = null;
+      cascadeBlockedId = null;
       persist();
       return;
     }
@@ -294,6 +342,17 @@
     const p2 = polar(C, C, rMid + 5, aMid);
     return { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y };
   }
+
+  // Edge grab-handles on the selected block (resize cues, non-colour §2).
+  function edgeHandle(b: Block, which: 'start' | 'core'): { x: number; y: number } {
+    const lane = laneFor(b);
+    const rMid = (lane.rInner + lane.rOuter) / 2;
+    const a = hoursToAngle(which === 'start' ? b.startHours : b.coreEndHours);
+    return polar(C, C, rMid, a);
+  }
+
+  // The hard-edged block a cascade ran into (flagged, not trampled — §9).
+  $: blockedBlock = cascadeBlockedId !== null ? blocks.find((b) => b.id === cascadeBlockedId) ?? null : null;
 </script>
 
 <svg
@@ -351,12 +410,25 @@
     {/if}
   {/each}
 
-  <!-- selection: NON-colour signal only (§2) — a luminous outline + handle. -->
+  <!-- cascade halt flag: the hard-edged block a push ran into — pulsed outline,
+       non-colour, says "I stopped here, didn't trample your deadline" (§9). -->
+  {#if blockedBlock}
+    <path d={corePath(blockedBlock)} fill="none" stroke="#ffffff" stroke-width="2" opacity="0.95" filter="url(#glow)" />
+  {/if}
+
+  <!-- selection: NON-colour signal only (§2) — a luminous outline + handles. -->
   {#if selectedBlock}
     <path d={corePath(selectedBlock)} fill="none" stroke="#ffffff" stroke-width="1.1" opacity="0.55" filter="url(#glow)" />
     {@const h = handlePos(selectedBlock)}
     <circle cx={h.x} cy={h.y} r="5.5" fill="#fdfdff" filter="url(#glow)" />
     <circle cx={h.x} cy={h.y} r="2.4" fill="#0d0d10" />
+    <!-- resize edge-handles: small luminous nubs at start + core end (§9) -->
+    {@const sh = edgeHandle(selectedBlock, 'start')}
+    {@const ch = edgeHandle(selectedBlock, 'core')}
+    <circle cx={sh.x} cy={sh.y} r="3" fill="#0d0d10" stroke="#fdfdff" stroke-width="1.4" />
+    {#if !isHardEdge(selectedBlock)}
+      <circle cx={ch.x} cy={ch.y} r="3" fill="#0d0d10" stroke="#fdfdff" stroke-width="1.4" />
+    {/if}
     {#if isHardEdge(selectedBlock)}
       {@const lane = laneFor(selectedBlock)}
       {@const a = hoursToAngle(selectedBlock.coreEndHours)}
