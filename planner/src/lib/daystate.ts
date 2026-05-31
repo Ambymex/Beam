@@ -22,3 +22,8 @@ export const blockActions = writable<BlockActions | null>(null);
 // grabbed block). When ON = "push my day": dragging a block also shoves
 // downstream SAME-LANE soft blocks forward, halting at the next hard edge.
 export const cascadeMode = writable(false);
+
+// Appointment-draw mode (§8). When ON, a sweep on the main lane creates a
+// hard-edged appointment (no taper) with default travel-time wings, instead of
+// a normal soft block. The wings can then be dragged via their handles.
+export const appointmentMode = writable(false);

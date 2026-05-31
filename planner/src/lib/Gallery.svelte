@@ -2,13 +2,14 @@
   // The day-thumbnail gallery (§12 tier 1) — the "time machine" for flicking
   // back through days by shape and colour. Zero AI; this covers ~80% of search.
   import { createEventDispatcher } from 'svelte';
-  import { days, currentKey, dayKeysDesc, todayKey } from './days';
+  import { days, currentKey, dayKeysDesc, todayKey, futureKeys } from './days';
   import { parseKey, emptyDay } from './daydata';
   import DayThumbnail from './DayThumbnail.svelte';
 
   const dispatch = createEventDispatcher<{ close: void }>();
   const tKey = todayKey();
   const fmt = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  const future = futureKeys(14); // the time machine forward (§8)
 
   function pick(key: string) {
     currentKey.set(key);
@@ -25,15 +26,31 @@
     <span>Days</span>
     <button class="close" on:click={() => dispatch('close')} aria-label="Close gallery">✕</button>
   </header>
-  <div class="grid">
-    {#each $dayKeysDesc as key (key)}
-      <button class="cell" class:current={key === $currentKey} on:click={() => pick(key)}>
-        <div class="thumb">
-          <DayThumbnail day={$days[key] ?? emptyDay()} isToday={key === tKey} />
-        </div>
-        <span class="caption">{label(key)}</span>
-      </button>
-    {/each}
+  <div class="scroll">
+    <div class="grid">
+      {#each $dayKeysDesc as key (key)}
+        <button class="cell" class:current={key === $currentKey} on:click={() => pick(key)}>
+          <div class="thumb">
+            <DayThumbnail day={$days[key] ?? emptyDay()} isToday={key === tKey} />
+          </div>
+          <span class="caption">{label(key)}</span>
+        </button>
+      {/each}
+    </div>
+
+    <!-- Future days (§8): pre-seeded empty rings — land on one and drop an
+         appointment before its morning. -->
+    <h2 class="section">Ahead</h2>
+    <div class="grid">
+      {#each future as key (key)}
+        <button class="cell" class:current={key === $currentKey} on:click={() => pick(key)}>
+          <div class="thumb">
+            <DayThumbnail day={$days[key] ?? emptyDay()} isToday={false} />
+          </div>
+          <span class="caption">{label(key)}</span>
+        </button>
+      {/each}
+    </div>
   </div>
 </div>
 
@@ -65,14 +82,24 @@
     cursor: pointer;
     padding: 4px 8px;
   }
-  .grid {
+  .scroll {
     flex: 1;
     overflow-y: auto;
+  }
+  .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
     gap: 14px;
     padding: 16px;
     align-content: start;
+  }
+  .section {
+    margin: 0;
+    padding: 4px 16px 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: #8a8a94;
+    border-top: 1px solid #1b1b22;
   }
   .cell {
     background: none;

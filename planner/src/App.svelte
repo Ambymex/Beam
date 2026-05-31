@@ -5,7 +5,7 @@
   import BlockEditor from './lib/BlockEditor.svelte';
   import CaptureList from './lib/CaptureList.svelte';
   import { currentKey, todayKey } from './lib/days';
-  import { cascadeMode } from './lib/daystate';
+  import { cascadeMode, appointmentMode } from './lib/daystate';
 
   let showGallery = false;
   let showCapture = false;
@@ -26,6 +26,17 @@
       aria-label="Toggle push-my-day cascade"
     >
       {$cascadeMode ? '⇉ Push my day' : '→ Nudge'}
+    </button>
+    <!-- Appointment-draw toggle (§8): when on, a sweep makes a hard-edged
+         appointment with travel-time wings instead of a soft block. -->
+    <button
+      class="chip push"
+      class:on={$appointmentMode}
+      on:click={() => appointmentMode.update((v) => !v)}
+      aria-pressed={$appointmentMode}
+      aria-label="Toggle appointment draw mode"
+    >
+      {$appointmentMode ? '📍 Appointment' : '◷ Block'}
     </button>
     {#if !viewingToday}
       <button class="chip back" on:click={() => currentKey.set(todayKey())}>Today →</button>

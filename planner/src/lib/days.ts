@@ -48,6 +48,19 @@ export const currentDay = derived(
 // Gallery list: every day with data plus today, most-recent first.
 export const dayKeysDesc = derived(days, ($days) => sortedKeysDesc($days, todayKey()));
 
+// Future days for the "time machine" (§8): pre-seeded empty rings you can land
+// on and drop an appointment before its morning. The next `n` days after today.
+export function futureKeys(n = 14): string[] {
+  const out: string[] = [];
+  const base = new Date();
+  for (let i = 1; i <= n; i++) {
+    const d = new Date(base);
+    d.setDate(base.getDate() + i);
+    out.push(dateKey(d));
+  }
+  return out;
+}
+
 // Write a day's blocks back into the map.
 export function saveDay(key: string, blocks: DayData['blocks'], nextId: number) {
   days.update((all) => ({ ...all, [key]: { blocks, nextId } }));

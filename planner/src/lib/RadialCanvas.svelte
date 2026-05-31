@@ -7,17 +7,24 @@
     SIZE,
     C,
     isHardEdge,
+    isAppointment,
     laneFor,
     blockFill,
     corePath,
     taperSegments,
     handlePos,
     blockContains,
+    prependWingSegments,
+    appendWingSegments,
+    departureHours,
+    TRAVEL_HEX,
+    DEFAULT_TRAVEL_HOURS,
+    MAX_TRAVEL_HOURS,
     type Block,
   } from './blocks';
   import { currentKey, currentDay, saveDay } from './days';
   import { todayKey } from './days';
-  import { selectedBlockStore, blockActions, cascadeMode } from './daystate';
+  import { selectedBlockStore, blockActions, cascadeMode, appointmentMode } from './daystate';
   import { computeMove, computeResizeStart, computeResizeCore, angDiffHours } from './cascade';
 
   // ----- live "now" (spec §14): not a clock hand — a consumed-vs-remaining
@@ -87,6 +94,10 @@
   let edit: EditDrag | null = null;
   let cascadeBlockedId: number | null = null; // hard edge that halted a cascade
 
+  // Dragging an appointment's travel-time wing endpoint (§8): 'before' = the
+  // departure ("leave by") edge, 'after' = the "get home" edge.
+  let wingDrag: { id: number; which: 'before' | 'after' } | null = null;
+
   function localPoint(ev: PointerEvent) {
     // Use the SVG's own screen transform so the mapping respects the viewBox AND
     // preserveAspectRatio — the element isn't square, so scaling x/y separately
@@ -107,8 +118,24 @@
     // 1. Grabbing the selected block's taper handle?
     const sel = blocks.find((b) => b.id === selectedId);
     if (sel) {
+      // 1a-wing. An appointment's travel-wing endpoints take precedence over the
+      // (meaningless) taper handle, since appointments are hard-edged (§8).
+      if (isAppointment(sel)) {
+        const bp = wingHandlePos(sel, 'before');
+        const ap = wingHandlePos(sel, 'after');
+        if (bp && Math.hypot(x - bp.x, y - bp.y) <= HANDLE_HIT) {
+          wingDrag = { id: sel.id, which: 'before' };
+          svgEl.setPointerCapture(ev.pointerId);
+          return;
+        }
+        if (ap && Math.hypot(x - ap.x, y - ap.y) <= HANDLE_HIT) {
+          wingDrag = { id: sel.id, which: 'after' };
+          svgEl.setPointerCapture(ev.pointerId);
+          return;
+        }
+      }
       const h = handlePos(sel);
-      if (Math.hypot(x - h.x, y - h.y) <= HANDLE_HIT) {
+      if (!isAppointment(sel) && Math.hypot(x - h.x, y - h.y) <= HANDLE_HIT) {
         taperDragId = sel.id;
         svgEl.setPointerCapture(ev.pointerId);
         return;
@@ -167,6 +194,26 @@
       return;
     }
 
+    if (wingDrag) {
+      // Drag a travel wing's outer endpoint (§8). The fade still means "my guess"
+      // — for travel the guess lives on the outside of the fixed appointment bar.
+      const b = blocks.find((bl) => bl.id === wingDrag!.id);
+      if (!b) return;
+      const t = angleToHours(angle);
+      if (wingDrag.which === 'before') {
+        // departure is BEFORE the start; unwrap backward.
+        let dep = t;
+        while (dep > b.startHours) dep -= 24;
+        b.travelBeforeHours = Math.min(MAX_TRAVEL_HOURS, Math.max(0, b.startHours - dep));
+      } else {
+        let home = t;
+        while (home < b.coreEndHours) home += 24;
+        b.travelAfterHours = Math.min(MAX_TRAVEL_HOURS, Math.max(0, home - b.coreEndHours));
+      }
+      blocks = blocks;
+      return;
+    }
+
     if (edit) {
       // Slip = signed angular distance from where the finger grabbed (§9). Recompute
       // from the snapshot so the result is a clean function of the current finger
@@ -205,6 +252,12 @@
       return;
     }
 
+    if (wingDrag) {
+      wingDrag = null;
+      persist();
+      return;
+    }
+
     if (edit) {
       edit = null;
       cascadeBlockedId = null;
@@ -217,19 +270,39 @@
         const coreLen = (create.sweepDeg / 360) * 24;
         const coreEnd = create.startHours + coreLen;
         const id = nextId++;
-        blocks = [
-          ...blocks,
-          {
-            id,
-            laneId: create.laneId,
-            startHours: create.startHours,
-            coreEndHours: coreEnd,
-            // Born soft (§4 / paper habit): a gentle default fade.
-            taperEndHours: coreEnd + Math.min(MAX_TAPER_HOURS, coreLen * DEFAULT_TAPER_FRAC),
-            vibeId: $armedVibe ? $armedVibe.id : null,
-            done: false,
-          },
-        ];
+        if ($appointmentMode) {
+          // Appointment (§8): hard-edged (no taper — not mine to estimate), with
+          // default travel-time wings you can then drag.
+          blocks = [
+            ...blocks,
+            {
+              id,
+              laneId: create.laneId,
+              startHours: create.startHours,
+              coreEndHours: coreEnd,
+              taperEndHours: coreEnd, // hard edge
+              vibeId: $armedVibe ? $armedVibe.id : null,
+              done: false,
+              kind: 'appointment',
+              travelBeforeHours: DEFAULT_TRAVEL_HOURS,
+              travelAfterHours: DEFAULT_TRAVEL_HOURS,
+            },
+          ];
+        } else {
+          blocks = [
+            ...blocks,
+            {
+              id,
+              laneId: create.laneId,
+              startHours: create.startHours,
+              coreEndHours: coreEnd,
+              // Born soft (§4 / paper habit): a gentle default fade.
+              taperEndHours: coreEnd + Math.min(MAX_TAPER_HOURS, coreLen * DEFAULT_TAPER_FRAC),
+              vibeId: $armedVibe ? $armedVibe.id : null,
+              done: false,
+            },
+          ];
+        }
         selectedId = id;
         persist();
       }
@@ -351,6 +424,20 @@
     return polar(C, C, rMid, a);
   }
 
+  // Travel-wing endpoint handles for an appointment (§8): 'before' = departure
+  // edge (start of prepend wing), 'after' = "home" edge (end of append wing).
+  // Null when that wing has no length.
+  function wingHandlePos(b: Block, which: 'before' | 'after'): { x: number; y: number } | null {
+    const lane = laneFor(b);
+    const rMid = (lane.rInner + lane.rOuter) / 2;
+    if (which === 'before') {
+      if ((b.travelBeforeHours ?? 0) < 0.05) return null;
+      return polar(C, C, rMid, hoursToAngle(departureHours(b)));
+    }
+    if ((b.travelAfterHours ?? 0) < 0.05) return null;
+    return polar(C, C, rMid, hoursToAngle(b.coreEndHours + (b.travelAfterHours ?? 0)));
+  }
+
   // The hard-edged block a cascade ran into (flagged, not trampled — §9).
   $: blockedBlock = cascadeBlockedId !== null ? blocks.find((b) => b.id === cascadeBlockedId) ?? null : null;
 </script>
@@ -400,6 +487,16 @@
        meaningful colour, §4), then the taper fading to nothing = my estimate.
        Done blocks dim back and carry a luminous tick (non-colour, interim). -->
   {#each blocks as b (b.id)}
+    <!-- appointment travel wings (§8): fade AWAY from the fixed bar, in the
+         travel hue. Drawn first so the solid appointment core sits on top. -->
+    {#if b.kind === 'appointment'}
+      {#each prependWingSegments(b) as seg}
+        <path d={seg.d} fill={TRAVEL_HEX} opacity={b.done ? seg.opacity * 0.45 : seg.opacity} />
+      {/each}
+      {#each appendWingSegments(b) as seg}
+        <path d={seg.d} fill={TRAVEL_HEX} opacity={b.done ? seg.opacity * 0.45 : seg.opacity} />
+      {/each}
+    {/if}
     <path d={corePath(b)} fill={blockFill(b)} opacity={b.done ? 0.4 : 0.9} />
     {#each taperSegments(b) as seg}
       <path d={seg.d} fill={blockFill(b)} opacity={b.done ? seg.opacity * 0.45 : seg.opacity} />
@@ -419,22 +516,45 @@
   <!-- selection: NON-colour signal only (§2) — a luminous outline + handles. -->
   {#if selectedBlock}
     <path d={corePath(selectedBlock)} fill="none" stroke="#ffffff" stroke-width="1.1" opacity="0.55" filter="url(#glow)" />
-    {@const h = handlePos(selectedBlock)}
-    <circle cx={h.x} cy={h.y} r="5.5" fill="#fdfdff" filter="url(#glow)" />
-    <circle cx={h.x} cy={h.y} r="2.4" fill="#0d0d10" />
-    <!-- resize edge-handles: small luminous nubs at start + core end (§9) -->
-    {@const sh = edgeHandle(selectedBlock, 'start')}
-    {@const ch = edgeHandle(selectedBlock, 'core')}
-    <circle cx={sh.x} cy={sh.y} r="3" fill="#0d0d10" stroke="#fdfdff" stroke-width="1.4" />
-    {#if !isHardEdge(selectedBlock)}
-      <circle cx={ch.x} cy={ch.y} r="3" fill="#0d0d10" stroke="#fdfdff" stroke-width="1.4" />
-    {/if}
-    {#if isHardEdge(selectedBlock)}
+    {#if isAppointment(selectedBlock)}
+      <!-- appointment: crisp deadline edges + draggable travel-wing handles (§8) -->
       {@const lane = laneFor(selectedBlock)}
-      {@const a = hoursToAngle(selectedBlock.coreEndHours)}
-      {@const p1 = polar(C, C, lane.rInner, a)}
-      {@const p2 = polar(C, C, lane.rOuter, a)}
-      <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#ffffff" stroke-width="1.6" opacity="0.85" />
+      {@const aS = hoursToAngle(selectedBlock.startHours)}
+      {@const aE = hoursToAngle(selectedBlock.coreEndHours)}
+      {@const s1 = polar(C, C, lane.rInner, aS)}
+      {@const s2 = polar(C, C, lane.rOuter, aS)}
+      {@const e1 = polar(C, C, lane.rInner, aE)}
+      {@const e2 = polar(C, C, lane.rOuter, aE)}
+      <line x1={s1.x} y1={s1.y} x2={s2.x} y2={s2.y} stroke="#ffffff" stroke-width="1.6" opacity="0.85" />
+      <line x1={e1.x} y1={e1.y} x2={e2.x} y2={e2.y} stroke="#ffffff" stroke-width="1.6" opacity="0.85" />
+      {@const bp = wingHandlePos(selectedBlock, 'before')}
+      {@const ap = wingHandlePos(selectedBlock, 'after')}
+      {#if bp}
+        <circle cx={bp.x} cy={bp.y} r="5" fill="#fdfdff" filter="url(#glow)" />
+        <circle cx={bp.x} cy={bp.y} r="2.2" fill="#0d0d10" />
+      {/if}
+      {#if ap}
+        <circle cx={ap.x} cy={ap.y} r="5" fill="#fdfdff" filter="url(#glow)" />
+        <circle cx={ap.x} cy={ap.y} r="2.2" fill="#0d0d10" />
+      {/if}
+    {:else}
+      {@const h = handlePos(selectedBlock)}
+      <circle cx={h.x} cy={h.y} r="5.5" fill="#fdfdff" filter="url(#glow)" />
+      <circle cx={h.x} cy={h.y} r="2.4" fill="#0d0d10" />
+      <!-- resize edge-handles: small luminous nubs at start + core end (§9) -->
+      {@const sh = edgeHandle(selectedBlock, 'start')}
+      {@const ch = edgeHandle(selectedBlock, 'core')}
+      <circle cx={sh.x} cy={sh.y} r="3" fill="#0d0d10" stroke="#fdfdff" stroke-width="1.4" />
+      {#if !isHardEdge(selectedBlock)}
+        <circle cx={ch.x} cy={ch.y} r="3" fill="#0d0d10" stroke="#fdfdff" stroke-width="1.4" />
+      {/if}
+      {#if isHardEdge(selectedBlock)}
+        {@const lane = laneFor(selectedBlock)}
+        {@const a = hoursToAngle(selectedBlock.coreEndHours)}
+        {@const p1 = polar(C, C, lane.rInner, a)}
+        {@const p2 = polar(C, C, lane.rOuter, a)}
+        <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#ffffff" stroke-width="1.6" opacity="0.85" />
+      {/if}
     {/if}
   {/if}
 

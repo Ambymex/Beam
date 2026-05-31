@@ -74,6 +74,15 @@ npm run check      # svelte-check (types)
   forward by the same slip and **halts at the next hard edge** (the world's
   deadline), flagging it with a luminous pulse rather than trampling it. Pure,
   unit-tested math in `cascade.ts`.
+- **Future days + appointments + travel-time wings** (spec §8) — the gallery's
+  "Ahead" section pre-seeds empty future rings you can land on and plan before
+  their morning. The bar's **◷ Block / 📍 Appointment** toggle switches draw
+  mode: appointments are **hard-edged, no taper** (externally fixed, not yours to
+  estimate) and **never migrate**. Each carries asymmetric travel-time wings in
+  the travel hue — a prepend fading BACKWARD toward "whenever I leave" (the
+  departure/"leave now" edge — the load-bearing §7 ping anchor) and an append
+  fading OUTWARD toward "whenever I get home." Drag the wing handles to size
+  them. Wing geometry + the migration carve-out are unit-tested.
 - **PWA shell** — manifest, icon, service-worker registration socket (the real
   push spine is step 7).
 
@@ -83,7 +92,7 @@ npm run check      # svelte-check (types)
 2. ✅ Lanes + colour/taper rendering + input gesture
 3. 🟡 Hub + now-wedge _(now-wedge ✅; spatial cycle entry pending)_
 4. ✅ Local persistence + day-thumbnail gallery + silent migration of undone
-5. Future days + appointments + travel-time wings
+5. ✅ Future days + appointments + travel-time wings
 6. ✅ On-the-fly editing + cascade
 7. Supabase schedule + Web Push spine, with the "active colour" signal exposed
 8. SQL structured search (`vibe_id` as the tag vocabulary)

@@ -48,7 +48,9 @@ export function migrateUndone(days: DaysMap, todayKey: string): DaysMap {
     const day = out[key];
     const stay: Block[] = [];
     for (const b of day.blocks) {
-      if (b.done) {
+      // Done blocks stay as the record; appointments are date-fixed (§8) and
+      // never migrate — a past appointment is history, not unfinished work.
+      if (b.done || b.kind === 'appointment') {
         stay.push(b);
       } else {
         today.blocks.push({ ...b, id: nextId++, migratedFrom: b.migratedFrom ?? key });
