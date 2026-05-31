@@ -54,7 +54,14 @@ npm run check      # svelte-check (types)
   the Prismacolor pencil-lift). New blocks are born soft; drag the luminous tail
   handle to lengthen/shorten the fade, or pull it back to a **hard edge** (crisp,
   with a deadline notch) = "the world's deadline, not mine to estimate."
-- **Hub** — current date; spatial cycle position comes later (§11).
+- **Hub + spatial cycle subdial** (spec §11) — the hub shows the date plus a
+  Patek-Nautilus-style cycle subdial: stepped two-tone bezel, horizontal
+  grooves, day ticks, a consumed-arc and a luminous marker you DRAG to set
+  where you are. Position-not-number — the marker IS the reading; "day N" is a
+  faint secondary, never "CD 14" as the primary. The ◍ Cycle editor sets length
+  (varies) and "today is day 1". Manual for now (§11); auto-count is a later
+  toggle, but the display stays positional. All luminosity — no pink/red, since
+  hue belongs to vibes (§2). Position↔angle math is unit-tested.
 - **Persistence + the gallery + silent migration** (spec §12 tier 1, §13) —
   every day is saved to localStorage, keyed by date. The ▦ Days gallery is the
   "time machine": re-rendered thumbnails you flick through by shape and colour,
@@ -90,14 +97,14 @@ npm run check      # svelte-check (types)
 
 1. ✅ Radial canvas + geometry (static)
 2. ✅ Lanes + colour/taper rendering + input gesture
-3. 🟡 Hub + now-wedge _(now-wedge ✅; spatial cycle entry pending)_
+3. ✅ Hub + now-wedge + spatial cycle subdial
 4. ✅ Local persistence + day-thumbnail gallery + silent migration of undone
 5. ✅ Future days + appointments + travel-time wings
 6. ✅ On-the-fly editing + cascade
 7. Supabase schedule + Web Push spine, with the "active colour" signal exposed
 8. SQL structured search (`vibe_id` as the tag vocabulary)
 9. OpenRouter translator/synthesis, with fallbacks
-10. _Later:_ Tuya listener, spatial cycle tracker
+10. _Later:_ Tuya listener (spatial cycle tracker ✅ — done early, §11)
 
 ## Not in this repo's other half
 

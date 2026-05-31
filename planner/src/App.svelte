@@ -4,11 +4,13 @@
   import Gallery from './lib/Gallery.svelte';
   import BlockEditor from './lib/BlockEditor.svelte';
   import CaptureList from './lib/CaptureList.svelte';
+  import CycleEditor from './lib/CycleEditor.svelte';
   import { currentKey, todayKey } from './lib/days';
   import { cascadeMode, appointmentMode } from './lib/daystate';
 
   let showGallery = false;
   let showCapture = false;
+  let showCycle = false;
   $: viewingToday = $currentKey === todayKey();
 </script>
 
@@ -16,6 +18,7 @@
   <header class="bar">
     <button class="chip" on:click={() => (showGallery = true)} aria-label="Open day gallery">▦ Days</button>
     <button class="chip" on:click={() => (showCapture = true)} aria-label="Open capture list">✎ List</button>
+    <button class="chip" on:click={() => (showCycle = true)} aria-label="Open cycle settings">◍ Cycle</button>
     <!-- Cascade toggle (§9): off = nudge just this; on = push my day. The "on"
          state is a non-colour cue — a luminous ring, never a hue. -->
     <button
@@ -59,6 +62,9 @@
 {/if}
 {#if showCapture}
   <CaptureList on:close={() => (showCapture = false)} />
+{/if}
+{#if showCycle}
+  <CycleEditor on:close={() => (showCycle = false)} />
 {/if}
 
 <style>
