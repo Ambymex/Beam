@@ -19,6 +19,9 @@ export interface Block {
   taperEndHours: number;
   vibeId: string | null;
   done: boolean;
+  // A short text header (§6) — the label/index for the block. Colour stays the
+  // primary channel; the text is shown only when the block is selected.
+  label?: string;
   // Set when a block was carried forward from an earlier day (§13). Banked for
   // a future "this slipped from before" cue; not rendered specially yet.
   migratedFrom?: string;

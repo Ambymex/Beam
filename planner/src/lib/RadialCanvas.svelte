@@ -17,6 +17,7 @@
   } from './blocks';
   import { currentKey, currentDay, saveDay } from './days';
   import { todayKey } from './days';
+  import { selectedBlockStore, blockActions } from './daystate';
 
   // ----- live "now" (spec §14): not a clock hand — a consumed-vs-remaining
   // wedge that fills in BEHIND now as the day burns down. -----
@@ -204,6 +205,37 @@
   // Was the tapped block selected BEFORE this gesture? Set in onPointerDown.
   let wasAlreadySelected = false;
 
+  // ----- block editor actions (label / done / delete), published to a store so
+  // the BlockEditor panel (rendered by App) can drive the selected block. -----
+  function setSelectedLabel(text: string) {
+    const b = blocks.find((x) => x.id === selectedId);
+    if (!b) return;
+    b.label = text;
+    blocks = blocks;
+    persist();
+  }
+  function toggleSelectedDone() {
+    const b = blocks.find((x) => x.id === selectedId);
+    if (!b) return;
+    b.done = !b.done;
+    blocks = blocks;
+    persist();
+  }
+  function removeSelected() {
+    blocks = blocks.filter((x) => x.id !== selectedId);
+    selectedId = null;
+    persist();
+  }
+  onMount(() => {
+    blockActions.set({
+      setLabel: setSelectedLabel,
+      toggleDone: toggleSelectedDone,
+      remove: removeSelected,
+      deselect: () => (selectedId = null),
+    });
+  });
+  onDestroy(() => blockActions.set(null));
+
   $: createLane = create ? LANES.find((l) => l.id === create!.laneId)! : null;
   $: createPath =
     create && createLane
@@ -218,6 +250,26 @@
       : '';
 
   $: selectedBlock = blocks.find((b) => b.id === selectedId) ?? null;
+  $: selectedBlockStore.set(selectedBlock);
+
+  // The selected block's label chip — a "header hung off the arc" (§6), shown
+  // only when selected (collapsed by default; colour identifies the rest).
+  $: selectedLabel = computeSelectedLabel(selectedBlock);
+  function computeSelectedLabel(b: Block | null) {
+    if (!b || !b.label) return null;
+    const lane = laneFor(b);
+    const aMid = hoursToAngle((b.startHours + b.coreEndHours) / 2);
+    const anchorPt = polar(C, C, lane.rOuter, aMid);
+    const labelPt = polar(C, C, RIM_RADIUS + 17, aMid);
+    return {
+      text: b.label,
+      x: labelPt.x,
+      y: labelPt.y,
+      ax: anchorPt.x,
+      ay: anchorPt.y,
+      right: labelPt.x >= C,
+    };
+  }
 
   // ----- static geometry -----
   const ticks = Array.from({ length: 96 }, (_, i) => {
@@ -312,6 +364,28 @@
       {@const p2 = polar(C, C, lane.rOuter, a)}
       <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#ffffff" stroke-width="1.6" opacity="0.85" />
     {/if}
+  {/if}
+
+  <!-- selected block's text header, hung off the arc (§6) -->
+  {#if selectedLabel}
+    <line
+      x1={selectedLabel.ax}
+      y1={selectedLabel.ay}
+      x2={selectedLabel.x}
+      y2={selectedLabel.y}
+      stroke="#ffffff"
+      stroke-width="0.8"
+      opacity="0.35"
+    />
+    <text
+      x={selectedLabel.x}
+      y={selectedLabel.y}
+      text-anchor={selectedLabel.right ? 'start' : 'end'}
+      dominant-baseline="central"
+      font-size="10"
+      fill="#f0f0f3"
+      filter="url(#glow)">{selectedLabel.text}</text
+    >
   {/if}
 
   <!-- live drag preview -->

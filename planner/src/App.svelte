@@ -2,15 +2,19 @@
   import RadialCanvas from './lib/RadialCanvas.svelte';
   import Palette from './lib/Palette.svelte';
   import Gallery from './lib/Gallery.svelte';
+  import BlockEditor from './lib/BlockEditor.svelte';
+  import CaptureList from './lib/CaptureList.svelte';
   import { currentKey, todayKey } from './lib/days';
 
   let showGallery = false;
+  let showCapture = false;
   $: viewingToday = $currentKey === todayKey();
 </script>
 
 <main>
   <header class="bar">
     <button class="chip" on:click={() => (showGallery = true)} aria-label="Open day gallery">▦ Days</button>
+    <button class="chip" on:click={() => (showCapture = true)} aria-label="Open capture list">✎ List</button>
     {#if !viewingToday}
       <button class="chip back" on:click={() => currentKey.set(todayKey())}>Today →</button>
     {/if}
@@ -20,6 +24,8 @@
     <RadialCanvas />
   </div>
 
+  <BlockEditor />
+
   <div class="tray-wrap">
     <Palette />
   </div>
@@ -27,6 +33,9 @@
 
 {#if showGallery}
   <Gallery on:close={() => (showGallery = false)} />
+{/if}
+{#if showCapture}
+  <CaptureList on:close={() => (showCapture = false)} />
 {/if}
 
 <style>

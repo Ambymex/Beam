@@ -60,9 +60,13 @@ npm run check      # svelte-check (types)
   "time machine": re-rendered thumbnails you flick through by shape and colour,
   tap to time-travel into a past day (read-only now-wedge hidden). Undone blocks
   from past days migrate silently onto today on launch — done blocks stay as the
-  record; no guilt. (Interim: tap a selected block again to tick it done, until
-  the text-header tick-off lands.) Migration + persistence are covered by an
-  end-to-end test.
+  record; no guilt. Migration + persistence are covered by an end-to-end test.
+- **Text headers + the capture list** (spec §6) — select a block to open its
+  editor: give it a text label (rendered as a header hung off the arc, shown
+  only when selected — colour identifies the rest), tick it done, or delete it.
+  The ✎ List overlay is the untimed capture zone ("to get: cat, milk, emergency
+  bag") — the paper margin list, a non-temporal ADHD capture surface, persisted
+  on its own. (Tap-tap a block still toggles done as a shortcut.)
 - **PWA shell** — manifest, icon, service-worker registration socket (the real
   push spine is step 7).
 
