@@ -10,7 +10,10 @@
     pieSector,
   } from './geometry';
   import { LANES, laneAtRadius, HUB_RADIUS, RIM_RADIUS, LABEL_RADIUS } from './lanes';
+  import { armedVibe } from './stores';
+  import { VIBES_BY_ID } from './vibes';
 
+  const NEUTRAL = '#6a6a78'; // placeholder fill when no vibe is armed
   const SIZE = 400;
   const C = SIZE / 2; // centre
 
@@ -41,13 +44,15 @@
   });
   $: hubDate = dateFmt.format(now);
 
-  // ----- placed blocks. Colour is a NEUTRAL placeholder until the hex/vibe DB
-  // lands — no hue is used, because any hue already means a vibe (§2). -----
+  // ----- placed blocks. Each carries the armed vibe at placement time; its hex
+  // comes from the vibe DB. This is the ONE sanctioned use of meaningful hue
+  // (§4) — everything else signals through non-colour channels. -----
   interface Block {
     id: number;
     laneId: string;
     startHours: number;
     endHours: number;
+    vibeId: string | null;
   }
   let blocks: Block[] = [];
   let nextId = 1;
@@ -64,6 +69,10 @@
     );
   }
 
+  function blockFill(b: Block): string {
+    return b.vibeId && VIBES_BY_ID[b.vibeId] ? VIBES_BY_ID[b.vibeId].hex : NEUTRAL;
+  }
+
   // ----- drag-to-place gesture (spec §5.2): radial finger position picks the
   // lane (snap to nearest); the angular sweep sets start→end. -----
   let svgEl: SVGSVGElement;
@@ -71,11 +80,13 @@
     null;
 
   function localPoint(ev: PointerEvent) {
-    const rect = svgEl.getBoundingClientRect();
-    return {
-      x: ((ev.clientX - rect.left) / rect.width) * SIZE,
-      y: ((ev.clientY - rect.top) / rect.height) * SIZE,
-    };
+    // Use the SVG's own screen transform so the mapping respects the viewBox
+    // AND preserveAspectRatio (xMidYMid meet) — the element isn't square, so
+    // scaling x/y independently would skew the radius and break lane hit-testing.
+    const ctm = svgEl.getScreenCTM();
+    if (!ctm) return { x: SIZE / 2, y: SIZE / 2 };
+    const pt = new DOMPoint(ev.clientX, ev.clientY).matrixTransform(ctm.inverse());
+    return { x: pt.x, y: pt.y };
   }
 
   function onPointerDown(ev: PointerEvent) {
@@ -115,6 +126,7 @@
           laneId: drag.laneId,
           startHours: drag.startHours,
           endHours: drag.startHours + (drag.sweepDeg / 360) * 24,
+          vibeId: $armedVibe ? $armedVibe.id : null,
         },
       ];
     }
@@ -202,14 +214,21 @@
     />
   {/each}
 
-  <!-- placed blocks (neutral placeholder fill until the palette lands) -->
+  <!-- placed blocks render in their vibe hex — the one sanctioned use of
+       meaningful colour (§4). No vibe armed → neutral placeholder. -->
   {#each blocks as b (b.id)}
-    <path d={blockPath(b)} fill="#6a6a78" opacity="0.85" stroke="#9a9aa8" stroke-width="0.5" />
+    <path d={blockPath(b)} fill={blockFill(b)} opacity="0.9" />
   {/each}
 
-  <!-- live drag preview: signalled by luminosity/glow, not colour -->
+  <!-- live drag preview: shows the armed vibe's hue being painted; glow is the
+       non-colour "active" cue (§2). -->
   {#if drag && drag.sweepDeg > 0}
-    <path d={dragPath} fill="#b9b9c8" opacity="0.55" filter="url(#glow)" />
+    <path
+      d={dragPath}
+      fill={$armedVibe ? $armedVibe.hex : '#b9b9c8'}
+      opacity="0.6"
+      filter="url(#glow)"
+    />
   {/if}
 
   <!-- now tick: faint glowing radial line (non-colour signal, §14) -->
@@ -249,8 +268,12 @@
 
 <style>
   svg {
-    width: min(92vw, 92vh);
-    height: min(92vw, 92vh);
+    /* Bounded square: leaves vertical room for the palette tray and, crucially,
+       gives the SVG a definite size so it can't enter the flex intrinsic-width
+       blowup that the wide palette grid would otherwise trigger. */
+    width: min(94vw, 64vh);
+    height: min(94vw, 64vh);
+    display: block;
     touch-action: none;
     -webkit-tap-highlight-color: transparent;
     user-select: none;
