@@ -55,6 +55,14 @@ npm run check      # svelte-check (types)
   handle to lengthen/shorten the fade, or pull it back to a **hard edge** (crisp,
   with a deadline notch) = "the world's deadline, not mine to estimate."
 - **Hub** — current date; spatial cycle position comes later (§11).
+- **Persistence + the gallery + silent migration** (spec §12 tier 1, §13) —
+  every day is saved to localStorage, keyed by date. The ▦ Days gallery is the
+  "time machine": re-rendered thumbnails you flick through by shape and colour,
+  tap to time-travel into a past day (read-only now-wedge hidden). Undone blocks
+  from past days migrate silently onto today on launch — done blocks stay as the
+  record; no guilt. (Interim: tap a selected block again to tick it done, until
+  the text-header tick-off lands.) Migration + persistence are covered by an
+  end-to-end test.
 - **PWA shell** — manifest, icon, service-worker registration socket (the real
   push spine is step 7).
 
@@ -63,7 +71,7 @@ npm run check      # svelte-check (types)
 1. ✅ Radial canvas + geometry (static)
 2. ✅ Lanes + colour/taper rendering + input gesture
 3. 🟡 Hub + now-wedge _(now-wedge ✅; spatial cycle entry pending)_
-4. Local persistence + day-thumbnail gallery + silent migration of undone
+4. ✅ Local persistence + day-thumbnail gallery + silent migration of undone
 5. Future days + appointments + travel-time wings
 6. On-the-fly editing + cascade
 7. Supabase schedule + Web Push spine, with the "active colour" signal exposed

@@ -1,16 +1,33 @@
 <script lang="ts">
   import RadialCanvas from './lib/RadialCanvas.svelte';
   import Palette from './lib/Palette.svelte';
+  import Gallery from './lib/Gallery.svelte';
+  import { currentKey, todayKey } from './lib/days';
+
+  let showGallery = false;
+  $: viewingToday = $currentKey === todayKey();
 </script>
 
 <main>
+  <header class="bar">
+    <button class="chip" on:click={() => (showGallery = true)} aria-label="Open day gallery">▦ Days</button>
+    {#if !viewingToday}
+      <button class="chip back" on:click={() => currentKey.set(todayKey())}>Today →</button>
+    {/if}
+  </header>
+
   <div class="ring">
     <RadialCanvas />
   </div>
+
   <div class="tray-wrap">
     <Palette />
   </div>
 </main>
+
+{#if showGallery}
+  <Gallery on:close={() => (showGallery = false)} />
+{/if}
 
 <style>
   main {
@@ -19,12 +36,30 @@
     flex-direction: column;
     min-height: 0;
     /* min-width:0 stops the wide palette grid from ballooning the column past
-       the viewport (flexbox min-width:auto trap) — keeps the ring viewport-sized
-       and lets the tray's own overflow-x scroll instead. */
+       the viewport (flexbox min-width:auto trap). */
     min-width: 0;
     width: 100%;
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
       env(safe-area-inset-left);
+  }
+  .bar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px 2px;
+  }
+  .chip {
+    background: #16161c;
+    border: 1px solid #26262e;
+    color: #cfcfd6;
+    border-radius: 999px;
+    padding: 5px 12px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .chip.back {
+    margin-left: auto;
   }
   .ring {
     flex: 1;
