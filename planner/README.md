@@ -33,7 +33,7 @@ npm run check      # svelte-check (types)
 
 ## What's built so far
 
-**Step 1–2 (partial): the living canvas + first gesture.**
+**Steps 1–2: the living canvas, the vibe palette, and the taper grammar.**
 
 - **Geometry** (`src/lib/geometry.ts`) — midnight at the bottom, noon at the
   top, time running clockwise (the day rises up the left, sets down the right).
@@ -44,8 +44,16 @@ npm run check      # svelte-check (types)
   that fills in behind "now" as the day burns down, drawn in luminosity only,
   with a faint glowing now-tick. Updates live.
 - **Drag-to-place** (spec §5.2) — press on a lane, sweep the angle to set
-  start→end; the block snaps to the nearest lane and commits on release. Colour
-  is a neutral placeholder until the hex/vibe DB lands.
+  start→end; the block snaps to the nearest lane and commits on release.
+- **The vibe palette** (`src/lib/vibes.ts`, `Palette.svelte`) — 77 emotion↔hex
+  pairs parsed from the hand-written cipher. Tap a swatch to arm it (selection
+  signalled by a white ring + glow, never colour); the drawn arc paints in that
+  hue. `vibe_id` doubles as the search tag vocabulary (§6/§12).
+- **The taper grammar** (spec §4) — a block is solid through its confident core,
+  then fades to nothing across the predicted overage (stepped-opacity segments —
+  the Prismacolor pencil-lift). New blocks are born soft; drag the luminous tail
+  handle to lengthen/shorten the fade, or pull it back to a **hard edge** (crisp,
+  with a deadline notch) = "the world's deadline, not mine to estimate."
 - **Hub** — current date; spatial cycle position comes later (§11).
 - **PWA shell** — manifest, icon, service-worker registration socket (the real
   push spine is step 7).
@@ -53,9 +61,8 @@ npm run check      # svelte-check (types)
 ## Build order (from the spec)
 
 1. ✅ Radial canvas + geometry (static)
-2. 🟡 Lanes + colour/taper rendering + input gesture _(gesture in; colour &
-   taper handle pending the palette)_
-3. Hub + now-wedge _(now-wedge ✅; cycle entry pending)_
+2. ✅ Lanes + colour/taper rendering + input gesture
+3. 🟡 Hub + now-wedge _(now-wedge ✅; spatial cycle entry pending)_
 4. Local persistence + day-thumbnail gallery + silent migration of undone
 5. Future days + appointments + travel-time wings
 6. On-the-fly editing + cascade

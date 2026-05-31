@@ -46,38 +46,97 @@
 
   // ----- placed blocks. Each carries the armed vibe at placement time; its hex
   // comes from the vibe DB. This is the ONE sanctioned use of meaningful hue
-  // (§4) — everything else signals through non-colour channels. -----
+  // (§4) — everything else signals through non-colour channels.
+  //
+  // The taper grammar (§4) is the honesty layer: a block is solid through its
+  // CONFIDENT part (start → coreEnd), then fades to nothing across the predicted
+  // overage (coreEnd → taperEnd). taperEnd === coreEnd means a HARD EDGE — "the
+  // world's deadline," not mine to estimate. All hours are kept un-wrapped
+  // (start in [0,24); coreEnd/taperEnd may exceed 24 for cross-midnight blocks).
   interface Block {
     id: number;
     laneId: string;
     startHours: number;
-    endHours: number;
+    coreEndHours: number;
+    taperEndHours: number;
     vibeId: string | null;
   }
   let blocks: Block[] = [];
   let nextId = 1;
+  let selectedId: number | null = null;
 
-  function blockPath(b: Block): string {
-    const lane = LANES.find((l) => l.id === b.laneId)!;
+  const MIN_SWEEP_DEG = 1.5; // ignore an accidental tap-as-drag
+  const DEFAULT_TAPER_FRAC = 0.4; // born soft — the fade was everywhere on paper
+  const MAX_TAPER_HOURS = 6; // a "maybe it runs over" only stretches so far
+  const HARD_EDGE_EPS = 0.03; // < ~2 min of taper reads as a hard edge
+  const HANDLE_HIT = 13; // viewBox-unit grab radius for the taper handle
+
+  const laneFor = (b: Block) => LANES.find((l) => l.id === b.laneId)!;
+  const taperLen = (b: Block) => b.taperEndHours - b.coreEndHours;
+  const isHardEdge = (b: Block) => taperLen(b) < HARD_EDGE_EPS;
+
+  function blockFill(b: Block): string {
+    return b.vibeId && VIBES_BY_ID[b.vibeId] ? VIBES_BY_ID[b.vibeId].hex : NEUTRAL;
+  }
+
+  // Solid, confident core.
+  function corePath(b: Block): string {
+    const lane = laneFor(b);
     return annularSector(
       C,
       C,
       lane.rInner,
       lane.rOuter,
       hoursToAngle(b.startHours),
-      hoursToAngle(b.endHours),
+      hoursToAngle(b.coreEndHours),
     );
   }
 
-  function blockFill(b: Block): string {
-    return b.vibeId && VIBES_BY_ID[b.vibeId] ? VIBES_BY_ID[b.vibeId].hex : NEUTRAL;
+  // The fade: stepped-opacity arc segments (§2/§4 — SVG handles the taper
+  // natively this way). Opacity eases from the core's down toward nothing, like
+  // a coloured pencil lifting off the page.
+  function taperSegments(b: Block): { d: string; opacity: number }[] {
+    const span = taperLen(b);
+    if (span < HARD_EDGE_EPS) return [];
+    const a0 = hoursToAngle(b.coreEndHours);
+    const aSpan = (span / 24) * 360;
+    const lane = laneFor(b);
+    const n = Math.max(6, Math.round(span * 14)); // a step roughly every ~4 min
+    const overlap = (aSpan / n) * 0.14; // hairline-killing seam overlap
+    const segs: { d: string; opacity: number }[] = [];
+    for (let i = 0; i < n; i++) {
+      const s = a0 + (aSpan * i) / n;
+      const e = a0 + (aSpan * (i + 1)) / n + overlap;
+      const t = (i + 0.5) / n; // midpoint keeps it continuous with the core
+      const opacity = 0.9 * Math.pow(1 - t, 1.4);
+      segs.push({ d: annularSector(C, C, lane.rInner, lane.rOuter, s, e), opacity });
+    }
+    return segs;
   }
 
-  // ----- drag-to-place gesture (spec §5.2): radial finger position picks the
-  // lane (snap to nearest); the angular sweep sets start→end. -----
+  // The luminous taper handle sits at the tail, on the lane's mid-line.
+  function handlePos(b: Block): { x: number; y: number } {
+    const lane = laneFor(b);
+    const rMid = (lane.rInner + lane.rOuter) / 2;
+    return polar(C, C, rMid, hoursToAngle(b.taperEndHours));
+  }
+
+  // Is point (in hours, within a lane) inside this block's full angular span?
+  function blockContains(b: Block, r: number, hours: number): boolean {
+    const lane = laneFor(b);
+    if (r < lane.rInner || r > lane.rOuter) return false;
+    const s = b.startHours;
+    const e = b.taperEndHours;
+    return (hours >= s && hours <= e) || (hours + 24 >= s && hours + 24 <= e);
+  }
+
+  // ----- gestures (spec §5): all gestural, no number pads. Three intents off a
+  // single pointer-down — drag the taper handle, select a block, or draw a new
+  // one on empty ring. -----
   let svgEl: SVGSVGElement;
-  let drag: { laneId: string; startHours: number; sweepDeg: number; lastAngle: number } | null =
-    null;
+  type CreateDrag = { laneId: string; startHours: number; sweepDeg: number; lastAngle: number };
+  let create: CreateDrag | null = null;
+  let taperDragId: number | null = null;
 
   function localPoint(ev: PointerEvent) {
     // Use the SVG's own screen transform so the mapping respects the viewBox
@@ -92,59 +151,108 @@
   function onPointerDown(ev: PointerEvent) {
     const { x, y } = localPoint(ev);
     const r = pointRadius(C, C, x, y);
-    const innermost = LANES[LANES.length - 1].rInner;
-    if (r < innermost || r > RIM_RADIUS) return; // ignore hub + outside the rim
     const angle = pointToAngle(C, C, x, y);
-    drag = {
-      laneId: laneAtRadius(r).id,
-      startHours: angleToHours(angle),
-      sweepDeg: 0,
-      lastAngle: angle,
-    };
+    const hours = angleToHours(angle);
+
+    // 1. Grabbing the selected block's taper handle?
+    const sel = blocks.find((b) => b.id === selectedId);
+    if (sel) {
+      const h = handlePos(sel);
+      if (Math.hypot(x - h.x, y - h.y) <= HANDLE_HIT) {
+        taperDragId = sel.id;
+        svgEl.setPointerCapture(ev.pointerId);
+        return;
+      }
+    }
+
+    // 2. Tapping an existing block selects it (top-most wins).
+    const hit = [...blocks].reverse().find((b) => blockContains(b, r, hours));
+    if (hit) {
+      selectedId = hit.id;
+      svgEl.setPointerCapture(ev.pointerId);
+      return;
+    }
+
+    // 3. Empty lane → start drawing a new block.
+    const innermost = LANES[LANES.length - 1].rInner;
+    if (r < innermost || r > RIM_RADIUS) {
+      selectedId = null; // tap in the hub/void deselects
+      return;
+    }
+    selectedId = null;
+    create = { laneId: laneAtRadius(r).id, startHours: hours, sweepDeg: 0, lastAngle: angle };
     svgEl.setPointerCapture(ev.pointerId);
   }
 
   function onPointerMove(ev: PointerEvent) {
-    if (!drag) return;
     const { x, y } = localPoint(ev);
     const angle = pointToAngle(C, C, x, y);
-    let delta = angle - drag.lastAngle;
-    if (delta > 180) delta -= 360;
-    if (delta < -180) delta += 360;
-    drag.sweepDeg = Math.min(360, Math.max(0, drag.sweepDeg + delta));
-    drag.lastAngle = angle;
-    drag = drag; // poke Svelte reactivity
+
+    if (taperDragId !== null) {
+      const b = blocks.find((bl) => bl.id === taperDragId);
+      if (!b) return;
+      // Unwrap the pointer angle forward from coreEnd, then clamp the fade.
+      let target = angleToHours(angle);
+      while (target < b.coreEndHours) target += 24;
+      const span = Math.min(MAX_TAPER_HOURS, Math.max(0, target - b.coreEndHours));
+      b.taperEndHours = b.coreEndHours + span;
+      blocks = blocks; // poke reactivity
+      return;
+    }
+
+    if (create) {
+      let delta = angle - create.lastAngle;
+      if (delta > 180) delta -= 360;
+      if (delta < -180) delta += 360;
+      create.sweepDeg = Math.min(360, Math.max(0, create.sweepDeg + delta));
+      create.lastAngle = angle;
+      create = create;
+    }
   }
 
   function onPointerUp() {
-    if (!drag) return;
-    if (drag.sweepDeg > 1.5) {
-      blocks = [
-        ...blocks,
-        {
-          id: nextId++,
-          laneId: drag.laneId,
-          startHours: drag.startHours,
-          endHours: drag.startHours + (drag.sweepDeg / 360) * 24,
-          vibeId: $armedVibe ? $armedVibe.id : null,
-        },
-      ];
+    if (taperDragId !== null) {
+      taperDragId = null;
+      return;
     }
-    drag = null;
+    if (create) {
+      if (create.sweepDeg > MIN_SWEEP_DEG) {
+        const coreLen = (create.sweepDeg / 360) * 24;
+        const coreEnd = create.startHours + coreLen;
+        const id = nextId++;
+        blocks = [
+          ...blocks,
+          {
+            id,
+            laneId: create.laneId,
+            startHours: create.startHours,
+            coreEndHours: coreEnd,
+            // Born soft (§4 / paper habit): a gentle default fade you can adjust
+            // or pull back to a hard edge via the handle.
+            taperEndHours: coreEnd + Math.min(MAX_TAPER_HOURS, coreLen * DEFAULT_TAPER_FRAC),
+            vibeId: $armedVibe ? $armedVibe.id : null,
+          },
+        ];
+        selectedId = id; // select so the taper handle is immediately grabbable
+      }
+      create = null;
+    }
   }
 
-  $: dragLane = drag ? LANES.find((l) => l.id === drag!.laneId)! : null;
-  $: dragPath =
-    drag && dragLane
+  $: createLane = create ? LANES.find((l) => l.id === create!.laneId)! : null;
+  $: createPath =
+    create && createLane
       ? annularSector(
           C,
           C,
-          dragLane.rInner,
-          dragLane.rOuter,
-          hoursToAngle(drag.startHours),
-          hoursToAngle(drag.startHours) + drag.sweepDeg,
+          createLane.rInner,
+          createLane.rOuter,
+          hoursToAngle(create.startHours),
+          hoursToAngle(create.startHours) + create.sweepDeg,
         )
       : '';
+
+  $: selectedBlock = blocks.find((b) => b.id === selectedId) ?? null;
 
   // ----- static geometry, computed once -----
   // 96 fifteen-minute ticks; every 4th is an hour spoke (§2).
@@ -214,17 +322,52 @@
     />
   {/each}
 
-  <!-- placed blocks render in their vibe hex — the one sanctioned use of
-       meaningful colour (§4). No vibe armed → neutral placeholder. -->
+  <!-- placed blocks: solid core in the vibe hex (the one sanctioned use of
+       meaningful colour, §4), then the taper fading to nothing = my estimate. -->
   {#each blocks as b (b.id)}
-    <path d={blockPath(b)} fill={blockFill(b)} opacity="0.9" />
+    <path d={corePath(b)} fill={blockFill(b)} opacity="0.9" />
+    {#each taperSegments(b) as seg}
+      <path d={seg.d} fill={blockFill(b)} opacity={seg.opacity} />
+    {/each}
   {/each}
+
+  <!-- selection: NON-colour signal only (§2) — a luminous outline on the core
+       plus the grabbable taper handle. -->
+  {#if selectedBlock}
+    <path
+      d={corePath(selectedBlock)}
+      fill="none"
+      stroke="#ffffff"
+      stroke-width="1.1"
+      opacity="0.55"
+      filter="url(#glow)"
+    />
+    {@const h = handlePos(selectedBlock)}
+    <circle cx={h.x} cy={h.y} r="5.5" fill="#fdfdff" filter="url(#glow)" />
+    <circle cx={h.x} cy={h.y} r="2.4" fill="#0d0d10" />
+    {#if isHardEdge(selectedBlock)}
+      <!-- hard edge: a crisp notch at the tail says "the world's deadline" -->
+      {@const lane = laneFor(selectedBlock)}
+      {@const a = hoursToAngle(selectedBlock.coreEndHours)}
+      {@const p1 = polar(C, C, lane.rInner, a)}
+      {@const p2 = polar(C, C, lane.rOuter, a)}
+      <line
+        x1={p1.x}
+        y1={p1.y}
+        x2={p2.x}
+        y2={p2.y}
+        stroke="#ffffff"
+        stroke-width="1.6"
+        opacity="0.85"
+      />
+    {/if}
+  {/if}
 
   <!-- live drag preview: shows the armed vibe's hue being painted; glow is the
        non-colour "active" cue (§2). -->
-  {#if drag && drag.sweepDeg > 0}
+  {#if create && create.sweepDeg > 0}
     <path
-      d={dragPath}
+      d={createPath}
       fill={$armedVibe ? $armedVibe.hex : '#b9b9c8'}
       opacity="0.6"
       filter="url(#glow)"
