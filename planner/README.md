@@ -90,8 +90,14 @@ npm run check      # svelte-check (types)
   departure/"leave now" edge — the load-bearing §7 ping anchor) and an append
   fading OUTWARD toward "whenever I get home." Drag the wing handles to size
   them. Wing geometry + the migration carve-out are unit-tested.
-- **PWA shell** — manifest, icon, service-worker registration socket (the real
-  push spine is step 7).
+- **Push receive half** (spec §7, client side) — the service worker renders
+  transition notifications (`notify.ts` shapes them: block-start / appliance-
+  free / travel-start — never a nag for undone work). `push.ts` handles
+  permission + subscribe (degrades until the VAPID key lands). The `🔔 Alerts`
+  panel covers permission, a working **send-a-test** (fires through the SW), and
+  the iOS Add-to-Home-Screen guidance. Shaping logic is unit-tested; the
+  server-scheduled send is the next round — see `PUSH_SETUP.md`.
+- **PWA shell** — manifest, icon, service-worker registration + push receiver.
 
 ## Build order (from the spec)
 
@@ -101,7 +107,8 @@ npm run check      # svelte-check (types)
 4. ✅ Local persistence + day-thumbnail gallery + silent migration of undone
 5. ✅ Future days + appointments + travel-time wings
 6. ✅ On-the-fly editing + cascade
-7. Supabase schedule + Web Push spine, with the "active colour" signal exposed
+7. 🟡 Web Push spine — receive half ✅ (SW + client + Alerts UI, unit-tested);
+   server schedule/cron/VAPID-send next (needs Supabase) — see PUSH_SETUP.md
 8. SQL structured search (`vibe_id` as the tag vocabulary)
 9. OpenRouter translator/synthesis, with fallbacks
 10. _Later:_ Tuya listener (spatial cycle tracker ✅ — done early, §11)
