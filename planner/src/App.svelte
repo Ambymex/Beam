@@ -8,6 +8,7 @@
   import AlertsSettings from './lib/AlertsSettings.svelte';
   import { currentKey, todayKey } from './lib/days';
   import { cascadeMode, appointmentMode } from './lib/daystate';
+  import { theme, toggleTheme } from './lib/theme';
 
   let showGallery = false;
   let showCapture = false;
@@ -43,6 +44,13 @@
       aria-label="Toggle appointment draw mode"
     >
       {$appointmentMode ? '📍 Appointment' : '◷ Block'}
+    </button>
+    <button
+      class="chip theme"
+      on:click={toggleTheme}
+      aria-label="Toggle light or dark theme"
+    >
+      {$theme === 'light' ? '☾ Dark' : '☀ Light'}
     </button>
     {#if !viewingToday}
       <button class="chip back" on:click={() => currentKey.set(todayKey())}>Today →</button>
@@ -94,9 +102,10 @@
     padding: 8px 12px 2px;
   }
   .chip {
-    background: #16161c;
-    border: 1px solid #26262e;
-    color: #cfcfd6;
+    flex: 0 0 auto;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-2);
     border-radius: 999px;
     padding: 5px 12px;
     font-size: 13px;
@@ -107,8 +116,16 @@
   }
   /* cascade ON = luminous ring (non-colour, §2) */
   .chip.push.on {
-    box-shadow: 0 0 0 1px #fdfdff inset;
-    color: #fdfdff;
+    box-shadow: 0 0 0 1px var(--signal) inset;
+    color: var(--signal);
+  }
+  /* let the bar scroll horizontally — many chips on a narrow phone */
+  .bar {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .bar::-webkit-scrollbar {
+    display: none;
   }
   .ring {
     flex: 1;
@@ -121,7 +138,7 @@
     flex: 0 0 auto;
     min-width: 0;
     padding: 6px 10px 4px;
-    border-top: 1px solid #1b1b22;
-    background: #0b0b0e;
+    border-top: 1px solid var(--hairline);
+    background: var(--surface);
   }
 </style>

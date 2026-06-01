@@ -102,6 +102,13 @@ npm run check      # svelte-check (types)
   desktop wheel-zoom. Implemented purely as a viewBox window, so every gesture
   (draw, drag, taper, wings, cascade, the cycle dial) keeps mapping correctly
   through `getScreenCTM()` with no change to hit-testing. Non-colour controls.
+- **Light / dark themes** — a manual ☀/☾ toggle (persisted). Warm paper-white
+  (a nod to the Prismacolor paper) or the original dark. The key isn't a
+  recolour but an **inversion of the signal logic** (§2): the bright glow that
+  means now/selection/cascade on black would vanish on paper, so on light it
+  becomes a dark, heavier mark — same meaning, flipped value. The 77 vibe hexes
+  are never themed; they're the user's data. Driven by one source of truth
+  (`theme.ts`): a `palette` store for the SVG + CSS variables for the chrome.
 - **PWA shell** — manifest, icon, service-worker registration + push receiver.
 
 ## Build order (from the spec)

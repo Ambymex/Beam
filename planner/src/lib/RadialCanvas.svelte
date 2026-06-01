@@ -27,6 +27,11 @@
   import { selectedBlockStore, blockActions, cascadeMode, appointmentMode } from './daystate';
   import CycleDial from './CycleDial.svelte';
   import { computeMove, computeResizeStart, computeResizeCore, angDiffHours } from './cascade';
+  import { palette, theme } from './theme';
+
+  // Themed palette for the ring's structural marks (the signal inverts on
+  // light, per §2). Vibe block fills are untouched — they're the user's data.
+  $: pal = $palette;
 
   // ----- live "now" (spec §14): not a clock hand — a consumed-vs-remaining
   // wedge that fills in BEHIND now as the day burns down. -----
@@ -577,28 +582,29 @@
       </feMerge>
     </filter>
     <radialGradient id="hubFade" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#16161b" />
-      <stop offset="100%" stop-color="#0d0d10" />
+      <stop offset="0%" stop-color={pal.hubFrom} />
+      <stop offset="100%" stop-color={pal.hubTo} />
     </radialGradient>
   </defs>
 
   <!-- backdrop disc -->
-  <circle cx={C} cy={C} r={RIM_RADIUS} fill="#101014" stroke="#26262e" stroke-width="1" />
+  <circle cx={C} cy={C} r={RIM_RADIUS} fill={pal.ringDisc} stroke={pal.ringStroke} stroke-width="1" />
 
-  <!-- consumed-vs-remaining wedge: luminosity only, never a hue (§2/§14) -->
+  <!-- consumed-vs-remaining wedge: luminosity only, never a hue (§2/§14).
+       Slightly stronger on light, where it's a dark shade not a white veil. -->
   {#if viewingToday}
-    <path d={nowWedge} fill="#ffffff" opacity="0.05" />
+    <path d={nowWedge} fill={pal.signalSoft} opacity={$theme === 'light' ? 0.08 : 0.05} />
   {/if}
 
   <!-- lane band outlines -->
   {#each LANES as lane}
-    <circle cx={C} cy={C} r={lane.rOuter} fill="none" stroke="#23232b" stroke-width="1" />
-    <circle cx={C} cy={C} r={lane.rInner} fill="none" stroke="#1a1a20" stroke-width="1" />
+    <circle cx={C} cy={C} r={lane.rOuter} fill="none" stroke={pal.laneOuter} stroke-width="1" />
+    <circle cx={C} cy={C} r={lane.rInner} fill="none" stroke={pal.laneInner} stroke-width="1" />
   {/each}
 
   <!-- 15-min ticks + hour spokes -->
   {#each ticks as t}
-    <line x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} stroke={t.isHour ? '#33333d' : '#26262e'} stroke-width={t.isHour ? 1 : 0.6} />
+    <line x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} stroke={t.isHour ? pal.tickHour : pal.tickMin} stroke-width={t.isHour ? 1 : 0.6} />
   {/each}
 
   <!-- placed blocks: solid core in the vibe hex (the one sanctioned use of
@@ -621,19 +627,19 @@
     {/each}
     {#if b.done}
       {@const tk = doneTick(b)}
-      <line x1={tk.x1} y1={tk.y1} x2={tk.x2} y2={tk.y2} stroke="#fdfdff" stroke-width="1.5" opacity="0.8" filter="url(#glow)" />
+      <line x1={tk.x1} y1={tk.y1} x2={tk.x2} y2={tk.y2} stroke={pal.signal} stroke-width="1.5" opacity="0.8" filter="url(#glow)" />
     {/if}
   {/each}
 
   <!-- cascade halt flag: the hard-edged block a push ran into — pulsed outline,
        non-colour, says "I stopped here, didn't trample your deadline" (§9). -->
   {#if blockedBlock}
-    <path d={corePath(blockedBlock)} fill="none" stroke="#ffffff" stroke-width="2" opacity="0.95" filter="url(#glow)" />
+    <path d={corePath(blockedBlock)} fill="none" stroke={pal.signal} stroke-width="2" opacity="0.95" filter="url(#glow)" />
   {/if}
 
   <!-- selection: NON-colour signal only (§2) — a luminous outline + handles. -->
   {#if selectedBlock}
-    <path d={corePath(selectedBlock)} fill="none" stroke="#ffffff" stroke-width="1.1" opacity="0.55" filter="url(#glow)" />
+    <path d={corePath(selectedBlock)} fill="none" stroke={pal.signal} stroke-width="1.1" opacity="0.55" filter="url(#glow)" />
     {#if isAppointment(selectedBlock)}
       <!-- appointment: crisp deadline edges + draggable travel-wing handles (§8) -->
       {@const lane = laneFor(selectedBlock)}
@@ -643,35 +649,35 @@
       {@const s2 = polar(C, C, lane.rOuter, aS)}
       {@const e1 = polar(C, C, lane.rInner, aE)}
       {@const e2 = polar(C, C, lane.rOuter, aE)}
-      <line x1={s1.x} y1={s1.y} x2={s2.x} y2={s2.y} stroke="#ffffff" stroke-width="1.6" opacity="0.85" />
-      <line x1={e1.x} y1={e1.y} x2={e2.x} y2={e2.y} stroke="#ffffff" stroke-width="1.6" opacity="0.85" />
+      <line x1={s1.x} y1={s1.y} x2={s2.x} y2={s2.y} stroke={pal.signal} stroke-width="1.6" opacity="0.85" />
+      <line x1={e1.x} y1={e1.y} x2={e2.x} y2={e2.y} stroke={pal.signal} stroke-width="1.6" opacity="0.85" />
       {@const bp = wingHandlePos(selectedBlock, 'before')}
       {@const ap = wingHandlePos(selectedBlock, 'after')}
       {#if bp}
-        <circle cx={bp.x} cy={bp.y} r="5" fill="#fdfdff" filter="url(#glow)" />
-        <circle cx={bp.x} cy={bp.y} r="2.2" fill="#0d0d10" />
+        <circle cx={bp.x} cy={bp.y} r="5" fill={pal.signal} filter="url(#glow)" />
+        <circle cx={bp.x} cy={bp.y} r="2.2" fill={pal.handleCore} />
       {/if}
       {#if ap}
-        <circle cx={ap.x} cy={ap.y} r="5" fill="#fdfdff" filter="url(#glow)" />
-        <circle cx={ap.x} cy={ap.y} r="2.2" fill="#0d0d10" />
+        <circle cx={ap.x} cy={ap.y} r="5" fill={pal.signal} filter="url(#glow)" />
+        <circle cx={ap.x} cy={ap.y} r="2.2" fill={pal.handleCore} />
       {/if}
     {:else}
       {@const h = handlePos(selectedBlock)}
-      <circle cx={h.x} cy={h.y} r="5.5" fill="#fdfdff" filter="url(#glow)" />
-      <circle cx={h.x} cy={h.y} r="2.4" fill="#0d0d10" />
+      <circle cx={h.x} cy={h.y} r="5.5" fill={pal.signal} filter="url(#glow)" />
+      <circle cx={h.x} cy={h.y} r="2.4" fill={pal.handleCore} />
       <!-- resize edge-handles: small luminous nubs at start + core end (§9) -->
       {@const sh = edgeHandle(selectedBlock, 'start')}
       {@const ch = edgeHandle(selectedBlock, 'core')}
-      <circle cx={sh.x} cy={sh.y} r="3" fill="#0d0d10" stroke="#fdfdff" stroke-width="1.4" />
+      <circle cx={sh.x} cy={sh.y} r="3" fill={pal.handleCore} stroke={pal.signal} stroke-width="1.4" />
       {#if !isHardEdge(selectedBlock)}
-        <circle cx={ch.x} cy={ch.y} r="3" fill="#0d0d10" stroke="#fdfdff" stroke-width="1.4" />
+        <circle cx={ch.x} cy={ch.y} r="3" fill={pal.handleCore} stroke={pal.signal} stroke-width="1.4" />
       {/if}
       {#if isHardEdge(selectedBlock)}
         {@const lane = laneFor(selectedBlock)}
         {@const a = hoursToAngle(selectedBlock.coreEndHours)}
         {@const p1 = polar(C, C, lane.rInner, a)}
         {@const p2 = polar(C, C, lane.rOuter, a)}
-        <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#ffffff" stroke-width="1.6" opacity="0.85" />
+        <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke={pal.signal} stroke-width="1.6" opacity="0.85" />
       {/if}
     {/if}
   {/if}
@@ -683,7 +689,7 @@
       y1={selectedLabel.ay}
       x2={selectedLabel.x}
       y2={selectedLabel.y}
-      stroke="#ffffff"
+      stroke={pal.signal}
       stroke-width="0.8"
       opacity="0.35"
     />
@@ -693,31 +699,31 @@
       text-anchor={selectedLabel.right ? 'start' : 'end'}
       dominant-baseline="central"
       font-size="10"
-      fill="#f0f0f3"
-      filter="url(#glow)">{selectedLabel.text}</text
+      fill={pal.textPrimary}
+      filter={$theme === 'light' ? undefined : 'url(#glow)'}>{selectedLabel.text}</text
     >
   {/if}
 
   <!-- live drag preview -->
   {#if create && create.sweepDeg > 0}
-    <path d={createPath} fill={$armedVibe ? $armedVibe.hex : '#b9b9c8'} opacity="0.6" filter="url(#glow)" />
+    <path d={createPath} fill={$armedVibe ? $armedVibe.hex : pal.createGhost} opacity="0.6" filter="url(#glow)" />
   {/if}
 
   <!-- now tick: faint glowing radial line (non-colour signal, §14) -->
   {#if viewingToday}
-    <line x1={nowTick.x1} y1={nowTick.y1} x2={nowTick.x2} y2={nowTick.y2} stroke="#fdfdff" stroke-width="1.4" opacity="0.9" filter="url(#glow)" />
+    <line x1={nowTick.x1} y1={nowTick.y1} x2={nowTick.x2} y2={nowTick.y2} stroke={pal.signal} stroke-width="1.4" opacity="0.9" filter="url(#glow)" />
   {/if}
 
   <!-- hour labels: civilian 1–12 twice (§2) -->
   {#each hourLabels as l}
-    <text x={l.x} y={l.y} text-anchor="middle" dominant-baseline="central" font-size="9" fill={l.marker ? '#cfcfd6' : '#7c7c88'} font-weight={l.marker ? 600 : 400}>{l.label}</text>
+    <text x={l.x} y={l.y} text-anchor="middle" dominant-baseline="central" font-size="9" fill={l.marker ? pal.tickLabelMarker : pal.tickLabel} font-weight={l.marker ? 600 : 400}>{l.label}</text>
   {/each}
 
   <!-- hub: current date (top) + the spatial cycle subdial (§11), Nautilus inset -->
-  <circle cx={C} cy={C} r={HUB_RADIUS} fill="url(#hubFade)" stroke="#2c2c35" stroke-width="1" />
-  <text x={C} y={C - HUB_RADIUS + 13} text-anchor="middle" font-size="10" fill="#e7e7ea" font-weight="600">{hubDate}</text>
+  <circle cx={C} cy={C} r={HUB_RADIUS} fill="url(#hubFade)" stroke={pal.hubStroke} stroke-width="1" />
+  <text x={C} y={C - HUB_RADIUS + 13} text-anchor="middle" font-size="10" fill={pal.textPrimary} font-weight="600">{hubDate}</text>
   {#if !viewingToday}
-    <text x={C} y={C - HUB_RADIUS + 24} text-anchor="middle" font-size="7" fill="#5d5d68" letter-spacing="0.5">past day</text>
+    <text x={C} y={C - HUB_RADIUS + 24} text-anchor="middle" font-size="7" fill={pal.textDim} letter-spacing="0.5">past day</text>
   {/if}
     <!-- the subdial fills the lower hub; tap it (via the editor button) to set
          length / start. Drag the marker to set where you are. -->

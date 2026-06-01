@@ -1,5 +1,10 @@
 import './app.css';
+import { theme } from './lib/theme';
 import App from './App.svelte';
+
+// Apply the saved theme to <html data-theme> before first paint (the store's
+// subscriber sets it; this just forces an immediate read).
+theme.subscribe(() => {})();
 
 const app = new App({ target: document.getElementById('app')! });
 

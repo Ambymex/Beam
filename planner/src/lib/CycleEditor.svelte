@@ -49,7 +49,7 @@
     position: fixed;
     inset: 0;
     z-index: 20;
-    background: #0b0b0e;
+    background: var(--surface);
     display: flex;
     flex-direction: column;
     padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
@@ -61,13 +61,13 @@
     padding: 12px 16px;
     font-size: 15px;
     font-weight: 600;
-    color: #e7e7ea;
-    border-bottom: 1px solid #1b1b22;
+    color: var(--text);
+    border-bottom: 1px solid var(--hairline);
   }
   .close {
     background: none;
     border: none;
-    color: #9a9aa4;
+    color: var(--text-dim);
     font-size: 18px;
     cursor: pointer;
     padding: 4px 8px;
@@ -85,7 +85,7 @@
   .hint {
     margin: 0;
     font-size: 12px;
-    color: #6a6a74;
+    color: var(--text-faint);
   }
   .row {
     width: 100%;
@@ -96,7 +96,7 @@
   }
   .lbl {
     font-size: 14px;
-    color: #cfcfd6;
+    color: var(--text-2);
   }
   .stepper {
     display: flex;
@@ -107,9 +107,9 @@
     width: 34px;
     height: 34px;
     border-radius: 8px;
-    background: #16161c;
-    border: 1px solid #2a2a33;
-    color: #e7e7ea;
+    background: var(--surface-2);
+    border: 1px solid var(--border-2);
+    color: var(--text);
     font-size: 18px;
     cursor: pointer;
   }
@@ -121,13 +121,13 @@
     min-width: 70px;
     text-align: center;
     font-size: 14px;
-    color: #e7e7ea;
+    color: var(--text);
   }
   .reset {
     margin-top: 4px;
-    background: #16161c;
-    border: 1px solid #26262e;
-    color: #cfcfd6;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-2);
     border-radius: 999px;
     padding: 8px 16px;
     font-size: 13px;

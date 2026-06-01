@@ -89,7 +89,7 @@
     position: fixed;
     inset: 0;
     z-index: 20;
-    background: #0b0b0e;
+    background: var(--surface);
     display: flex;
     flex-direction: column;
     padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
@@ -101,13 +101,13 @@
     padding: 12px 16px;
     font-size: 15px;
     font-weight: 600;
-    color: #e7e7ea;
-    border-bottom: 1px solid #1b1b22;
+    color: var(--text);
+    border-bottom: 1px solid var(--hairline);
   }
   .close {
     background: none;
     border: none;
-    color: #9a9aa4;
+    color: var(--text-dim);
     font-size: 18px;
     cursor: pointer;
     padding: 4px 8px;
@@ -123,7 +123,7 @@
     margin: 0;
     font-size: 13px;
     line-height: 1.5;
-    color: #b6b6be;
+    color: var(--text-dim);
   }
   .row {
     display: flex;
@@ -136,43 +136,43 @@
   }
   .lbl {
     font-size: 14px;
-    color: #cfcfd6;
+    color: var(--text-2);
   }
   .state {
     font-size: 13px;
-    color: #9a9aa4;
+    color: var(--text-dim);
     text-transform: capitalize;
   }
   .state.granted {
-    color: #cfd0d8;
+    color: var(--text-2);
   }
   .state.denied {
-    color: #9a9aa4;
+    color: var(--text-dim);
   }
   .card {
     border-radius: 10px;
     padding: 12px 14px;
     font-size: 13px;
     line-height: 1.5;
-    background: #16161c;
-    border: 1px solid #2a2a33;
-    color: #c4c4cc;
+    background: var(--surface-2);
+    border: 1px solid var(--border-2);
+    color: var(--text-2);
   }
   .card.warn {
-    border-color: #3a3a44;
+    border-color: var(--border-2);
   }
   .key {
-    background: #23242c;
+    background: var(--surface-3);
     border-radius: 5px;
     padding: 1px 6px;
     font-size: 12px;
-    color: #e7e7ea;
+    color: var(--text);
     white-space: nowrap;
   }
   .primary {
-    background: #16161c;
-    border: 1px solid #3a3a44;
-    color: #fdfdff;
+    background: var(--surface-2);
+    border: 1px solid var(--border-2);
+    color: var(--signal);
     border-radius: 10px;
     padding: 11px 14px;
     font-size: 14px;
@@ -185,12 +185,12 @@
   .ok {
     margin: 0;
     font-size: 13px;
-    color: #cfd0d8;
+    color: var(--text-2);
   }
   .note {
     margin: 4px 0 0;
     font-size: 12px;
     line-height: 1.5;
-    color: #5d5e68;
+    color: var(--text-faint);
   }
 </style>

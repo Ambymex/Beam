@@ -59,7 +59,7 @@
     position: fixed;
     inset: 0;
     z-index: 20;
-    background: #0b0b0e;
+    background: var(--surface);
     display: flex;
     flex-direction: column;
     padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
@@ -71,13 +71,13 @@
     padding: 12px 16px;
     font-size: 15px;
     font-weight: 600;
-    color: #e7e7ea;
-    border-bottom: 1px solid #1b1b22;
+    color: var(--text);
+    border-bottom: 1px solid var(--hairline);
   }
   .close {
     background: none;
     border: none;
-    color: #9a9aa4;
+    color: var(--text-dim);
     font-size: 18px;
     cursor: pointer;
     padding: 4px 8px;
@@ -98,8 +98,8 @@
     padding: 4px 16px 0;
     font-size: 13px;
     font-weight: 600;
-    color: #8a8a94;
-    border-top: 1px solid #1b1b22;
+    color: var(--text-dim);
+    border-top: 1px solid var(--hairline);
   }
   .cell {
     background: none;
@@ -114,14 +114,14 @@
     aspect-ratio: 1;
     border-radius: 12px;
     /* selection: non-colour ring */
-    box-shadow: inset 0 0 0 1px #1f1f27;
+    box-shadow: inset 0 0 0 1px var(--border);
   }
   .cell.current .thumb {
-    box-shadow: 0 0 0 2px #fdfdff;
+    box-shadow: 0 0 0 2px var(--signal);
   }
   .caption {
     font-size: 12px;
-    color: #b6b6be;
+    color: var(--text-dim);
     text-align: center;
   }
 </style>

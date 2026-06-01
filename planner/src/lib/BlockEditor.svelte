@@ -64,25 +64,25 @@
   .label {
     flex: 1 1 auto;
     min-width: 0;
-    background: #16161c;
-    border: 1px solid #2a2a33;
+    background: var(--surface-2);
+    border: 1px solid var(--border-2);
     border-radius: 8px;
-    color: #e7e7ea;
+    color: var(--text);
     font-size: 14px;
     padding: 7px 10px;
   }
   .label::placeholder {
-    color: #5d5d68;
+    color: var(--text-faint);
   }
   .label:focus {
     outline: none;
-    border-color: #4a4a57;
+    border-color: var(--text-faint);
   }
   .act {
     flex: 0 0 auto;
-    background: #16161c;
-    border: 1px solid #26262e;
-    color: #cfcfd6;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-2);
     border-radius: 8px;
     padding: 7px 10px;
     font-size: 12px;
@@ -90,8 +90,8 @@
   }
   /* done-state cue is non-colour: a luminous ring (§2) */
   .act.on {
-    box-shadow: 0 0 0 1px #fdfdff inset;
-    color: #fdfdff;
+    box-shadow: 0 0 0 1px var(--signal) inset;
+    color: var(--signal);
   }
   .act.del {
     font-size: 13px;
@@ -100,6 +100,6 @@
     flex: 0 0 auto;
     padding: 0 14px 2px;
     font-size: 12px;
-    color: #8a8a94;
+    color: var(--text-dim);
   }
 </style>

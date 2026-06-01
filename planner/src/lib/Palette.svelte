@@ -60,10 +60,10 @@
     box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25);
   }
   .armed .label {
-    color: #d6d6dc;
+    color: var(--text-2);
   }
   .armed .label.hint {
-    color: #6a6a74;
+    color: var(--text-faint);
   }
 
   /* Two-row, horizontally scrolling strip so all 77 vibes are swipe-reachable. */
@@ -85,8 +85,8 @@
     border: none;
     padding: 0;
     cursor: pointer;
-    /* faint neutral edge so pale swatches stay visible on the dark ground */
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    /* faint neutral edge so pale swatches stay visible against the ground */
+    box-shadow: inset 0 0 0 1px var(--swatch-edge);
     transition:
       transform 0.08s ease,
       box-shadow 0.08s ease;
@@ -94,12 +94,13 @@
   .swatch:active {
     transform: scale(0.92);
   }
-  /* Armed state: NON-colour signal only — white ring, lift, glow (§2). */
+  /* Armed state: NON-colour signal only — a ring gap + signal ring + glow (§2).
+     The gap is the page colour, the ring is the signal — both flip with theme. */
   .swatch.armed {
     transform: scale(1.18);
     box-shadow:
-      0 0 0 2px #0d0d10,
-      0 0 0 4px #ffffff,
-      0 0 10px 2px rgba(255, 255, 255, 0.5);
+      0 0 0 2px var(--app-bg),
+      0 0 0 4px var(--signal),
+      0 0 10px 2px var(--signal-glow);
   }
 </style>

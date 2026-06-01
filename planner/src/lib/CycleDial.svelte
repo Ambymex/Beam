@@ -7,6 +7,9 @@
   // Self-contained 100×100 viewBox SVG so it can sit in the hub or stand alone
   // (e.g. tests / the length editor). Emits nothing; reads/writes the cycle store.
   import { cycle, positionAngle, angleToPosition, setPosition } from './cycle';
+  import { palette } from './theme';
+
+  $: pal = $palette;
 
   export let size = 100; // width/height in the host's units
   export let interactive = true;
@@ -109,13 +112,13 @@
 >
   <defs>
     <radialGradient id="cycleFace" cx="50%" cy="42%" r="65%">
-      <stop offset="0%" stop-color="#20212a" />
-      <stop offset="100%" stop-color="#101117" />
+      <stop offset="0%" stop-color={pal.dialFaceFrom} />
+      <stop offset="100%" stop-color={pal.dialFaceTo} />
     </radialGradient>
     <linearGradient id="cycleBezel" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#3a3c47" />
-      <stop offset="50%" stop-color="#23242c" />
-      <stop offset="100%" stop-color="#34363f" />
+      <stop offset="0%" stop-color={pal.dialBezelA} />
+      <stop offset="50%" stop-color={pal.dialBezelB} />
+      <stop offset="100%" stop-color={pal.dialBezelC} />
     </linearGradient>
     <clipPath id="cycleFaceClip">
       <circle cx={c} cy={c} r={rFace} />
@@ -127,8 +130,8 @@
   </defs>
 
   <!-- stepped bezel (two-tone, Nautilus) -->
-  <circle cx={c} cy={c} r={rBezelOuter} fill="url(#cycleBezel)" stroke="#41434d" stroke-width="0.6" />
-  <circle cx={c} cy={c} r={rBezelInner} fill="#15161c" stroke="#0c0c10" stroke-width="0.6" />
+  <circle cx={c} cy={c} r={rBezelOuter} fill="url(#cycleBezel)" stroke={pal.dialBezelA} stroke-width="0.6" />
+  <circle cx={c} cy={c} r={rBezelInner} fill={pal.dialInner} stroke={pal.dialFaceTo} stroke-width="0.6" />
 
   <!-- face -->
   <circle cx={c} cy={c} r={rFace} fill="url(#cycleFace)" />
@@ -136,8 +139,8 @@
   <!-- horizontal grooves, clipped to the face -->
   <g clip-path="url(#cycleFaceClip)" opacity="0.5">
     {#each grooves as gy}
-      <line x1="8" y1={gy} x2="92" y2={gy} stroke="#000000" stroke-width="0.7" opacity="0.35" />
-      <line x1="8" y1={gy + 0.9} x2="92" y2={gy + 0.9} stroke="#3a3c48" stroke-width="0.4" opacity="0.4" />
+      <line x1="8" y1={gy} x2="92" y2={gy} stroke={pal.dialGrooveDark} stroke-width="0.7" opacity="0.35" />
+      <line x1="8" y1={gy + 0.9} x2="92" y2={gy + 0.9} stroke={pal.dialGrooveLight} stroke-width="0.4" opacity="0.4" />
     {/each}
   </g>
 
@@ -148,24 +151,24 @@
       y1={t.y1}
       x2={t.x2}
       y2={t.y2}
-      stroke={t.major ? '#9a9cab' : '#54565f'}
+      stroke={t.major ? pal.dialTickMajor : pal.dialTickMinor}
       stroke-width={t.major ? 0.9 : 0.5}
     />
   {/each}
 
   <!-- consumed arc: luminosity, never a hue (§2) -->
   {#if consumed}
-    <path d={consumed} fill="none" stroke="#e9eaf0" stroke-width="2" stroke-linecap="round" opacity="0.5" />
+    <path d={consumed} fill="none" stroke={pal.dialArc} stroke-width="2" stroke-linecap="round" opacity="0.5" />
   {/if}
 
   <!-- position marker -->
-  <circle cx={markerPt.x} cy={markerPt.y} r="3.4" fill="#fdfdff" filter="url(#cycleGlow)" />
-  <circle cx={markerPt.x} cy={markerPt.y} r="1.5" fill="#13141a" />
+  <circle cx={markerPt.x} cy={markerPt.y} r="3.4" fill={pal.dialArc} filter="url(#cycleGlow)" />
+  <circle cx={markerPt.x} cy={markerPt.y} r="1.5" fill={pal.dialFaceTo} />
 
   <!-- hub label: positional first; the number is a faint secondary, never the
        primary representation (§11) -->
-  <text x={c} y={c - 1} text-anchor="middle" dominant-baseline="central" font-size="6.5" fill="#cfd0d8" font-weight="600">cycle</text>
-  <text x={c} y={c + 7} text-anchor="middle" dominant-baseline="central" font-size="5" fill="#5d5e68" letter-spacing="0.3">day {position}</text>
+  <text x={c} y={c - 1} text-anchor="middle" dominant-baseline="central" font-size="6.5" fill={pal.dialText} font-weight="600">cycle</text>
+  <text x={c} y={c + 7} text-anchor="middle" dominant-baseline="central" font-size="5" fill={pal.dialTextDim} letter-spacing="0.3">day {position}</text>
 </svg>
 
 <style>
