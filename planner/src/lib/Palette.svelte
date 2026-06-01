@@ -7,13 +7,26 @@
   // hexes (categories.ts), so all colour still originates in the user's DB (§2).
   import { VIBES, type Vibe } from './vibes';
   import { CATEGORIES, categoryVibe, membersOf, type Category } from './categories';
+  import { customVibes, addCustomVibe, removeCustomVibe } from './customVibes';
   import { armedVibe } from './stores';
 
   let expanded: Category | null = null; // the category whose members are shown
   let showAll = false; // flat full-list view
 
+  // create-a-vibe form state (§4/§6 — the user extending her own vocabulary)
+  let creating = false;
+  let newHex = '#7c8cff';
+  let newEmotion = '';
+
   function armVibe(v: Vibe) {
     armedVibe.update((cur) => (cur && cur.id === v.id ? null : v));
+  }
+
+  function createVibe() {
+    const v = addCustomVibe(newHex, newEmotion);
+    armedVibe.set(v); // arm it straight away — ready to draw
+    creating = false;
+    newEmotion = '';
   }
 
   function tapCategory(cat: Category) {
@@ -41,10 +54,51 @@
     {:else}
       <span class="label hint">Tap a vibe to arm it, then draw on the ring</span>
     {/if}
+    <button class="more" on:click={() => (creating = !creating)} aria-label="Create a vibe">✛ new</button>
     <button class="more" class:on={showAll} on:click={() => (showAll = !showAll)}>
       {showAll ? 'categories' : 'all 77'}
     </button>
   </div>
+
+  {#if creating}
+    <!-- create-a-vibe: the user picks a hue and names what it feels like — how
+         the whole DB was built. Native colour input opens the system picker. -->
+    <div class="create">
+      <label class="pick" aria-label="Pick a colour">
+        <input type="color" bind:value={newHex} />
+        <span class="chip-swatch" style="background:{newHex}"></span>
+      </label>
+      <input
+        class="emotion-in"
+        type="text"
+        placeholder="what does it feel like?"
+        bind:value={newEmotion}
+        on:keydown={(e) => e.key === 'Enter' && createVibe()}
+      />
+      <button class="save" on:click={createVibe}>save</button>
+    </div>
+  {/if}
+
+  {#if $customVibes.length}
+    <!-- the user's own created vibes -->
+    <div class="yours" role="group" aria-label="Your vibes">
+      <span class="yours-label">yours</span>
+      {#each $customVibes as v (v.id)}
+        <div class="own">
+          <button
+            class="swatch"
+            class:armed={$armedVibe?.id === v.id}
+            style="background:{v.hex}"
+            title={v.emotion}
+            aria-label={v.emotion}
+            aria-pressed={$armedVibe?.id === v.id}
+            on:click={() => armVibe(v)}
+          ></button>
+          <button class="own-rm" aria-label="Delete {v.emotion}" on:click={() => removeCustomVibe(v.id)}>✕</button>
+        </div>
+      {/each}
+    </div>
+  {/if}
 
   {#if showAll}
     <!-- flat view: every vibe, for search / the precise pick -->
@@ -154,6 +208,101 @@
   .more.on {
     box-shadow: 0 0 0 1px var(--signal) inset;
     color: var(--signal);
+  }
+
+  /* create-a-vibe form */
+  .create {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 4px 4px;
+  }
+  .pick {
+    position: relative;
+    width: 30px;
+    height: 30px;
+    flex: 0 0 auto;
+    cursor: pointer;
+  }
+  .pick input[type='color'] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+  }
+  .chip-swatch {
+    display: block;
+    width: 30px;
+    height: 30px;
+    border-radius: 7px;
+    box-shadow:
+      inset 0 0 0 1px var(--swatch-edge),
+      0 0 0 1px var(--border);
+  }
+  .emotion-in {
+    flex: 1 1 auto;
+    min-width: 0;
+    background: var(--surface-2);
+    border: 1px solid var(--border-2);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 13px;
+    padding: 7px 10px;
+  }
+  .emotion-in::placeholder {
+    color: var(--text-faint);
+  }
+  .emotion-in:focus {
+    outline: none;
+    border-color: var(--text-faint);
+  }
+  .save {
+    flex: 0 0 auto;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-2);
+    border-radius: 8px;
+    padding: 7px 12px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  /* the user's own created vibes */
+  .yours {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 0 4px 6px;
+    scrollbar-width: thin;
+  }
+  .yours-label {
+    flex: 0 0 auto;
+    font-size: 11px;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .own {
+    position: relative;
+    flex: 0 0 auto;
+  }
+  .own-rm {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 9px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
   }
 
   /* category row — a horizontal scroller of pills */

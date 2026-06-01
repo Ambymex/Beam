@@ -102,6 +102,12 @@ npm run check      # svelte-check (types)
   desktop wheel-zoom. Implemented purely as a viewBox window, so every gesture
   (draw, drag, taper, wings, cascade, the cycle dial) keeps mapping correctly
   through `getScreenCTM()` with no change to hit-testing. Non-colour controls.
+- **Create your own vibes** (spec §4/§6) — a ✛ new form: pick a hue (native
+  system colour picker) and name what it feels like. It arms immediately,
+  persists (`customVibes.ts`), shows under a "yours" row (re-pick or delete),
+  and `resolveVibe()` renders `custom:*` blocks like any vibe. This doesn't
+  break "no invented hues" (§2): the rule is the APP mustn't fabricate meaning —
+  the user choosing and naming a colour is how the whole DB was built.
 - **Two-level vibe palette** (spec §6) — the 77 vibes turned out to cluster, so
   they're grouped into 15 categories (`categories.ts`): tap a category to arm it
   as-is ("just use housework"), tap its chevron to expand the precise members,

@@ -11,6 +11,7 @@
 // bottom in dev).
 
 import { VIBES, VIBES_BY_ID, type Vibe } from './vibes';
+import { CUSTOM_BY_ID } from './customVibes';
 
 export interface Category {
   id: string; // 'cat:washing'
@@ -69,11 +70,12 @@ export function membersOf(cat: Category): Vibe[] {
   return cat.memberIds.map((id) => VIBES_BY_ID[id]).filter(Boolean);
 }
 
-// Canonical resolver: a stored vibeId may be a real member id OR a `cat:*` id.
-// Everything that renders a block fill / readout goes through this.
+// Canonical resolver: a stored vibeId may be a real member id, a `cat:*` id,
+// or a `custom:*` user-created id. Everything that renders a fill/readout uses it.
 export function resolveVibe(id: string | null | undefined): Vibe | null {
   if (!id) return null;
   if (VIBES_BY_ID[id]) return VIBES_BY_ID[id];
+  if (CUSTOM_BY_ID[id]) return CUSTOM_BY_ID[id];
   const cat = CATEGORY_BY_ID[id];
   return cat ? categoryVibe(cat) : null;
 }
