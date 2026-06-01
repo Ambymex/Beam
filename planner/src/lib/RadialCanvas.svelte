@@ -494,23 +494,32 @@
   $: selectedBlock = blocks.find((b) => b.id === selectedId) ?? null;
   $: selectedBlockStore.set(selectedBlock);
 
-  // The selected block's label chip — a "header hung off the arc" (§6), shown
-  // only when selected (collapsed by default; colour identifies the rest).
+  // The selected block's label — a floating header (§6), shown only when
+  // selected. It floats OVER the ring (covering stuff is fine) with a subtle
+  // backing pill for readability, and is CLAMPED to the canvas so blocks near 3
+  // and 9 o'clock no longer run their text off the edge. A faint leader ties it
+  // to the block.
   $: selectedLabel = computeSelectedLabel(selectedBlock);
   function computeSelectedLabel(b: Block | null) {
     if (!b || !b.label) return null;
     const lane = laneFor(b);
     const aMid = hoursToAngle((b.startHours + b.coreEndHours) / 2);
-    const anchorPt = polar(C, C, lane.rOuter, aMid);
-    const labelPt = polar(C, C, RIM_RADIUS + 17, aMid);
-    return {
-      text: b.label,
-      x: labelPt.x,
-      y: labelPt.y,
-      ax: anchorPt.x,
-      ay: anchorPt.y,
-      right: labelPt.x >= C,
-    };
+    // anchor on the block itself (lane mid-line)
+    const rMid = (lane.rInner + lane.rOuter) / 2;
+    const anchor = polar(C, C, rMid, aMid);
+    // natural spot: just outside the block, floating over the rim
+    const natural = polar(C, C, lane.rOuter + 12, aMid);
+
+    const FONT = 10.5;
+    const padX = 7;
+    const charW = FONT * 0.58; // estimate (no DOM measure in SVG)
+    const w = Math.min(SIZE - 12, b.label.length * charW + padX * 2);
+    const h = FONT + 9;
+    const margin = 5;
+    // clamp the pill centre so it never leaves the canvas
+    const cx = Math.max(margin + w / 2, Math.min(SIZE - margin - w / 2, natural.x));
+    const cy = Math.max(margin + h / 2, Math.min(SIZE - margin - h / 2, natural.y));
+    return { text: b.label, cx, cy, w, h, ax: anchor.x, ay: anchor.y, font: FONT };
   }
 
   // ----- static geometry -----
@@ -682,25 +691,36 @@
     {/if}
   {/if}
 
-  <!-- selected block's text header, hung off the arc (§6) -->
+  <!-- selected block's text header (§6): floats over the ring on a backing
+       pill, clamped to the canvas so it can't be cut off at the edges. -->
   {#if selectedLabel}
     <line
       x1={selectedLabel.ax}
       y1={selectedLabel.ay}
-      x2={selectedLabel.x}
-      y2={selectedLabel.y}
+      x2={selectedLabel.cx}
+      y2={selectedLabel.cy}
       stroke={pal.signal}
       stroke-width="0.8"
-      opacity="0.35"
+      opacity="0.3"
+    />
+    <rect
+      x={selectedLabel.cx - selectedLabel.w / 2}
+      y={selectedLabel.cy - selectedLabel.h / 2}
+      width={selectedLabel.w}
+      height={selectedLabel.h}
+      rx={selectedLabel.h / 2}
+      fill={pal.ringDisc}
+      opacity="0.86"
+      stroke={pal.ringStroke}
+      stroke-width="0.75"
     />
     <text
-      x={selectedLabel.x}
-      y={selectedLabel.y}
-      text-anchor={selectedLabel.right ? 'start' : 'end'}
+      x={selectedLabel.cx}
+      y={selectedLabel.cy}
+      text-anchor="middle"
       dominant-baseline="central"
-      font-size="10"
-      fill={pal.textPrimary}
-      filter={$theme === 'light' ? undefined : 'url(#glow)'}>{selectedLabel.text}</text
+      font-size={selectedLabel.font}
+      fill={pal.textPrimary}>{selectedLabel.text}</text
     >
   {/if}
 

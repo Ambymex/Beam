@@ -108,6 +108,10 @@ npm run check      # svelte-check (types)
   and `resolveVibe()` renders `custom:*` blocks like any vibe. This doesn't
   break "no invented hues" (§2): the rule is the APP mustn't fabricate meaning —
   the user choosing and naming a colour is how the whole DB was built.
+- **Block labels float, clamped** (§6) — a selected block's text header floats
+  over the ring on a subtle backing pill (covering content is fine), with a
+  faint leader to the block, and is clamped to the canvas so labels on 3/9
+  o'clock blocks no longer run off the edge.
 - **Two-level vibe palette** (spec §6) — the 77 vibes turned out to cluster, so
   they're grouped into 15 categories (`categories.ts`), browsed in a vertical
   bottom **sheet** that stacks them full-width top-to-bottom (horizontal scroll
