@@ -102,6 +102,14 @@ npm run check      # svelte-check (types)
   desktop wheel-zoom. Implemented purely as a viewBox window, so every gesture
   (draw, drag, taper, wings, cascade, the cycle dial) keeps mapping correctly
   through `getScreenCTM()` with no change to hit-testing. Non-colour controls.
+- **Two-level vibe palette** (spec §6) — the 77 vibes turned out to cluster, so
+  they're grouped into 15 categories (`categories.ts`): tap a category to arm it
+  as-is ("just use housework"), tap its chevron to expand the precise members,
+  or flip to the flat "all 77" view. A category is itself an armable vibe with
+  id `cat:*` (kept searchable per §6/§12), and its swatch is one of its OWN
+  member hexes — never an invented hue (§2). `resolveVibe()` renders both member
+  and category ids. Verified: 77 categorised exactly once, no invented hues, and
+  `cat:*` blocks round-trip through persistence.
 - **Light / dark themes** — a manual ☀/☾ toggle (persisted). Warm paper-white
   (a nod to the Prismacolor paper) or the original dark. The key isn't a
   recolour but an **inversion of the signal logic** (§2): the bright glow that

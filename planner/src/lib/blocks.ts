@@ -9,7 +9,7 @@
 
 import { hoursToAngle, polar, annularSector } from './geometry';
 import { LANES } from './lanes';
-import { VIBES_BY_ID } from './vibes';
+import { resolveVibe } from './categories';
 
 export interface Block {
   id: number;
@@ -50,7 +50,9 @@ export const isHardEdge = (b: Block) => taperLen(b) < HARD_EDGE_EPS;
 export const isAppointment = (b: Block) => b.kind === 'appointment';
 
 export function blockFill(b: Block): string {
-  return b.vibeId && VIBES_BY_ID[b.vibeId] ? VIBES_BY_ID[b.vibeId].hex : NEUTRAL;
+  // vibeId may be a member id OR a category id (cat:*) — resolveVibe handles both.
+  const v = resolveVibe(b.vibeId);
+  return v ? v.hex : NEUTRAL;
 }
 
 // Solid, confident core.

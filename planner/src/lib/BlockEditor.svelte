@@ -3,7 +3,7 @@
   // delete it. Appears only when a block is selected; colour stays primary, the
   // text is the index. Drives RadialCanvas via the daystate action store.
   import { selectedBlockStore, blockActions } from './daystate';
-  import { VIBES_BY_ID } from './vibes';
+  import { resolveVibe } from './categories';
 
   let draft = '';
   let lastId: number | null = null;
@@ -16,7 +16,9 @@
     lastId = sb.id;
   }
   $: if (!sb) lastId = null;
-  $: emotion = sb && sb.vibeId ? (VIBES_BY_ID[sb.vibeId]?.emotion ?? null) : null;
+  // resolveVibe handles both member ids and category ids (cat:*).
+  $: vibe = sb ? resolveVibe(sb.vibeId) : null;
+  $: emotion = vibe?.emotion ?? null;
 
   function onInput() {
     $blockActions?.setLabel(draft);
@@ -25,8 +27,7 @@
 
 {#if sb}
   <div class="editor">
-    <span class="dot" style="background:{sb.vibeId ? (VIBES_BY_ID[sb.vibeId]?.hex ?? '#6a6a78') : '#6a6a78'}"
-    ></span>
+    <span class="dot" style="background:{vibe?.hex ?? '#6a6a78'}"></span>
     <input
       class="label"
       type="text"
