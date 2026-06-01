@@ -238,7 +238,7 @@
     flex: 1 1 auto;
     min-width: 0;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 8px;
     background: var(--surface-2);
     border: 1px solid var(--border);
@@ -254,13 +254,21 @@
     height: 14px;
     border-radius: 50%;
     flex: 0 0 auto;
+    margin-top: 2px;
     box-shadow: 0 0 0 1px var(--swatch-edge);
   }
   .label {
     flex: 1 1 auto;
+    min-width: 0;
+    /* the descriptions are true unedited reactions — some are long; let them
+       wrap (up to ~3 lines) rather than truncate. */
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
   .label.hint {
     color: var(--text-faint);
@@ -269,6 +277,7 @@
     flex: 0 0 auto;
     font-size: 11px;
     color: var(--text-dim);
+    margin-top: 2px;
   }
   .clear {
     flex: 0 0 auto;
