@@ -1,28 +1,49 @@
-// Vibe categories (§6) — a two-level palette. The 77 hand-written vibes turned
-// out internally consistent enough to CLUSTER, so we group them: tap a category
-// to arm it as-is ("just use housework"), or expand it for the precise member.
+// Vibe categories (§6) — a two-level palette, now EXTENSIBLE.
 //
-// Hard rule (§2): a category never invents a new hue. Its swatch is one of its
-// OWN member hexes (`repId`) — a representative drawn from the user's DB, so all
-// colour still originates there. A category is itself an armable vibe with id
-// `cat:<name>`, which keeps "all my housework blocks" a searchable field (§6/§12).
+// The built-in 15 over the original 77 are a static BASE. The user can:
+//   • add a new colour/task to an existing category (a custom vibe with a
+//     categoryId), and
+//   • add whole new categories (customCategories).
+// Both layer ON TOP of the base — built-in data is never mutated, so additions
+// are reversible and export cleanly.
 //
-// Every one of the 77 ids appears in exactly one category (checked at the
-// bottom in dev).
+// Hard rule (§2): a category never invents a hue. Its swatch is one of its OWN
+// member hexes. A category is itself an armable vibe with id `cat:*`, keeping
+// "all my housework blocks" a searchable field (§6/§12).
+//
+// resolveVibe() stays PURE + sync (blocks render through it) by reading the
+// store mirrors (CUSTOM_BY_ID / CUSTOM_CATS_BY_ID). The Palette UI consumes the
+// reactive `categoryList` store.
 
+import { derived } from 'svelte/store';
 import { VIBES, VIBES_BY_ID, type Vibe } from './vibes';
-import { CUSTOM_BY_ID } from './customVibes';
+import { customVibes, CUSTOM_BY_ID, type CustomVibe } from './customVibes';
+import { customCategories, CUSTOM_CATS_BY_ID } from './customCategories';
+
+const NEUTRAL = '#6a6a78';
 
 export interface Category {
   id: string; // 'cat:washing'
   label: string;
   icon: string; // emoji — a glyph, not a meaningful hue
-  repId: string; // member whose hex becomes the category swatch
+  repId: string; // base member whose hex becomes the category swatch
   memberIds: string[];
 }
 
-// Ordered as shown. Desire & flirtation is grouped and placed LAST (discreet).
-export const CATEGORIES: Category[] = [
+// A category resolved for display: members already resolved to Vibes, including
+// any custom vibes filed under it; repHex chosen from its own members.
+export interface ResolvedCategory {
+  id: string;
+  label: string;
+  icon: string;
+  repHex: string;
+  members: Vibe[];
+  custom: boolean;
+}
+
+// Ordered as shown. Desire & flirtation is last among the built-ins (discreet);
+// user-created categories append after.
+export const BASE_CATEGORIES: Category[] = [
   { id: 'cat:washing', label: 'Washing & laundry', icon: '🧺', repId: 'a24df0',
     memberIds: ['a24df0', 'b19fe2', 'cc80ff'] },
   { id: 'cat:housework', label: 'Housework & cleaning', icon: '🧽', repId: '8f88fc',
@@ -55,39 +76,70 @@ export const CATEGORIES: Category[] = [
     memberIds: ['d61029', 'de3e3e', 'ff3434', 'cc6a72', 'b84c2e', 'c98a1c', '10061f', '140306', '904955', 'f4f6eb'] },
 ];
 
-export const CATEGORY_BY_ID: Record<string, Category> = Object.fromEntries(
-  CATEGORIES.map((c) => [c.id, c]),
-);
+const BASE_BY_ID: Record<string, Category> = Object.fromEntries(BASE_CATEGORIES.map((c) => [c.id, c]));
 
-// A category as an armable vibe: its hex is the representative member's hex
-// (never an invented colour), its "emotion" text is the category label.
-export function categoryVibe(cat: Category): Vibe {
-  const rep = VIBES_BY_ID[cat.repId];
-  return { id: cat.id, hex: rep.hex, emotion: cat.label };
+// ----- pure sync helpers (no store subscription) — backed by the mirrors -----
+
+// Custom vibes filed under a category id, in creation order.
+function customMembersFor(catId: string): CustomVibe[] {
+  return Object.values(CUSTOM_BY_ID).filter((v) => v.categoryId === catId);
 }
 
-export function membersOf(cat: Category): Vibe[] {
-  return cat.memberIds.map((id) => VIBES_BY_ID[id]).filter(Boolean);
+// All members of a category id (base + custom), resolved to Vibes.
+export function membersOfId(catId: string): Vibe[] {
+  const base = (BASE_BY_ID[catId]?.memberIds ?? []).map((id) => VIBES_BY_ID[id]).filter(Boolean);
+  return [...base, ...customMembersFor(catId)];
 }
 
-// Canonical resolver: a stored vibeId may be a real member id, a `cat:*` id,
-// or a `custom:*` user-created id. Everything that renders a fill/readout uses it.
+// The category's representative hex — always one of its OWN members (§2).
+export function categoryRepHex(catId: string): string {
+  const base = BASE_BY_ID[catId];
+  if (base && VIBES_BY_ID[base.repId]) return VIBES_BY_ID[base.repId].hex;
+  return membersOfId(catId)[0]?.hex ?? NEUTRAL;
+}
+
+function categoryMeta(catId: string): { label: string; icon: string; custom: boolean } | null {
+  const base = BASE_BY_ID[catId];
+  if (base) return { label: base.label, icon: base.icon, custom: false };
+  const c = CUSTOM_CATS_BY_ID[catId];
+  if (c) return { label: c.label, icon: c.icon, custom: true };
+  return null;
+}
+
+// A category as an armable vibe (id cat:*, hex = own rep, text = label).
+export function categoryVibeById(catId: string): Vibe | null {
+  const meta = categoryMeta(catId);
+  if (!meta) return null;
+  return { id: catId, hex: categoryRepHex(catId), emotion: meta.label };
+}
+
+// Canonical resolver: vibeId may be a member id, a `custom:*` vibe, or a
+// `cat:*` category (base or custom). Pure + sync — blocks render through it.
 export function resolveVibe(id: string | null | undefined): Vibe | null {
   if (!id) return null;
   if (VIBES_BY_ID[id]) return VIBES_BY_ID[id];
   if (CUSTOM_BY_ID[id]) return CUSTOM_BY_ID[id];
-  const cat = CATEGORY_BY_ID[id];
-  return cat ? categoryVibe(cat) : null;
+  if (id.startsWith('cat:')) return categoryVibeById(id);
+  return null;
 }
 
-// Which category does a member id belong to (for highlighting the active group)?
-export function categoryOf(memberId: string): Category | null {
-  return CATEGORIES.find((c) => c.memberIds.includes(memberId)) ?? null;
-}
+// ----- reactive list for the palette UI -----
+// Recomputes whenever custom vibes or custom categories change. Built-ins first
+// (desire last among them), then user categories.
+export const categoryList = derived(
+  [customVibes, customCategories],
+  ([, $cats]): ResolvedCategory[] => {
+    const build = (id: string): ResolvedCategory => {
+      const meta = categoryMeta(id)!;
+      return { id, label: meta.label, icon: meta.icon, custom: meta.custom, repHex: categoryRepHex(id), members: membersOfId(id) };
+    };
+    return [...BASE_CATEGORIES.map((c) => build(c.id)), ...$cats.map((c) => build(c.id))];
+  },
+);
 
-// Dev-only integrity check: every vibe is categorised exactly once.
+// Dev-only integrity check: every built-in vibe is in exactly one base category.
 if (import.meta.env?.DEV) {
-  const all = CATEGORIES.flatMap((c) => c.memberIds);
+  const all = BASE_CATEGORIES.flatMap((c) => c.memberIds);
   const set = new Set(all);
   if (set.size !== all.length) console.warn('[categories] duplicate member id');
   for (const v of VIBES) if (!set.has(v.id)) console.warn('[categories] uncategorised vibe', v.id);

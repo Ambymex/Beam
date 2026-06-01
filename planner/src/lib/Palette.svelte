@@ -8,41 +8,75 @@
   // No category invents a hue — a category swatch is one of its own member hexes
   // (categories.ts), so all colour still originates in the user's DB (§2).
   import { VIBES, type Vibe } from './vibes';
-  import { CATEGORIES, categoryVibe, membersOf, type Category } from './categories';
+  import { categoryList, categoryVibeById, type ResolvedCategory } from './categories';
   import { customVibes, addCustomVibe, removeCustomVibe } from './customVibes';
+  import { addCustomCategory, removeCustomCategory } from './customCategories';
+  import { downloadJSON, downloadText, copyTextList } from './exportVibes';
   import { armedVibe } from './stores';
 
   let sheetOpen = false;
-  let expanded: Category | null = null; // the category whose members are shown
+  let expandedId: string | null = null; // the category whose members are shown
   let showAll = false; // flat full-list section inside the sheet
 
-  // create-a-vibe form state (§4/§6 — the user extending her own vocabulary)
+  // create-a-vibe form (§4/§6). targetCat = the category to file it under
+  // (null = uncategorised → "yours"). Set when launched from a category row.
   let creating = false;
   let newHex = '#7c8cff';
   let newEmotion = '';
+  let targetCat: string | null = null;
+
+  // new-category form
+  let addingCat = false;
+  let newCatLabel = '';
+  let newCatIcon = '✦';
 
   function armVibe(v: Vibe) {
     armedVibe.set(v);
     sheetOpen = false; // picked — get out of the way so they can draw
   }
-
   function disarm() {
     armedVibe.set(null);
   }
 
+  function openCreate(catId: string | null) {
+    targetCat = catId;
+    creating = true;
+    addingCat = false;
+    if (catId) expandedId = catId; // show where it'll land
+  }
   function createVibe() {
-    const v = addCustomVibe(newHex, newEmotion);
+    const v = addCustomVibe(newHex, newEmotion, targetCat ?? undefined);
     creating = false;
     newEmotion = '';
-    armVibe(v); // arm + close
+    if (targetCat) {
+      // filed into a category — keep the sheet open so she can keep adding
+      targetCat = null;
+    } else {
+      armVibe(v); // standalone vibe → arm + close
+    }
   }
 
-  function tapCategory(cat: Category) {
-    armVibe(categoryVibe(cat)); // arm the category as-is + close
+  function createCategory() {
+    const c = addCustomCategory(newCatLabel, newCatIcon);
+    addingCat = false;
+    newCatLabel = '';
+    newCatIcon = '✦';
+    expandedId = c.id;
+    openCreate(c.id); // immediately offer to add its first vibe
   }
 
-  function toggleExpand(cat: Category) {
-    expanded = expanded?.id === cat.id ? null : cat;
+  function tapCategory(cat: ResolvedCategory) {
+    const cv = categoryVibeById(cat.id);
+    if (cv) armVibe(cv); // arm the category as-is + close
+  }
+  function toggleExpand(id: string) {
+    expandedId = expandedId === id ? null : id;
+  }
+
+  let copied = false;
+  async function doCopy() {
+    copied = await copyTextList();
+    if (copied) setTimeout(() => (copied = false), 1500);
   }
 </script>
 
@@ -79,7 +113,8 @@
       <div class="head-row">
         <strong>Vibes</strong>
         <div class="head-actions">
-          <button class="more" on:click={() => (creating = !creating)} aria-label="Create a vibe">✛ new</button>
+          <button class="more" on:click={() => openCreate(null)} aria-label="Create a vibe">✛ vibe</button>
+          <button class="more" class:on={addingCat} on:click={() => { addingCat = !addingCat; creating = false; }} aria-label="Create a category">✛ category</button>
           <button class="more" class:on={showAll} on:click={() => (showAll = !showAll)}>
             {showAll ? 'categories' : 'all 77'}
           </button>
@@ -97,40 +132,32 @@
           <input
             class="emotion-in"
             type="text"
-            placeholder="what does it feel like?"
+            placeholder={targetCat ? 'add a vibe to this category…' : 'what does it feel like?'}
             bind:value={newEmotion}
             on:keydown={(e) => e.key === 'Enter' && createVibe()}
           />
           <button class="save" on:click={createVibe}>save</button>
         </div>
       {/if}
+
+      {#if addingCat}
+        <div class="create">
+          <input class="icon-in" type="text" maxlength="2" bind:value={newCatIcon} aria-label="Category icon" />
+          <input
+            class="emotion-in"
+            type="text"
+            placeholder="new category name…"
+            bind:value={newCatLabel}
+            on:keydown={(e) => e.key === 'Enter' && createCategory()}
+          />
+          <button class="save" on:click={createCategory}>add</button>
+        </div>
+      {/if}
     </header>
 
     <div class="sheet-body">
-      {#if $customVibes.length}
-        <div class="yours" role="group" aria-label="Your vibes">
-          <span class="rowlabel">yours</span>
-          <div class="swatch-wrap">
-            {#each $customVibes as v (v.id)}
-              <div class="own">
-                <button
-                  class="swatch"
-                  class:armed={$armedVibe?.id === v.id}
-                  style="background:{v.hex}"
-                  title={v.emotion}
-                  aria-label={v.emotion}
-                  aria-pressed={$armedVibe?.id === v.id}
-                  on:click={() => armVibe(v)}
-                ></button>
-                <button class="own-rm" aria-label="Delete {v.emotion}" on:click={() => removeCustomVibe(v.id)}>✕</button>
-              </div>
-            {/each}
-          </div>
-        </div>
-      {/if}
-
       {#if showAll}
-        <!-- flat view: every vibe, wrapped -->
+        <!-- flat view: every built-in vibe, wrapped -->
         <div class="all" role="group" aria-label="All vibes">
           {#each VIBES as v (v.id)}
             <button
@@ -145,39 +172,56 @@
           {/each}
         </div>
       {:else}
-        <!-- categories STACKED VERTICALLY, full-width rows -->
-        {#each CATEGORIES as cat (cat.id)}
-          {@const cv = categoryVibe(cat)}
+        <!-- categories STACKED VERTICALLY, full-width rows (built-in + custom) -->
+        {#each $categoryList as cat (cat.id)}
           <div class="cat" class:armed={$armedVibe?.id === cat.id}>
             <button class="cat-main" aria-pressed={$armedVibe?.id === cat.id} on:click={() => tapCategory(cat)}>
-              <span class="swatch sm" style="background:{cv.hex}"></span>
+              <span class="swatch sm" style="background:{cat.repHex}"></span>
               <span class="cat-ico">{cat.icon}</span>
               <span class="cat-label">{cat.label}</span>
+              {#if cat.custom}<span class="badge">custom</span>{/if}
             </button>
             <button
               class="chev"
-              class:open={expanded?.id === cat.id}
+              class:open={expandedId === cat.id}
               aria-label="Expand {cat.label}"
-              on:click={() => toggleExpand(cat)}>›</button
+              on:click={() => toggleExpand(cat.id)}>›</button
             >
           </div>
-          {#if expanded?.id === cat.id}
+          {#if expandedId === cat.id}
             <div class="members" role="group" aria-label="{cat.label} options">
-              {#each membersOf(cat) as v (v.id)}
-                <button
-                  class="swatch"
-                  class:armed={$armedVibe?.id === v.id}
-                  style="background:{v.hex}"
-                  title={v.emotion}
-                  aria-label={v.emotion}
-                  aria-pressed={$armedVibe?.id === v.id}
-                  on:click={() => armVibe(v)}
-                ></button>
+              {#each cat.members as v (v.id)}
+                <div class="own">
+                  <button
+                    class="swatch"
+                    class:armed={$armedVibe?.id === v.id}
+                    style="background:{v.hex}"
+                    title={v.emotion}
+                    aria-label={v.emotion}
+                    aria-pressed={$armedVibe?.id === v.id}
+                    on:click={() => armVibe(v)}
+                  ></button>
+                  {#if v.id.startsWith('custom:')}
+                    <button class="own-rm" aria-label="Delete {v.emotion}" on:click={() => removeCustomVibe(v.id)}>✕</button>
+                  {/if}
+                </div>
               {/each}
+              <button class="add-vibe" on:click={() => openCreate(cat.id)} aria-label="Add a vibe to {cat.label}">＋</button>
+              {#if cat.custom}
+                <button class="del-cat" on:click={() => removeCustomCategory(cat.id)} aria-label="Delete category {cat.label}">delete category</button>
+              {/if}
             </div>
           {/if}
         {/each}
       {/if}
+
+      <!-- export the master list (§6) -->
+      <div class="export">
+        <span class="rowlabel">master list</span>
+        <button class="more" on:click={doCopy}>{copied ? 'copied ✓' : 'copy'}</button>
+        <button class="more" on:click={downloadText}>.txt</button>
+        <button class="more" on:click={downloadJSON}>.json</button>
+      </div>
     </div>
   </div>
 {/if}
@@ -356,6 +400,21 @@
     font-size: 13px;
     padding: 8px 10px;
   }
+  .icon-in {
+    flex: 0 0 auto;
+    width: 44px;
+    text-align: center;
+    background: var(--surface-2);
+    border: 1px solid var(--border-2);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 18px;
+    padding: 8px 4px;
+  }
+  .icon-in:focus {
+    outline: none;
+    border-color: var(--text-faint);
+  }
   .emotion-in::placeholder {
     color: var(--text-faint);
   }
@@ -374,25 +433,12 @@
     cursor: pointer;
   }
 
-  /* yours */
-  .yours {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding-bottom: 4px;
-    border-bottom: 1px solid var(--hairline);
-  }
   .rowlabel {
     flex: 0 0 auto;
     font-size: 11px;
     color: var(--text-faint);
     text-transform: uppercase;
     letter-spacing: 0.4px;
-  }
-  .swatch-wrap {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
   }
   .own {
     position: relative;
@@ -464,8 +510,50 @@
   .members {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 8px;
-    padding: 2px 4px 6px;
+    padding: 2px 4px 8px;
+  }
+  .add-vibe {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: none;
+    border: 1px dashed var(--border-2);
+    color: var(--text-dim);
+    font-size: 16px;
+    cursor: pointer;
+  }
+  .del-cat {
+    background: none;
+    border: none;
+    color: var(--text-faint);
+    font-size: 11px;
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 4px 6px;
+  }
+  .badge {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--text-faint);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 4px;
+    margin-left: 4px;
+  }
+
+  .export {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+    padding-top: 10px;
+    border-top: 1px solid var(--hairline);
+  }
+  .export .rowlabel {
+    flex: 1 1 auto;
   }
 
   .all {

@@ -102,12 +102,17 @@ npm run check      # svelte-check (types)
   desktop wheel-zoom. Implemented purely as a viewBox window, so every gesture
   (draw, drag, taper, wings, cascade, the cycle dial) keeps mapping correctly
   through `getScreenCTM()` with no change to hit-testing. Non-colour controls.
-- **Create your own vibes** (spec §4/§6) — a ✛ new form: pick a hue (native
-  system colour picker) and name what it feels like. It arms immediately,
-  persists (`customVibes.ts`), shows under a "yours" row (re-pick or delete),
-  and `resolveVibe()` renders `custom:*` blocks like any vibe. This doesn't
-  break "no invented hues" (§2): the rule is the APP mustn't fabricate meaning —
-  the user choosing and naming a colour is how the whole DB was built.
+- **Create & extend your vibe DB** (spec §4/§6) — a ✛ vibe form (native colour
+  picker + name) files a new colour/task into any category, including new
+  categories you make with ✛ category. Built-ins are a static base; your
+  additions (`customVibes.ts` with a categoryId, `customCategories.ts`) layer on
+  top via a reactive `categoryList` — base data is never mutated, so it's
+  reversible. New categories take a representative hex from their OWN members
+  (no invented hue, §2). Custom members/categories are deletable. `resolveVibe()`
+  stays pure+sync (blocks render through it) by reading store mirrors.
+- **Export the master list** (§6) — copy / .txt / .json of every vibe (77 +
+  custom) grouped by category (`exportVibes.ts`), for keeping a master list to
+  create from.
 - **Block labels float, clamped** (§6) — a selected block's text header floats
   over the ring on a subtle backing pill (covering content is fine), with a
   faint leader to the block, and is clamped to the canvas so labels on 3/9
