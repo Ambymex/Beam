@@ -97,6 +97,11 @@ npm run check      # svelte-check (types)
   panel covers permission, a working **send-a-test** (fires through the SW), and
   the iOS Add-to-Home-Screen guidance. Shaping logic is unit-tested; the
   server-scheduled send is the next round — see `PUSH_SETUP.md`.
+- **Zoom & pan** — the ring is dense on a phone, so pinch-to-zoom + two-finger
+  pan (one finger stays reserved for drawing), plus +/− and reset buttons and
+  desktop wheel-zoom. Implemented purely as a viewBox window, so every gesture
+  (draw, drag, taper, wings, cascade, the cycle dial) keeps mapping correctly
+  through `getScreenCTM()` with no change to hit-testing. Non-colour controls.
 - **PWA shell** — manifest, icon, service-worker registration + push receiver.
 
 ## Build order (from the spec)

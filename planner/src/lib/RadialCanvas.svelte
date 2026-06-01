@@ -99,17 +99,119 @@
   // departure ("leave by") edge, 'after' = the "get home" edge.
   let wingDrag: { id: number; which: 'before' | 'after' } | null = null;
 
-  function localPoint(ev: PointerEvent) {
-    // Use the SVG's own screen transform so the mapping respects the viewBox AND
-    // preserveAspectRatio — the element isn't square, so scaling x/y separately
-    // would skew the radius and break lane hit-testing.
+  // ----- zoom & pan (the ring is dense on a phone). Implemented purely as a
+  // viewBox window, so every gesture above keeps mapping correctly through
+  // getScreenCTM() with zero changes to hit-testing. Non-colour, no number. -----
+  const MIN_ZOOM = 1; // never zoom out past the whole ring
+  const MAX_ZOOM = 5;
+  let view = { x: 0, y: 0, w: SIZE, h: SIZE };
+  $: zoom = SIZE / view.w; // 1 = whole ring, >1 = zoomed in
+  $: viewBox = `${view.x} ${view.y} ${view.w} ${view.h}`;
+
+  // Two-finger pinch state: the active pointers (id → client coords).
+  const activePointers = new Map<number, { x: number; y: number }>();
+  let pinch: { dist: number; cx: number; cy: number } | null = null;
+  $: pinching = pinch !== null;
+
+  // Re-window the viewBox to a target zoom, keeping the content under (ax, ay)
+  // — a point in *viewBox* units — anchored in place.
+  function zoomTo(targetZoom: number, ax: number, ay: number) {
+    const z = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, targetZoom));
+    const w = SIZE / z;
+    const h = SIZE / z;
+    // keep (ax,ay)'s fractional position within the window constant
+    const fx = view.w === 0 ? 0.5 : (ax - view.x) / view.w;
+    const fy = view.h === 0 ? 0.5 : (ay - view.y) / view.h;
+    let x = ax - fx * w;
+    let y = ay - fy * h;
+    // clamp so we never pan off the ring
+    x = Math.max(0, Math.min(SIZE - w, x));
+    y = Math.max(0, Math.min(SIZE - h, y));
+    view = { x, y, w, h };
+  }
+
+  function resetView() {
+    view = { x: 0, y: 0, w: SIZE, h: SIZE };
+  }
+
+  // Buttons step zoom around the ring centre.
+  function stepZoom(factor: number) {
+    zoomTo(zoom * factor, view.x + view.w / 2, view.y + view.h / 2);
+  }
+
+  // Desktop wheel: zoom anchored at the cursor.
+  function onWheel(ev: WheelEvent) {
+    ev.preventDefault();
+    const p = clientToView(ev.clientX, ev.clientY);
+    zoomTo(zoom * (ev.deltaY < 0 ? 1.12 : 1 / 1.12), p.x, p.y);
+  }
+
+  // Map raw client coords → viewBox units (used by pinch/wheel anchoring).
+  function clientToView(clientX: number, clientY: number) {
     const ctm = svgEl.getScreenCTM();
     if (!ctm) return { x: SIZE / 2, y: SIZE / 2 };
-    const pt = new DOMPoint(ev.clientX, ev.clientY).matrixTransform(ctm.inverse());
+    const pt = new DOMPoint(clientX, clientY).matrixTransform(ctm.inverse());
     return { x: pt.x, y: pt.y };
   }
 
+  function localPoint(ev: PointerEvent) {
+    // Use the SVG's own screen transform so the mapping respects the viewBox AND
+    // preserveAspectRatio — the element isn't square, so scaling x/y separately
+    // would skew the radius and break lane hit-testing. Because zoom is just the
+    // viewBox, this keeps working unchanged when zoomed.
+    return clientToView(ev.clientX, ev.clientY);
+  }
+
+  // Begin/continue/end a two-finger pinch. Returns true while pinching so the
+  // single-finger gesture handlers can bail out.
+  function pinchDown(ev: PointerEvent): boolean {
+    activePointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    if (activePointers.size === 2) {
+      const [a, b] = [...activePointers.values()];
+      pinch = {
+        dist: Math.hypot(a.x - b.x, a.y - b.y),
+        cx: (a.x + b.x) / 2,
+        cy: (a.y + b.y) / 2,
+      };
+      // cancel any in-progress single-finger gesture
+      create = null;
+      edit = null;
+      taperDragId = null;
+      wingDrag = null;
+      tapCandidateId = null;
+      return true;
+    }
+    return false;
+  }
+  function pinchMove(ev: PointerEvent): boolean {
+    if (!activePointers.has(ev.pointerId)) return pinching;
+    activePointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    if (pinch && activePointers.size === 2) {
+      const [a, b] = [...activePointers.values()];
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      const cx = (a.x + b.x) / 2;
+      const cy = (a.y + b.y) / 2;
+      const anchor = clientToView(cx, cy);
+      if (pinch.dist > 0) zoomTo(zoom * (dist / pinch.dist), anchor.x, anchor.y);
+      pinch = { dist, cx, cy };
+      return true;
+    }
+    return pinching;
+  }
+  function pinchUp(ev: PointerEvent) {
+    activePointers.delete(ev.pointerId);
+    if (activePointers.size < 2) pinch = null;
+  }
+
   function onPointerDown(ev: PointerEvent) {
+    // A second finger turns the gesture into a pinch-zoom; bail out of any
+    // single-finger interaction.
+    if (pinchDown(ev)) {
+      svgEl.setPointerCapture(ev.pointerId);
+      return;
+    }
+    if (pinching) return;
+
     const { x, y } = localPoint(ev);
     const r = pointRadius(C, C, x, y);
     const angle = pointToAngle(C, C, x, y);
@@ -181,6 +283,11 @@
   }
 
   function onPointerMove(ev: PointerEvent) {
+    // Two fingers down → pinch zoom/pan, never a single-finger gesture.
+    if (pinching || activePointers.has(ev.pointerId)) {
+      if (pinchMove(ev)) return;
+    }
+
     const { x, y } = localPoint(ev);
     const angle = pointToAngle(C, C, x, y);
 
@@ -246,7 +353,15 @@
     }
   }
 
-  function onPointerUp() {
+  function onPointerUp(ev: PointerEvent) {
+    // Release any pinch-tracked finger. While still mid-pinch (one finger left),
+    // don't fall through to commit a single-finger gesture.
+    if (activePointers.has(ev.pointerId) || pinching) {
+      const wasPinching = pinching;
+      pinchUp(ev);
+      if (wasPinching) return;
+    }
+
     if (taperDragId !== null) {
       taperDragId = null;
       persist();
@@ -443,14 +558,16 @@
   $: blockedBlock = cascadeBlockedId !== null ? blocks.find((b) => b.id === cascadeBlockedId) ?? null : null;
 </script>
 
-<svg
-  bind:this={svgEl}
-  viewBox="0 0 {SIZE} {SIZE}"
-  on:pointerdown={onPointerDown}
-  on:pointermove={onPointerMove}
-  on:pointerup={onPointerUp}
-  on:pointercancel={onPointerUp}
->
+<div class="stage">
+  <svg
+    bind:this={svgEl}
+    {viewBox}
+    on:pointerdown={onPointerDown}
+    on:pointermove={onPointerMove}
+    on:pointerup={onPointerUp}
+    on:pointercancel={onPointerUp}
+    on:wheel={onWheel}
+  >
   <defs>
     <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
       <feGaussianBlur stdDeviation="2.2" result="b" />
@@ -602,22 +719,62 @@
   {#if !viewingToday}
     <text x={C} y={C - HUB_RADIUS + 24} text-anchor="middle" font-size="7" fill="#5d5d68" letter-spacing="0.5">past day</text>
   {/if}
-  <!-- the subdial fills the lower hub; tap it (via the editor button) to set
-       length / start. Drag the marker to set where you are. -->
-  <CycleDial x={C - 46} y={C - 30} size={92} interactive={viewingToday} />
-</svg>
+    <!-- the subdial fills the lower hub; tap it (via the editor button) to set
+         length / start. Drag the marker to set where you are. -->
+    <CycleDial x={C - 46} y={C - 30} size={92} interactive={viewingToday} />
+  </svg>
+
+  <!-- zoom controls (non-colour): reliable +/− and reset alongside pinch.
+       Reset only shows when zoomed, to stay out of the way. -->
+  <div class="zoom">
+    <button on:click={() => stepZoom(1.4)} aria-label="Zoom in">＋</button>
+    <button on:click={() => stepZoom(1 / 1.4)} disabled={zoom <= MIN_ZOOM + 0.001} aria-label="Zoom out">−</button>
+    {#if zoom > MIN_ZOOM + 0.001}
+      <button class="reset" on:click={resetView} aria-label="Reset zoom">⤢</button>
+    {/if}
+  </div>
+</div>
 
 <style>
-  svg {
-    /* Bounded square: leaves room for the palette and gives the SVG a definite
-       size so it can't enter the flex intrinsic-width blowup the wide palette
-       grid would otherwise trigger. */
+  .stage {
+    position: relative;
     width: min(94vw, 64vh);
     height: min(94vw, 64vh);
+  }
+  svg {
+    width: 100%;
+    height: 100%;
     display: block;
     touch-action: none;
     -webkit-tap-highlight-color: transparent;
     user-select: none;
+  }
+  .zoom {
+    position: absolute;
+    right: 2px;
+    bottom: 2px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .zoom button {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    background: rgba(18, 18, 22, 0.82);
+    border: 1px solid #2c2c35;
+    color: #d6d6dc;
+    font-size: 17px;
+    line-height: 1;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+  }
+  .zoom button:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+  .zoom .reset {
+    font-size: 15px;
   }
   text {
     pointer-events: none;
