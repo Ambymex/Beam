@@ -93,10 +93,19 @@
     width: 100%;
     max-width: 100%;
     overflow: hidden;
-    /* clear the notch/status bar — at least 8px even where the inset reads 0
-       (e.g. desktop / mis-reported), more on notched phones */
+    /* modest default (desktop / in-browser): just clear the edges */
     padding: max(env(safe-area-inset-top), 8px) env(safe-area-inset-right)
       env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  /* Installed to the Home Screen, content runs under the status bar — reserve a
+     real status-bar's worth of top room (≥ 50px) so the clock/battery and an
+     AssistiveTouch blob can't sit on top of the chips, while still using the
+     larger real inset on notched phones. Scoped to standalone so desktop/Safari
+     don't get a dead gap. */
+  @media (display-mode: standalone) {
+    main {
+      padding-top: max(env(safe-area-inset-top), 50px);
+    }
   }
   .bar {
     flex: 0 0 auto;
@@ -140,6 +149,10 @@
     align-items: center;
     justify-content: center;
     min-height: 0;
+    min-width: 0;
+    /* breathing room so the ring never sits flush to the screen edge (where it
+       looked clipped on the right) */
+    padding: 0 10px;
   }
   .tray-wrap {
     flex: 0 0 auto;

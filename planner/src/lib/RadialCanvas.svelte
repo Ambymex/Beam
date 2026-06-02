@@ -780,8 +780,12 @@
 <style>
   .stage {
     position: relative;
-    width: min(94vw, 64vh);
-    height: min(94vw, 64vh);
+    /* Size against the available space (which already excludes the safe-area
+       padding on <main>), not raw vw — so insets / AssistiveTouch room can't
+       push the ring wider than its column and clip the right edge. */
+    width: min(100%, 64vh);
+    aspect-ratio: 1 / 1;
+    max-width: 100%;
   }
   svg {
     width: 100%;
