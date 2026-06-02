@@ -1,19 +1,23 @@
 <script lang="ts">
   // A small static render of a day's ring for the gallery (§12 tier 1 — visual
   // flick-back: find days by SHAPE and COLOUR, no AI). Same drawing helpers as
-  // the live ring, so a thumbnail looks exactly like its day.
+  // the live ring, so a thumbnail looks exactly like its day — and themed the
+  // same way (structural marks via the palette store; vibe fills untouched).
   import { C, blockFill, corePath, taperSegments } from './blocks';
   import { LANES, RIM_RADIUS } from './lanes';
+  import { palette } from './theme';
   import type { DayData } from './daydata';
 
   export let day: DayData;
   export let isToday = false;
+
+  $: pal = $palette;
 </script>
 
 <svg viewBox="0 0 400 400" class:today={isToday}>
-  <circle cx={C} cy={C} r={RIM_RADIUS} fill="#101014" stroke="#26262e" stroke-width="1" />
+  <circle cx={C} cy={C} r={RIM_RADIUS} fill={pal.ringDisc} stroke={pal.ringStroke} stroke-width="1" />
   {#each LANES as lane}
-    <circle cx={C} cy={C} r={lane.rOuter} fill="none" stroke="#1d1d24" stroke-width="1" />
+    <circle cx={C} cy={C} r={lane.rOuter} fill="none" stroke={pal.laneInner} stroke-width="1" />
   {/each}
   {#each day.blocks as b (b.id)}
     <path d={corePath(b)} fill={blockFill(b)} opacity={b.done ? 0.4 : 0.9} />
@@ -21,6 +25,11 @@
       <path d={seg.d} fill={blockFill(b)} opacity={b.done ? seg.opacity * 0.45 : seg.opacity} />
     {/each}
   {/each}
+  <!-- "today" marked by a non-colour cue: a luminous rim (signal), never a hue
+       (§2) — drawn in-SVG so it inverts with the theme like every other mark. -->
+  {#if isToday}
+    <circle cx={C} cy={C} r={RIM_RADIUS - 1} fill="none" stroke={pal.signal} stroke-width="3" opacity="0.7" />
+  {/if}
 </svg>
 
 <style>
@@ -29,9 +38,5 @@
     height: 100%;
     display: block;
     border-radius: 12px;
-  }
-  /* "today" marked by a non-colour cue: a luminous rim, never a hue (§2). */
-  svg.today {
-    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.55);
   }
 </style>
