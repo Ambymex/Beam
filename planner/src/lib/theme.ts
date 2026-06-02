@@ -72,7 +72,7 @@ export interface Palette {
 }
 
 const DARK: Palette = {
-  ringDisc: '#101014',
+  ringDisc: '#0d0d10', // same as the page — the rim/lanes/ticks draw the circle
   ringStroke: '#26262e',
   laneOuter: '#23232b',
   laneInner: '#1a1a20',
@@ -108,14 +108,17 @@ const DARK: Palette = {
 // Warm paper-white — a nod to the Prismacolor paper the system was born on.
 // Signal flips to near-black so the "now/selection" marks read on the page.
 const LIGHT: Palette = {
-  ringDisc: '#efeae0', // the page is a touch lighter; disc a hair deeper
+  ringDisc: '#f4f1ea', // SAME as the paper page — no distinct grey disc; the
+  // rim + lanes + ticks draw the circle. (The old French-grey disc read as an
+  // emotion to the user — synesthesia QA. The consumed sweep is now frosted
+  // glass, not a deeper grey.)
   ringStroke: '#cdc6b6',
   laneOuter: '#d8d1c2',
   laneInner: '#e2dccf',
   tickHour: '#b3aa96',
   tickMin: '#cfc8b8',
   signal: '#262019', // dark warm ink — the inverted luminosity signal
-  signalSoft: '#3a2f20', // consumed wedge as a faint warm shade
+  signalSoft: '#ffffff', // consumed wedge = frosted-glass white (luminosity, not grey)
   handleCore: '#f4f1ea', // handle inner dot = the paper colour
   neutralBlock: '#9c9483',
   createGhost: '#6f675a',

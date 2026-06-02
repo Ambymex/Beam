@@ -594,15 +594,31 @@
       <stop offset="0%" stop-color={pal.hubFrom} />
       <stop offset="100%" stop-color={pal.hubTo} />
     </radialGradient>
+    <!-- frosted-glass texture for the consumed "now" sweep (§14): fine
+         turbulence speckle + a soft blur, so the day-so-far reads as a milky
+         glass pane over the ring — a MATERIAL, not a deeper grey pigment. -->
+    <filter id="frost" x="-20%" y="-20%" width="140%" height="140%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7" result="noise" />
+      <feColorMatrix in="noise" type="matrix"
+        values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.5 0" result="speckle" />
+      <feGaussianBlur in="SourceGraphic" stdDeviation="0.6" result="soft" />
+      <feMerge>
+        <feMergeNode in="soft" />
+        <feMergeNode in="speckle" />
+      </feMerge>
+      <feComposite in2="SourceGraphic" operator="in" />
+    </filter>
   </defs>
 
   <!-- backdrop disc -->
   <circle cx={C} cy={C} r={RIM_RADIUS} fill={pal.ringDisc} stroke={pal.ringStroke} stroke-width="1" />
 
-  <!-- consumed-vs-remaining wedge: luminosity only, never a hue (§2/§14).
-       Slightly stronger on light, where it's a dark shade not a white veil. -->
+  <!-- consumed "now" sweep (§14): the day-so-far as a FROSTED-GLASS pane, not a
+       deeper grey. A milky white veil + frost speckle = luminosity/material,
+       never a hue or a heavier pigment. -->
   {#if viewingToday}
-    <path d={nowWedge} fill={pal.signalSoft} opacity={$theme === 'light' ? 0.08 : 0.05} />
+    <path d={nowWedge} fill="#ffffff" opacity={$theme === 'light' ? 0.16 : 0.1} filter="url(#frost)" />
+    <path d={nowWedge} fill="#ffffff" opacity={$theme === 'light' ? 0.05 : 0.04} />
   {/if}
 
   <!-- lane band outlines -->
