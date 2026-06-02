@@ -1,65 +1,121 @@
-# Web Push setup (§7) — what's built, what's next
+# Web Push spine — setup (§7)
 
-This is the **receive half** of the notification spine. The server half
-(Supabase schedule + cron + VAPID send) is the next round and needs your
-project + keys.
+The notification spine has two halves:
 
-## What works now (verifiable)
+- **Receive half** (already built + working): the service worker renders a
+  notification from a transition payload; `notify.ts` shapes it; the 🔔 Alerts
+  panel handles permission + a local test.
+- **Server half** (this doc): a Supabase project mirrors your schedule and a
+  cron sends the due pings via VAPID — so alerts land **even when the app is
+  closed**, which is the whole point.
 
-- **Service worker** (`public/sw.js`) renders a notification from a transition
-  payload on `push` and on a local `mock-push` message. `notificationclick`
-  focuses/opens the app.
-- **`src/lib/notify.ts`** — the canonical, unit-tested payload→notification
-  shaping (the SW mirrors it). Transitions only: `block-start`,
-  `appliance-free`, `travel-start`. There is deliberately **no `undone` kind** —
-  undone work migrates silently (§5/§13), never nags.
-- **`src/lib/push.ts`** — permission request, subscribe (degrades gracefully
-  until the VAPID key is set), `isStandalone()` detection, and
-  `sendTestNotification()` which fires through the SW.
-- **Alerts settings** (`🔔 Alerts`) — permission state, enable, **send a test**,
-  and the iOS Share → Add to Home Screen guidance.
+What fires (transitions only): a block **starting**, an appliance cycle
+**ending** ("dryer's free"), and for appointments the **travel-start**
+("leave now" — at the departure edge, not the appointment time). Undone work
+never pings; it migrates silently.
 
-### Verified in CI/sandbox
-`shapeNotification` unit tests (titles, kinds, tag/renotify, null-safety,
-icons), SW message acceptance, and the Alerts UI. **Not** verifiable in a
-headless browser: the OS actually painting the notification — confirm that
-on-device after installing to the Home Screen.
+---
 
-## On-device check (you)
+## 0. One-time: VAPID keys
 
-1. Deploy over **HTTPS** (required for service workers + push).
-2. On iPhone: open in Safari → **Share → Add to Home Screen** → open from the
-   Home Screen (must be standalone — §7).
-3. `🔔 Alerts → Enable alerts` (the prompt must fire from inside the installed
-   PWA), then **Send a test alert**. You should see "Time to leave …".
+```bash
+npx web-push generate-vapid-keys
+```
 
-## Server half (next round — needs your Supabase project)
+You get a **public** and **private** key (base64url). Public ships to the
+client; private stays server-side only.
 
-1. **Generate a VAPID keypair** (do NOT commit the private key):
-   ```bash
-   npx web-push generate-vapid-keys
-   ```
-   - Public key → client build env: `VITE_VAPID_PUBLIC_KEY=...`
-     (e.g. a `.env` consumed by Vite; it's safe to ship publicly).
-   - Private key → Supabase Edge Function secret only.
+> A keypair was generated during the build session — reuse it or make a fresh
+> one. Treat the private key as a secret.
 
-2. **Schema** (Supabase):
-   - `push_subscriptions(user_id, endpoint, p256dh, auth, created_at)` — the
-     client POSTs `subscribe()`'s result here.
-   - the schedule already lives client-side; mirror the blocks you want
-     server-fired (block starts, appliance-cycle ends, appointment
-     travel-starts) into a `scheduled_pushes(fire_at, payload, sub_id, sent)`
-     table.
+---
 
-3. **Edge Function on a cron** (`pg_cron` or scheduled function): every minute,
-   select due `scheduled_pushes`, send Web Push via VAPID to each subscription,
-   mark `sent`. The load-bearing ping is the **travel-start** ("leave now"),
-   which the client already exposes as `departureHours()` on each appointment.
+## 1. Create the Supabase project + schema
 
-4. **Active-colour signal (§10 socket):** expose "what vibe is active right now"
-   as a tiny read endpoint over the same schedule. Tuya lights bolt on later as
-   a listener — no rewrite.
+1. Create a project at supabase.com (free tier is fine).
+2. In the SQL editor, run [`supabase/migrations/0001_push_spine.sql`](./supabase/migrations/0001_push_spine.sql).
+   It creates `push_subscriptions` + `scheduled_pushes`, indexes, and RLS.
 
-The client is already shaped for all of this: appointments carry their
-departure edge, blocks carry start/vibe, and `push.ts` is ready to POST a real
-subscription the moment `VITE_VAPID_PUBLIC_KEY` is set.
+---
+
+## 2. Deploy the Edge Functions
+
+```bash
+supabase login
+supabase link --project-ref <PROJECT_REF>
+
+# set secrets (server-only)
+supabase secrets set \
+  VAPID_PUBLIC_KEY='<public>' \
+  VAPID_PRIVATE_KEY='<private>' \
+  VAPID_SUBJECT='mailto:you@example.com'
+
+supabase functions deploy replace-events
+supabase functions deploy send-due
+supabase functions deploy active-colour
+```
+
+(`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are injected into functions
+automatically.)
+
+---
+
+## 3. Schedule the cron (every minute)
+
+In the SQL editor, with your real values:
+
+```sql
+select cron.schedule('send-due-pushes', '* * * * *', $$
+  select net.http_post(
+    url     := 'https://<PROJECT_REF>.functions.supabase.co/send-due',
+    headers := jsonb_build_object(
+      'Content-Type','application/json',
+      'Authorization','Bearer <SERVICE_ROLE_KEY>'
+    ),
+    body    := '{}'::jsonb
+  );
+$$);
+```
+
+---
+
+## 4. Point the client at it (build env)
+
+Create `planner/.env` (or set in your host's build env):
+
+```
+VITE_VAPID_PUBLIC_KEY=<public>
+VITE_SUPABASE_URL=https://<PROJECT_REF>.supabase.co
+VITE_SUPABASE_ANON_KEY=<anon key>
+```
+
+Rebuild + redeploy the PWA. Then on the **installed** app: 🔔 Alerts → Enable
+alerts → it uploads your subscription + schedule. The Alerts panel will show
+**Scheduled pings: synced ✓**.
+
+---
+
+## How the client stays in sync
+
+- Editing the ring (draw, cascade, nudge, appointments) debounce-triggers a
+  re-sync: `replace-events` swaps this install's **future, unsent** rows for the
+  fresh set. Old plans vanish, new ones take their place.
+- Each device has a random `install_id` in localStorage (no login). It scopes
+  its own subscription + events; nothing is shared between installs.
+- A dead subscription (404/410 from the push service) is pruned automatically.
+
+## Verified in-sandbox
+
+`events.ts` transition extraction is unit-tested (14 checks): block-start at
+start, appliance-free at core-end, travel-start at the departure edge (not the
+appointment time), done → no event, past-event filtering, idempotent keys. The
+Edge Functions + VAPID crypto can only be exercised against a live Supabase
+project (your step), so verify the end-to-end ping on-device after deploy:
+draw a block a couple of minutes out, lock the phone, wait.
+
+## §10 socket (Tuya later)
+
+`active-colour` returns `{ vibeId }` for the currently-active block over the
+same schedule. Lights bolt on later as a listener reading this endpoint and
+mapping `vibe_id` → hex from your palette — no rewrite. The server never
+invents a colour (§2).

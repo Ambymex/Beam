@@ -14,16 +14,23 @@
     VAPID_PUBLIC_KEY,
   } from './push';
 
+  import { syncConfigured, syncToServer } from './sync';
+
   const dispatch = createEventDispatcher<{ close: void }>();
   const standalone = isStandalone();
   let testFired = false;
+  let syncedOk: boolean | null = null;
 
   // refresh on open
   pushPermission.set(currentPermission());
 
   async function enable() {
     const state = await requestPermission();
-    if (state === 'granted') await subscribe();
+    if (state === 'granted') {
+      await subscribe();
+      // upload the subscription + upcoming schedule so pings fire when closed
+      if (syncConfigured) syncedOk = await syncToServer();
+    }
   }
   async function test() {
     testFired = await sendTestNotification();
@@ -73,13 +80,26 @@
           <span class="lbl">Push subscription</span>
           <span class="state">{$pushSubscribed ? 'active' : VAPID_PUBLIC_KEY ? 'idle' : 'server not wired yet'}</span>
         </div>
+        {#if syncConfigured}
+          <div class="row sub">
+            <span class="lbl">Scheduled pings</span>
+            <span class="state"
+              >{syncedOk === null ? 'syncing…' : syncedOk ? 'synced ✓' : 'will retry'}</span
+            >
+          </div>
+        {/if}
       {/if}
     {/if}
 
     <p class="note">
-      The scheduled server push (so alerts land even when the app is closed)
-      connects once the Supabase spine is deployed. The receive path above
-      already works.
+      {#if syncConfigured}
+        Your schedule is mirrored to the server, so transition alerts land even
+        when the app is closed.
+      {:else}
+        The scheduled server push (so alerts land even when the app is closed)
+        connects once the Supabase spine is deployed. The receive path above
+        already works.
+      {/if}
     </p>
   </div>
 </div>

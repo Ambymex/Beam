@@ -34,6 +34,12 @@ days.subscribe((value) => {
   } catch {
     /* quota / private mode — drawing still works in-memory this session */
   }
+  // Mirror the schedule to the server for closed-app pushes (§7). Dynamic
+  // import avoids a circular dependency (sync.ts imports this store); no-ops
+  // unless Supabase is configured and push is granted.
+  if (typeof window !== 'undefined') {
+    void import('./sync').then((m) => m.scheduleResync()).catch(() => {});
+  }
 });
 
 // Which day the ring is showing. Defaults to today; the gallery sets it.

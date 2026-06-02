@@ -90,13 +90,23 @@ npm run check      # svelte-check (types)
   departure/"leave now" edge — the load-bearing §7 ping anchor) and an append
   fading OUTWARD toward "whenever I get home." Drag the wing handles to size
   them. Wing geometry + the migration carve-out are unit-tested.
-- **Push receive half** (spec §7, client side) — the service worker renders
-  transition notifications (`notify.ts` shapes them: block-start / appliance-
-  free / travel-start — never a nag for undone work). `push.ts` handles
-  permission + subscribe (degrades until the VAPID key lands). The `🔔 Alerts`
-  panel covers permission, a working **send-a-test** (fires through the SW), and
-  the iOS Add-to-Home-Screen guidance. Shaping logic is unit-tested; the
-  server-scheduled send is the next round — see `PUSH_SETUP.md`.
+- **Push spine** (spec §7) — full client→server→device path so alerts fire when
+  the app is **closed**:
+  - _Receive:_ the service worker renders transition notifications (`notify.ts`
+    shapes them: block-start / appliance-free / travel-start — never a nag for
+    undone work).
+  - _Extract:_ `events.ts` turns the schedule into transition events —
+    block-start at start, appliance-free at the cycle's end, travel-start at the
+    appointment's **departure edge** ("leave now"). Pure + unit-tested (14
+    checks).
+  - _Sync:_ `sync.ts` uploads the push subscription + upcoming events to
+    Supabase (per-install id, no login; degrades to a no-op when unconfigured).
+  - _Server:_ `supabase/` holds the schema + three Edge Functions —
+    `replace-events` (client mirror), `send-due` (cron sends ripe pings via
+    VAPID, Web Crypto only), and `active-colour` (the §10 Tuya socket). See
+    [`PUSH_SETUP.md`](./PUSH_SETUP.md) to deploy.
+  - The `🔔 Alerts` panel handles permission, a send-a-test, the iOS
+    Add-to-Home-Screen guidance, and shows the live sync status.
 - **Zoom & pan** — the ring is dense on a phone, so pinch-to-zoom + two-finger
   pan (one finger stays reserved for drawing), plus +/− and reset buttons and
   desktop wheel-zoom. Implemented purely as a viewBox window, so every gesture
@@ -142,8 +152,10 @@ npm run check      # svelte-check (types)
 4. ✅ Local persistence + day-thumbnail gallery + silent migration of undone
 5. ✅ Future days + appointments + travel-time wings
 6. ✅ On-the-fly editing + cascade
-7. 🟡 Web Push spine — receive half ✅ (SW + client + Alerts UI, unit-tested);
-   server schedule/cron/VAPID-send next (needs Supabase) — see PUSH_SETUP.md
+7. ✅ Web Push spine — receive (SW) + extract (`events.ts`, unit-tested) +
+   sync (`sync.ts`) + server (Supabase schema + Edge Functions: replace-events,
+   send-due cron, active-colour). Deploy: PUSH_SETUP.md. On-device ping verified
+   after deploy.
 8. SQL structured search (`vibe_id` as the tag vocabulary)
 9. OpenRouter translator/synthesis, with fallbacks
 10. _Later:_ Tuya listener (spatial cycle tracker ✅ — done early, §11)
