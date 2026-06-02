@@ -91,15 +91,30 @@
        the viewport (flexbox min-width:auto trap). */
     min-width: 0;
     width: 100%;
-    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
-      env(safe-area-inset-left);
+    max-width: 100%;
+    overflow: hidden;
+    /* clear the notch/status bar — at least 8px even where the inset reads 0
+       (e.g. desktop / mis-reported), more on notched phones */
+    padding: max(env(safe-area-inset-top), 8px) env(safe-area-inset-right)
+      env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
   .bar {
     flex: 0 0 auto;
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 12px 2px;
+    /* extra top room so the chips clear the status bar / notch on mobile,
+       stacking with main's safe-area-inset-top */
+    padding: 12px 12px 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    /* this row owns horizontal panning; the page itself can't slide */
+    touch-action: pan-x;
+    overscroll-behavior-x: contain;
+  }
+  .bar::-webkit-scrollbar {
+    display: none;
   }
   .chip {
     flex: 0 0 auto;
@@ -118,14 +133,6 @@
   .chip.push.on {
     box-shadow: 0 0 0 1px var(--signal) inset;
     color: var(--signal);
-  }
-  /* let the bar scroll horizontally — many chips on a narrow phone */
-  .bar {
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .bar::-webkit-scrollbar {
-    display: none;
   }
   .ring {
     flex: 1;
