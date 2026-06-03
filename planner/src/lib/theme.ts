@@ -27,6 +27,11 @@ theme.subscribe((value) => {
     document.documentElement.dataset.theme = value;
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute('content', value === 'light' ? '#f4f1ea' : '#0d0d10');
+    
+    const iconLink = document.querySelector('link[rel="icon"]');
+    if (iconLink) iconLink.setAttribute('href', value === 'light' ? '/icon-light.svg' : '/icon.svg');
+    const appleLink = document.querySelector('link[rel="apple-touch-icon"]');
+    if (appleLink) appleLink.setAttribute('href', value === 'light' ? '/icon-light.svg' : '/icon.svg');
   }
   if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEY, value);
   if (typeof caches !== 'undefined') {
