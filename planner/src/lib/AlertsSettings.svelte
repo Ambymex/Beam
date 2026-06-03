@@ -14,7 +14,7 @@
     VAPID_PUBLIC_KEY,
   } from './push';
 
-  import { syncConfigured, syncToServer } from './sync';
+  import { syncConfigured, syncToServer, lastSyncError } from './sync';
 
   const dispatch = createEventDispatcher<{ close: void }>();
   const standalone = isStandalone();
@@ -94,6 +94,9 @@
               >{syncedOk === null ? 'syncing…' : syncedOk ? 'synced ✓' : 'will retry'}</span
             >
           </div>
+          {#if $lastSyncError}
+            <div class="error-msg">{$lastSyncError}</div>
+          {/if}
         {/if}
       {/if}
     {/if}
@@ -219,5 +222,16 @@
     font-size: 12px;
     line-height: 1.5;
     color: var(--text-faint);
+  }
+  .error-msg {
+    font-size: 11px;
+    color: #e00000;
+    line-height: 1.4;
+    word-break: break-all;
+    background: var(--surface-2);
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border-2);
+    margin-top: 4px;
   }
 </style>
