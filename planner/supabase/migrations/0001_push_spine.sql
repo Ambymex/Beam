@@ -52,6 +52,9 @@ create policy sub_upsert on push_subscriptions
 drop policy if exists sub_update on push_subscriptions;
 create policy sub_update on push_subscriptions
   for update to anon using (true) with check (true);
+drop policy if exists sub_select on push_subscriptions;
+create policy sub_select on push_subscriptions
+  for select to anon using (true);
 
 -- The cron job: every minute, invoke the send-due Edge Function. (Set the
 -- function URL + service-role bearer once at deploy; see PUSH_SETUP.md.)
