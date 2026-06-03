@@ -14,6 +14,7 @@
 import type { Block } from './blocks';
 import { isAppointment, departureHours } from './blocks';
 import { parseKey } from './daydata';
+import { resolveVibe } from './categories';
 
 export type TransitionKind = 'block-start' | 'appliance-free' | 'travel-start';
 
@@ -80,12 +81,17 @@ export function eventsForDay(dayKey: string, blocks: Block[]): TransitionEvent[]
     }
 
     // ordinary block — fire at its start
+    const vibe = b.vibeId ? resolveVibe(b.vibeId) : null;
     out.push({
       key: `${dayKey}:${b.id}:block-start`,
       fireAt: momentOf(dayKey, b.startHours).toISOString(),
       kind: 'block-start',
       title: label || 'Starting now',
-      body: label ? 'Time to start.' : 'A block is starting.',
+      body: label
+        ? 'Time to start.'
+        : vibe?.emotion
+          ? `Starting now: ${vibe.emotion}`
+          : 'A block is starting.',
       vibeId: b.vibeId,
     });
   }

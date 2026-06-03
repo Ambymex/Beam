@@ -65,7 +65,7 @@
       aria-label="Block label"
     />
     <button class="act" class:on={sb.done} on:click={() => $blockActions?.toggleDone()}>
-      {sb.done ? '✓ done' : 'done'}
+      {sb.done ? '✓ completed' : 'completed'}
     </button>
     <button class="act del" on:click={() => $blockActions?.remove()} aria-label="Delete block">🗑</button>
     <button class="act" on:click={() => $blockActions?.deselect()} aria-label="Deselect">✕</button>
