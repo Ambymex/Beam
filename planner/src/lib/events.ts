@@ -88,7 +88,7 @@ export function eventsForDay(dayKey: string, blocks: Block[]): TransitionEvent[]
       kind: 'block-start',
       title: label || 'Starting now',
       body: label
-        ? 'Time to start.'
+        ? `Time to start: ${label}.`
         : vibe?.emotion
           ? `Starting now: ${vibe.emotion}`
           : 'A block is starting.',
