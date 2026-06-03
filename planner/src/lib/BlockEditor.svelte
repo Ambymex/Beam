@@ -64,13 +64,6 @@
       on:input={onInput}
       aria-label="Block label"
     />
-    <button
-      class="act"
-      class:on={showTimes}
-      on:click={() => (showTimes = !showTimes)}
-      aria-label="Set exact time"
-      aria-pressed={showTimes}>⌚</button
-    >
     <button class="act" class:on={sb.done} on:click={() => $blockActions?.toggleDone()}>
       {sb.done ? '✓ done' : 'done'}
     </button>
@@ -78,15 +71,13 @@
     <button class="act" on:click={() => $blockActions?.deselect()} aria-label="Deselect">✕</button>
   </div>
 
-  {#if showTimes}
-    <!-- precise numeric entry (opt-in): native time inputs give the proper HH:MM
-         keypad, no arithmetic demanded. Gesture stays the default rough-in. -->
-    <div class="times">
-      <label>start <input type="time" bind:value={startStr} on:change={commitTimes} /></label>
-      <span class="arrow">→</span>
-      <label>end <input type="time" bind:value={endStr} on:change={commitTimes} /></label>
-    </div>
-  {/if}
+  <!-- precise numeric entry: native time inputs give the proper HH:MM
+       keypad, no arithmetic demanded. Gesture stays the default rough-in. -->
+  <div class="times">
+    <label>start <input type="time" bind:value={startStr} on:change={commitTimes} /></label>
+    <span class="arrow">→</span>
+    <label>end <input type="time" bind:value={endStr} on:change={commitTimes} /></label>
+  </div>
 
   {#if emotion}
     <div class="emotion">{emotion}</div>
