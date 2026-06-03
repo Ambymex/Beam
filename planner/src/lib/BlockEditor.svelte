@@ -7,12 +7,18 @@
 
   let draft = '';
   let lastId: number | null = null;
+  let showTimes = false;
+  let startStr = '';
+  let endStr = '';
 
   $: sb = $selectedBlockStore;
-  // Reset the draft only when the selected block CHANGES, so live label edits
-  // (which re-emit the same id) don't fight the input cursor.
+  // Reset drafts only when the selected block CHANGES, so live edits (which
+  // re-emit the same id) don't fight the input cursor.
   $: if (sb && sb.id !== lastId) {
     draft = sb.label ?? '';
+    startStr = hoursToHHMM(sb.startHours);
+    endStr = hoursToHHMM(sb.coreEndHours);
+    showTimes = false;
     lastId = sb.id;
   }
   $: if (!sb) lastId = null;
@@ -22,6 +28,28 @@
 
   function onInput() {
     $blockActions?.setLabel(draft);
+  }
+
+  // hours-from-midnight (may be ≥24 for cross-midnight) → "HH:MM" within a day
+  function hoursToHHMM(h: number): string {
+    const mins = Math.round(((h % 24) + 24) % 24 * 60);
+    const hh = Math.floor(mins / 60);
+    const mm = mins % 60;
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+  }
+  function hhmmToHours(s: string): number | null {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(s);
+    if (!m) return null;
+    return Number(m[1]) + Number(m[2]) / 60;
+  }
+  // Precise numeric entry: commit start + end. If end ≤ start it's read as
+  // crossing midnight (end + 24), so "23:50 → 00:05" works.
+  function commitTimes() {
+    const s = hhmmToHours(startStr);
+    let e = hhmmToHours(endStr);
+    if (s === null || e === null) return;
+    if (e <= s) e += 24;
+    $blockActions?.setTimes(s, e);
   }
 </script>
 
@@ -36,12 +64,30 @@
       on:input={onInput}
       aria-label="Block label"
     />
+    <button
+      class="act"
+      class:on={showTimes}
+      on:click={() => (showTimes = !showTimes)}
+      aria-label="Set exact time"
+      aria-pressed={showTimes}>⌚</button
+    >
     <button class="act" class:on={sb.done} on:click={() => $blockActions?.toggleDone()}>
       {sb.done ? '✓ done' : 'done'}
     </button>
     <button class="act del" on:click={() => $blockActions?.remove()} aria-label="Delete block">🗑</button>
     <button class="act" on:click={() => $blockActions?.deselect()} aria-label="Deselect">✕</button>
   </div>
+
+  {#if showTimes}
+    <!-- precise numeric entry (opt-in): native time inputs give the proper HH:MM
+         keypad, no arithmetic demanded. Gesture stays the default rough-in. -->
+    <div class="times">
+      <label>start <input type="time" bind:value={startStr} on:change={commitTimes} /></label>
+      <span class="arrow">→</span>
+      <label>end <input type="time" bind:value={endStr} on:change={commitTimes} /></label>
+    </div>
+  {/if}
+
   {#if emotion}
     <div class="emotion">{emotion}</div>
   {/if}
@@ -96,6 +142,35 @@
   }
   .act.del {
     font-size: 13px;
+  }
+  .times {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 12px 2px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .times label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .times input[type='time'] {
+    background: var(--surface-2);
+    border: 1px solid var(--border-2);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 14px;
+    padding: 6px 8px;
+  }
+  .times input[type='time']:focus {
+    outline: none;
+    border-color: var(--text-faint);
+  }
+  .arrow {
+    color: var(--text-faint);
   }
   .emotion {
     flex: 0 0 auto;

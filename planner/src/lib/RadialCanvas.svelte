@@ -468,11 +468,25 @@
     selectedId = null;
     persist();
   }
+  // Precise numeric time entry (real-usage need: gesture can't do "exactly 2
+  // min"). Sets start + core-end in hours; the taper length rides along so the
+  // fade is preserved, exactly like the resize gesture. Hard edges stay hard.
+  function setSelectedTimes(startHours: number, coreEndHours: number) {
+    const b = blocks.find((x) => x.id === selectedId);
+    if (!b) return;
+    const taper = b.taperEndHours - b.coreEndHours; // preserve fade length
+    b.startHours = startHours;
+    b.coreEndHours = Math.max(coreEndHours, startHours + 1 / 60); // ≥1 min long
+    b.taperEndHours = b.coreEndHours + taper;
+    blocks = blocks;
+    persist();
+  }
   onMount(() => {
     blockActions.set({
       setLabel: setSelectedLabel,
       toggleDone: toggleSelectedDone,
       remove: removeSelected,
+      setTimes: setSelectedTimes,
       deselect: () => (selectedId = null),
     });
   });

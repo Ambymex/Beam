@@ -13,6 +13,10 @@ export interface BlockActions {
   setLabel: (text: string) => void;
   toggleDone: () => void;
   remove: () => void;
+  // Precise numeric time entry (start + core-end, in hours-from-midnight). The
+  // taper length is preserved. Gesture stays the default; this is the opt-in
+  // "exactly 2 min" path (§0.3 was "never DEMAND precision", not "never allow").
+  setTimes: (startHours: number, coreEndHours: number) => void;
   deselect: () => void;
 }
 

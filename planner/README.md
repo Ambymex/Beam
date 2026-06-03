@@ -4,8 +4,11 @@ A glanceable, colour-first day planner built around a radial 24-hour
 clock-diary. One rotation = one day. See [`radialdayplannerspec.md`] (the design
 handoff) for the full rationale; the four load-bearing rules:
 
-1. **Spatial over numeric.** Time is an angle, lane is a radius. No number pads,
-   no typed times — ever.
+1. **Spatial over numeric.** Time is an angle, lane is a radius — gesture is the
+   default rough-in, and precision is never _demanded_. (Real-usage exception:
+   an opt-in `⌚` time editor on a selected block lets you set an exact start/end
+   when you genuinely need "2 minutes" — gesture can't. Honors §0.3's intent —
+   "never force precise entry" — without forbidding it.)
 2. **Colour is sacred and primary.** Hue is reserved entirely for the user's
    emotion/vibe palette. **No UI/system element may use a meaningful hue** — the
    now-marker, selection, and drag preview all signal through luminosity, glow
@@ -68,6 +71,10 @@ npm run check      # svelte-check (types)
   tap to time-travel into a past day (read-only now-wedge hidden). Undone blocks
   from past days migrate silently onto today on launch — done blocks stay as the
   record; no guilt. Migration + persistence are covered by an end-to-end test.
+- **Precise time entry** (real-usage addition) — a selected block's `⌚` toggle
+  reveals native start/end time inputs (proper HH:MM picker, no arithmetic). The
+  taper length rides along, so the fade-as-uncertainty grammar (§4) survives an
+  exact core; cross-midnight (23:50→00:05) is handled. Gesture stays the default.
 - **Text headers + the capture list** (spec §6) — select a block to open its
   editor: give it a text label (rendered as a header hung off the arc, shown
   only when selected — colour identifies the rest), tick it done, or delete it.
