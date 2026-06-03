@@ -45,6 +45,49 @@ function laneLabel(laneId: string): string {
   return '';
 }
 
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return m
+    ? {
+        r: parseInt(m[1], 16),
+        g: parseInt(m[2], 16),
+        b: parseInt(m[3], 16),
+      }
+    : null;
+}
+
+function colorDistance(c1: { r: number; g: number; b: number }, c2: { r: number; g: number; b: number }): number {
+  return Math.sqrt((c1.r - c2.r) ** 2 + (c1.g - c2.g) ** 2 + (c1.b - c2.b) ** 2);
+}
+
+const EMOJI_COLORS = [
+  { emoji: '🔴', r: 224, g: 0, b: 0 },
+  { emoji: '🟠', r: 252, g: 132, b: 79 },
+  { emoji: '🟡', r: 255, g: 218, b: 138 },
+  { emoji: '🟢', r: 32, g: 201, b: 109 },
+  { emoji: '🔵', r: 36, g: 179, b: 224 },
+  { emoji: '🟣', r: 105, g: 5, b: 224 },
+  { emoji: '💗', r: 255, g: 179, b: 179 },
+  { emoji: '🟤', r: 96, g: 65, b: 44 },
+  { emoji: '⚫', r: 20, g: 20, b: 20 },
+  { emoji: '⚪', r: 240, g: 240, b: 240 },
+];
+
+export function vibeToEmoji(hex: string): string {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return '';
+  let bestEmoji = '';
+  let minDistance = Infinity;
+  for (const target of EMOJI_COLORS) {
+    const d = colorDistance(rgb, target);
+    if (d < minDistance) {
+      minDistance = d;
+      bestEmoji = target.emoji;
+    }
+  }
+  return bestEmoji;
+}
+
 // Extract every transition event for one day's blocks. `now` lets callers drop
 // past events; pass epoch 0 to keep them all (tests).
 export function eventsForDay(dayKey: string, blocks: Block[]): TransitionEvent[] {
@@ -56,11 +99,13 @@ export function eventsForDay(dayKey: string, blocks: Block[]): TransitionEvent[]
     if (isAppointment(b)) {
       // the load-bearing ping: leave-now at the departure edge
       const dep = departureHours(b);
+      const appVibe = b.vibeId ? resolveVibe(b.vibeId) : null;
+      const emoji = vibeToEmoji(appVibe?.hex || '#fc844f');
       out.push({
         key: `${dayKey}:${b.id}:travel-start`,
         fireAt: momentOf(dayKey, dep).toISOString(),
         kind: 'travel-start',
-        title: 'Time to leave',
+        title: emoji ? `${emoji} Time to leave` : 'Time to leave',
         body: label ? `Head out now for ${label}.` : 'Head out now to make it.',
         vibeId: b.vibeId,
       });
@@ -69,11 +114,14 @@ export function eventsForDay(dayKey: string, blocks: Block[]): TransitionEvent[]
 
     if (APPLIANCE_LANES.has(b.laneId)) {
       // appliance cycle ENDING — fire at coreEnd ("it's free now")
+      const vibe = b.vibeId ? resolveVibe(b.vibeId) : null;
+      const emoji = vibe ? vibeToEmoji(vibe.hex) : '';
+      const title = `${laneLabel(b.laneId)} is free`;
       out.push({
         key: `${dayKey}:${b.id}:appliance-free`,
         fireAt: momentOf(dayKey, b.coreEndHours).toISOString(),
         kind: 'appliance-free',
-        title: `${laneLabel(b.laneId)} is free`,
+        title: emoji ? `${emoji} ${title}` : title,
         body: 'Cycle done — go switch it over.',
         vibeId: b.vibeId,
       });
@@ -82,11 +130,13 @@ export function eventsForDay(dayKey: string, blocks: Block[]): TransitionEvent[]
 
     // ordinary block — fire at its start
     const vibe = b.vibeId ? resolveVibe(b.vibeId) : null;
+    const emoji = vibe ? vibeToEmoji(vibe.hex) : '';
+    const rawTitle = label || 'Starting now';
     out.push({
       key: `${dayKey}:${b.id}:block-start`,
       fireAt: momentOf(dayKey, b.startHours).toISOString(),
       kind: 'block-start',
-      title: label || 'Starting now',
+      title: emoji ? `${emoji} ${rawTitle}` : rawTitle,
       body: label
         ? `Time to start: ${label}.`
         : vibe?.emotion

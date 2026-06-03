@@ -17,16 +17,27 @@ self.addEventListener('fetch', () => {});
 // src/lib/notify.ts shapeNotification() (the canonical, unit-tested version) —
 // the SW can't import from src, so the logic is duplicated deliberately and
 // kept in lockstep.
-function showFromPayload(payload) {
+async function showFromPayload(payload) {
   const data = payload || {};
   const title = data.title || 'Day Ring';
+
+  let theme = 'dark';
+  try {
+    const cache = await caches.open('radial-planner-theme');
+    const resp = await cache.match('/theme');
+    if (resp) theme = await resp.text();
+  } catch (e) {
+    // fallback to dark
+  }
+
+  const icon = theme === 'light' ? '/icon-light.svg' : '/icon.svg';
+
   const options = {
     body: data.body || '',
     tag: data.tag || undefined, // collapse repeats of the same transition
     renotify: Boolean(data.tag),
-    // Non-colour by nature; the badge/icon are the app mark, not a vibe hue.
-    icon: '/icon.svg',
-    badge: '/icon.svg',
+    icon: icon,
+    badge: icon,
     data: { url: data.url || '/', kind: data.kind || 'generic' },
     requireInteraction: false,
   };

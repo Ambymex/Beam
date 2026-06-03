@@ -29,6 +29,13 @@ theme.subscribe((value) => {
     if (meta) meta.setAttribute('content', value === 'light' ? '#f4f1ea' : '#0d0d10');
   }
   if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEY, value);
+  if (typeof caches !== 'undefined') {
+    caches.open('radial-planner-theme')
+      .then((cache) => {
+        cache.put('/theme', new Response(value));
+      })
+      .catch(() => {});
+  }
 });
 
 export function toggleTheme() {
