@@ -2,7 +2,7 @@
   // Alerts settings (spec §7). Surfaces notification permission, the iOS
   // install requirement, and a test that fires a real notification through the
   // service worker — proving the receive half before the server spine exists.
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount } from 'svelte';
   import {
     pushPermission,
     pushSubscribed,
@@ -23,6 +23,13 @@
 
   // refresh on open
   pushPermission.set(currentPermission());
+
+  onMount(async () => {
+    if (currentPermission() === 'granted') {
+      await subscribe();
+      if (syncConfigured) syncedOk = await syncToServer();
+    }
+  });
 
   async function enable() {
     const state = await requestPermission();
