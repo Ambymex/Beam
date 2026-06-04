@@ -134,6 +134,7 @@
       <option value="main">Main</option>
       <option value="washer">Washer</option>
       <option value="dryer">Dryer</option>
+      <option value="emotion">Emotion</option>
     </select>
 
     <button class="act add-btn" on:click={addCustom}>

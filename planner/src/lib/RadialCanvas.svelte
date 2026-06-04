@@ -795,13 +795,13 @@
 
   <!-- hub: current date (top) + the spatial cycle subdial (§11), Nautilus inset -->
   <circle cx={C} cy={C} r={HUB_RADIUS} fill="url(#hubFade)" stroke={pal.hubStroke} stroke-width="1" />
-  <text x={C} y={C - HUB_RADIUS + 13} text-anchor="middle" font-size="10" fill={pal.textPrimary} font-weight="600">{hubDate}</text>
+  <text x={C} y={C - HUB_RADIUS + 12} text-anchor="middle" font-size="10" fill={pal.textPrimary} font-weight="600">{hubDate}</text>
   {#if !viewingToday}
-    <text x={C} y={C - HUB_RADIUS + 24} text-anchor="middle" font-size="7" fill={pal.textDim} letter-spacing="0.5">past day</text>
+    <text x={C} y={C - HUB_RADIUS + 21} text-anchor="middle" font-size="6.5" fill={pal.textDim} letter-spacing="0.5">past day</text>
   {/if}
     <!-- the subdial fills the lower hub; tap it (via the editor button) to set
-         length / start. Drag the marker to set where you are. -->
-    <CycleDial x={C - 46} y={C - 30} size={92} interactive={viewingToday} />
+         length / start. Drag the marker to set where you are. scaled for HUB_RADIUS=50 -->
+    <CycleDial x={C - 34} y={C - 23} size={68} interactive={viewingToday} />
   </svg>
 
   <!-- zoom controls (non-colour): reliable +/− and reset alongside pinch.
