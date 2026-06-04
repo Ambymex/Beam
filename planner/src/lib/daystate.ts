@@ -17,8 +17,17 @@ export interface BlockActions {
   // taper length is preserved. Gesture stays the default; this is the opt-in
   // "exactly 2 min" path (§0.3 was "never DEMAND precision", not "never allow").
   setTimes: (startHours: number, coreEndHours: number) => void;
+  setTravelTimes: (beforeHours: number, afterHours: number) => void;
   deselect: () => void;
-  addBlock: (laneId: string, startHours: number, endHours: number, vibeId: string | null) => void;
+  addBlock: (
+    laneId: string,
+    startHours: number,
+    endHours: number,
+    vibeId: string | null,
+    isAppointmentBlock?: boolean,
+    travelBeforeHours?: number,
+    travelAfterHours?: number
+  ) => void;
 }
 
 export const blockActions = writable<BlockActions | null>(null);

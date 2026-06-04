@@ -16,6 +16,15 @@
   let newEndStr = '';
   let newLaneId = 'main';
 
+  // Appointment creation options
+  let isAppointmentAdd = false;
+  let addTravelBeforeMins = 30;
+  let addTravelAfterMins = 30;
+
+  // Appointment editing options
+  let travelBeforeMins = 30;
+  let travelAfterMins = 30;
+
   $: sb = $selectedBlockStore;
   // Reset drafts only when the selected block CHANGES, so live edits (which
   // re-emit the same id) don't fight the input cursor.
@@ -23,6 +32,10 @@
     draft = sb.label ?? '';
     startStr = hoursToHHMM(sb.startHours);
     endStr = hoursToHHMM(sb.coreEndHours);
+    if (sb.kind === 'appointment') {
+      travelBeforeMins = Math.round((sb.travelBeforeHours ?? 0) * 60);
+      travelAfterMins = Math.round((sb.travelAfterHours ?? 0) * 60);
+    }
     showTimes = false;
     lastId = sb.id;
   }
@@ -60,6 +73,10 @@
     $blockActions?.setTimes(s, e);
   }
 
+  function commitTravel() {
+    $blockActions?.setTravelTimes(travelBeforeMins / 60, travelAfterMins / 60);
+  }
+
   function initAddTimes() {
     const now = new Date();
     const roundMin = now.getMinutes();
@@ -74,7 +91,15 @@
     const startH = now.getHours() + now.getMinutes() / 60;
     const endH = startH + 1.0;
     const vibeId = $armedVibe ? $armedVibe.id : null;
-    $blockActions?.addBlock(newLaneId, startH, endH, vibeId);
+    $blockActions?.addBlock(
+      newLaneId,
+      startH,
+      endH,
+      vibeId,
+      isAppointmentAdd,
+      addTravelBeforeMins / 60,
+      addTravelAfterMins / 60
+    );
   }
 
   function addCustom() {
@@ -83,7 +108,15 @@
     if (s === null || e === null) return;
     if (e <= s) e += 24;
     const vibeId = $armedVibe ? $armedVibe.id : null;
-    $blockActions?.addBlock(newLaneId, s, e, vibeId);
+    $blockActions?.addBlock(
+      newLaneId,
+      s,
+      e,
+      vibeId,
+      isAppointmentAdd,
+      addTravelBeforeMins / 60,
+      addTravelAfterMins / 60
+    );
   }
 </script>
 
@@ -105,13 +138,19 @@
     <button class="act" on:click={() => $blockActions?.deselect()} aria-label="Deselect">✕</button>
   </div>
 
-  <!-- precise numeric entry: native time inputs give the proper HH:MM
-       keypad, no arithmetic demanded. Gesture stays the default rough-in. -->
   <div class="times">
     <label>start <input type="time" bind:value={startStr} on:change={commitTimes} /></label>
     <span class="arrow">→</span>
     <label>end <input type="time" bind:value={endStr} on:change={commitTimes} /></label>
   </div>
+
+  {#if sb.kind === 'appointment'}
+    <div class="travel-times">
+      <label>leave <input type="number" min="0" step="5" bind:value={travelBeforeMins} on:change={commitTravel} /> min early</label>
+      <span class="dot-sep">•</span>
+      <label>return <input type="number" min="0" step="5" bind:value={travelAfterMins} on:change={commitTravel} /> min after</label>
+    </div>
+  {/if}
 
   {#if emotion}
     <div class="emotion">{emotion}</div>
@@ -137,9 +176,22 @@
       <option value="emotion">Emotion</option>
     </select>
 
+    <label class="appt-check">
+      <input type="checkbox" bind:checked={isAppointmentAdd} />
+      Appt
+    </label>
+
     <button class="act add-btn" on:click={addCustom}>
       ＋ Add
     </button>
+
+    {#if isAppointmentAdd}
+      <div class="add-travel-times">
+        <label>leave <input type="number" min="0" step="5" bind:value={addTravelBeforeMins} /> min early</label>
+        <span class="dot-sep">•</span>
+        <label>return <input type="number" min="0" step="5" bind:value={addTravelAfterMins} /> min after</label>
+      </div>
+    {/if}
   </div>
 {/if}
 
@@ -260,5 +312,58 @@
     border: 1px solid var(--border-2);
     color: var(--signal);
     font-weight: 600;
+  }
+
+  /* Travel times editing and adding */
+  .travel-times,
+  .add-travel-times {
+    width: 100%;
+    padding: 2px 12px 6px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .travel-times label,
+  .add-travel-times label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .travel-times input[type='number'],
+  .add-travel-times input[type='number'] {
+    width: 52px;
+    background: var(--surface-2);
+    border: 1px solid var(--border-2);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 13px;
+    padding: 4px 6px;
+    text-align: center;
+  }
+  .travel-times input[type='number']:focus,
+  .add-travel-times input[type='number']:focus {
+    outline: none;
+    border-color: var(--text-faint);
+  }
+  .dot-sep {
+    color: var(--text-faint);
+    user-select: none;
+  }
+  .appt-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--text-2);
+    cursor: pointer;
+    user-select: none;
+  }
+  .appt-check input[type='checkbox'] {
+    cursor: pointer;
+    width: 15px;
+    height: 15px;
+    accent-color: var(--signal);
   }
 </style>

@@ -481,7 +481,15 @@
     blocks = blocks;
     persist();
   }
-  function handleAddBlock(laneId: string, startHours: number, endHours: number, vibeId: string | null) {
+  function handleAddBlock(
+    laneId: string,
+    startHours: number,
+    endHours: number,
+    vibeId: string | null,
+    isAppointmentBlock?: boolean,
+    travelBeforeHours?: number,
+    travelAfterHours?: number
+  ) {
     const id = nextId++;
     const isApp = laneId === 'washer' || laneId === 'dryer';
     const coreLen = endHours - startHours;
@@ -494,7 +502,12 @@
       vibeId,
       done: false,
     };
-    if ($appointmentMode && !isApp) {
+    if (isAppointmentBlock && !isApp) {
+      newBlock.kind = 'appointment';
+      newBlock.travelBeforeHours = travelBeforeHours ?? DEFAULT_TRAVEL_HOURS;
+      newBlock.travelAfterHours = travelAfterHours ?? DEFAULT_TRAVEL_HOURS;
+      newBlock.taperEndHours = endHours;
+    } else if ($appointmentMode && !isApp) {
       newBlock.kind = 'appointment';
       newBlock.travelBeforeHours = DEFAULT_TRAVEL_HOURS;
       newBlock.travelAfterHours = DEFAULT_TRAVEL_HOURS;
@@ -504,12 +517,21 @@
     selectedId = id;
     persist();
   }
+  function setSelectedTravelTimes(beforeHours: number, afterHours: number) {
+    const b = blocks.find((x) => x.id === selectedId);
+    if (!b || b.kind !== 'appointment') return;
+    b.travelBeforeHours = beforeHours;
+    b.travelAfterHours = afterHours;
+    blocks = blocks;
+    persist();
+  }
   onMount(() => {
     blockActions.set({
       setLabel: setSelectedLabel,
       toggleDone: toggleSelectedDone,
       remove: removeSelected,
       setTimes: setSelectedTimes,
+      setTravelTimes: setSelectedTravelTimes,
       deselect: () => (selectedId = null),
       addBlock: handleAddBlock,
     });
