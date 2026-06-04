@@ -61,16 +61,16 @@ function colorDistance(c1: { r: number; g: number; b: number }, c2: { r: number;
 }
 
 const EMOJI_COLORS = [
-  { emoji: '🔴', r: 224, g: 0, b: 0 },
-  { emoji: '🟠', r: 252, g: 132, b: 79 },
-  { emoji: '🟡', r: 255, g: 218, b: 138 },
-  { emoji: '🟢', r: 32, g: 201, b: 109 },
-  { emoji: '🔵', r: 36, g: 179, b: 224 },
-  { emoji: '🟣', r: 105, g: 5, b: 224 },
+  { emoji: '❤️', r: 224, g: 0, b: 0 },
+  { emoji: '🧡', r: 252, g: 132, b: 79 },
+  { emoji: '💛', r: 255, g: 218, b: 138 },
+  { emoji: '💚', r: 32, g: 201, b: 109 },
+  { emoji: '💙', r: 36, g: 179, b: 224 },
+  { emoji: '💜', r: 105, g: 5, b: 224 },
   { emoji: '💗', r: 255, g: 179, b: 179 },
-  { emoji: '🟤', r: 96, g: 65, b: 44 },
-  { emoji: '⚫', r: 20, g: 20, b: 20 },
-  { emoji: '⚪', r: 240, g: 240, b: 240 },
+  { emoji: '🤎', r: 96, g: 65, b: 44 },
+  { emoji: '🖤', r: 20, g: 20, b: 20 },
+  { emoji: '🤍', r: 240, g: 240, b: 240 },
 ];
 
 export function vibeToEmoji(hex: string): string {
