@@ -18,6 +18,7 @@ export interface BlockActions {
   // "exactly 2 min" path (§0.3 was "never DEMAND precision", not "never allow").
   setTimes: (startHours: number, coreEndHours: number) => void;
   deselect: () => void;
+  addBlock: (laneId: string, startHours: number, endHours: number, vibeId: string | null) => void;
 }
 
 export const blockActions = writable<BlockActions | null>(null);

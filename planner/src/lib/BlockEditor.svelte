@@ -4,12 +4,17 @@
   // text is the index. Drives RadialCanvas via the daystate action store.
   import { selectedBlockStore, blockActions } from './daystate';
   import { resolveVibe } from './categories';
+  import { armedVibe } from './stores';
 
   let draft = '';
   let lastId: number | null = null;
   let showTimes = false;
   let startStr = '';
   let endStr = '';
+
+  let newStartStr = '';
+  let newEndStr = '';
+  let newLaneId = 'main';
 
   $: sb = $selectedBlockStore;
   // Reset drafts only when the selected block CHANGES, so live edits (which
@@ -21,7 +26,10 @@
     showTimes = false;
     lastId = sb.id;
   }
-  $: if (!sb) lastId = null;
+  $: if (!sb) {
+    lastId = null;
+    initAddTimes();
+  }
   // resolveVibe handles both member ids and category ids (cat:*).
   $: vibe = sb ? resolveVibe(sb.vibeId) : null;
   $: emotion = vibe?.emotion ?? null;
@@ -50,6 +58,32 @@
     if (s === null || e === null) return;
     if (e <= s) e += 24;
     $blockActions?.setTimes(s, e);
+  }
+
+  function initAddTimes() {
+    const now = new Date();
+    const roundMin = now.getMinutes();
+    const startH = now.getHours() + roundMin / 60;
+    const endH = startH + 1.0; // default 1 hour duration
+    newStartStr = hoursToHHMM(startH);
+    newEndStr = hoursToHHMM(endH);
+  }
+
+  function addNow() {
+    const now = new Date();
+    const startH = now.getHours() + now.getMinutes() / 60;
+    const endH = startH + 1.0;
+    const vibeId = $armedVibe ? $armedVibe.id : null;
+    $blockActions?.addBlock(newLaneId, startH, endH, vibeId);
+  }
+
+  function addCustom() {
+    const s = hhmmToHours(newStartStr);
+    let e = hhmmToHours(newEndStr);
+    if (s === null || e === null) return;
+    if (e <= s) e += 24;
+    const vibeId = $armedVibe ? $armedVibe.id : null;
+    $blockActions?.addBlock(newLaneId, s, e, vibeId);
   }
 </script>
 
@@ -82,6 +116,30 @@
   {#if emotion}
     <div class="emotion">{emotion}</div>
   {/if}
+{:else}
+  <!-- Add block bar -->
+  <div class="editor add-bar">
+    <span class="dot" style="background:{$armedVibe?.hex ?? '#6a6a78'}"></span>
+    <button class="act now-btn" on:click={addNow} title="Start task now using armed vibe">
+      ⚡ Start now
+    </button>
+    
+    <div class="times select-times">
+      <label>start <input type="time" bind:value={newStartStr} /></label>
+      <span class="arrow">→</span>
+      <label>end <input type="time" bind:value={newEndStr} /></label>
+    </div>
+
+    <select class="lane-select" bind:value={newLaneId} aria-label="Target lane">
+      <option value="main">Main</option>
+      <option value="washer">Washer</option>
+      <option value="dryer">Dryer</option>
+    </select>
+
+    <button class="act add-btn" on:click={addCustom}>
+      ＋ Add
+    </button>
+  </div>
 {/if}
 
 <style>
@@ -168,5 +226,38 @@
     padding: 0 14px 2px;
     font-size: 12px;
     color: var(--text-dim);
+  }
+
+  /* Add mode styles */
+  .add-bar {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .now-btn {
+    font-weight: 600;
+    color: var(--signal);
+    border-color: var(--border);
+  }
+  .select-times {
+    padding: 0 !important;
+  }
+  .lane-select {
+    background: var(--surface-2);
+    border: 1px solid var(--border-2);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 12px;
+    padding: 6px 8px;
+    cursor: pointer;
+  }
+  .lane-select:focus {
+    outline: none;
+    border-color: var(--text-faint);
+  }
+  .add-btn {
+    background: var(--surface-2);
+    border: 1px solid var(--border-2);
+    color: var(--signal);
+    font-weight: 600;
   }
 </style>

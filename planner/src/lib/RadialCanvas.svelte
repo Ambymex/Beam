@@ -481,6 +481,29 @@
     blocks = blocks;
     persist();
   }
+  function handleAddBlock(laneId: string, startHours: number, endHours: number, vibeId: string | null) {
+    const id = nextId++;
+    const isApp = laneId === 'washer' || laneId === 'dryer';
+    const coreLen = endHours - startHours;
+    const newBlock: Block = {
+      id,
+      laneId,
+      startHours,
+      coreEndHours: endHours,
+      taperEndHours: isApp ? endHours : endHours + Math.min(MAX_TAPER_HOURS, coreLen * DEFAULT_TAPER_FRAC),
+      vibeId,
+      done: false,
+    };
+    if ($appointmentMode && !isApp) {
+      newBlock.kind = 'appointment';
+      newBlock.travelBeforeHours = DEFAULT_TRAVEL_HOURS;
+      newBlock.travelAfterHours = DEFAULT_TRAVEL_HOURS;
+      newBlock.taperEndHours = endHours;
+    }
+    blocks = [...blocks, newBlock];
+    selectedId = id;
+    persist();
+  }
   onMount(() => {
     blockActions.set({
       setLabel: setSelectedLabel,
@@ -488,6 +511,7 @@
       remove: removeSelected,
       setTimes: setSelectedTimes,
       deselect: () => (selectedId = null),
+      addBlock: handleAddBlock,
     });
   });
   onDestroy(() => blockActions.set(null));
