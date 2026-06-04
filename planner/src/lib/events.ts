@@ -125,23 +125,32 @@ export function eventsForDay(dayKey: string, blocks: Block[]): TransitionEvent[]
         body: 'Cycle done — go switch it over.',
         vibeId: b.vibeId,
       });
-      continue;
+      // Do NOT continue here: generate the block-start notification for the appliance block too!
     }
 
-    // ordinary block — fire at its start
+    // ordinary block or appliance block start — fire at its start
     const vibe = b.vibeId ? resolveVibe(b.vibeId) : null;
     const emoji = vibe ? vibeToEmoji(vibe.hex) : '';
-    const rawTitle = label || 'Starting now';
+    const isAppliance = APPLIANCE_LANES.has(b.laneId);
+    const defaultTitle = isAppliance ? laneLabel(b.laneId) : 'Starting now';
+    const rawTitle = label || defaultTitle;
+    
+    const defaultBody = isAppliance
+      ? `Time to start the ${laneLabel(b.laneId).toLowerCase()}.`
+      : 'A block is starting.';
+      
+    const bodyText = label
+      ? `Time to start: ${label}.`
+      : vibe?.emotion
+        ? `Starting now: ${vibe.emotion}`
+        : defaultBody;
+
     out.push({
       key: `${dayKey}:${b.id}:block-start`,
       fireAt: momentOf(dayKey, b.startHours).toISOString(),
       kind: 'block-start',
       title: emoji ? `${emoji} ${rawTitle}` : rawTitle,
-      body: label
-        ? `Time to start: ${label}.`
-        : vibe?.emotion
-          ? `Starting now: ${vibe.emotion}`
-          : 'A block is starting.',
+      body: bodyText,
       vibeId: b.vibeId,
     });
   }
