@@ -157,7 +157,7 @@
   const SUPABASE_URL: string = import.meta.env.VITE_SUPABASE_URL ?? '';
   const SUPABASE_ANON: string = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
 
-  function getSystemPrompt(currentDate: string, currentTime: string, vibes: any[], currentBlocks: Block[], currentSymptoms: Symptom[]) {
+  function getSystemPrompt(viewDate: string, realDate: string, currentTime: string, vibes: any[], currentBlocks: Block[], currentSymptoms: Symptom[]) {
     let currentNotes = '';
     scratchpadContent.subscribe(val => { currentNotes = val; })();
     
@@ -197,17 +197,19 @@ VISION & OCR INSTRUCTIONS:
 - Translate these details into the structured JSON block actions.
 
 ---
+---
 PLANNER SPECS:
 - Lanes: "main" (default tasks), "washer" (appliance cycle), "dryer" (appliance cycle), "emotion" (emotional tracking lane), "symptom" (MCAS symptoms tracker).
-- Date: Use YYYY-MM-DD. Resolve relative terms (e.g. "tomorrow", "next Tuesday", "in 3 days") relative to the user's current date: ${currentDate}.
+- Date Context: The user is currently looking at the day ring for: ${viewDate}. Unless they specify another date, add/update blocks on this viewed date.
+- Real-world Today Reference: Resolve relative terms (e.g. "tomorrow", "next Tuesday", "in 3 days") relative to the user's real-world today's date: ${realDate}.
 - Time: Resolve relative time terms (e.g. "starting now", "in an hour") relative to the user's current time: ${currentTime}.
 
 ---
-CURRENT SCHEDULE BLOCKS FOR ${currentDate} (You can modify these or change their colors by reference):
+CURRENT SCHEDULE BLOCKS FOR ${viewDate} (You can modify these or change their colors by reference):
 ${blocksDesc}
 
 ---
-CURRENT LOGGED MCAS SYMPTOMS FOR ${currentDate} (Logged on the innermost ring, separate from standard tasks):
+CURRENT LOGGED MCAS SYMPTOMS FOR ${viewDate} (Logged on the innermost ring, separate from standard tasks):
 ${symptomsDesc}
 
 ---
@@ -317,7 +319,9 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
 
     try {
       const now = new Date();
-      const currentDate = todayKey();
+      const realDate = todayKey();
+      let viewDate = '';
+      currentKey.subscribe(k => { viewDate = k; })();
       const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       
       // Compile synesthetic vibes database
@@ -348,11 +352,11 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
       // Clear the image preview tray immediately as we send it
       clearSelectedImage();
 
-      // Get current blocks and symptoms from store once
+      // Get current blocks and symptoms from store once for the viewed day
       let activeBlocks: Block[] = [];
       let activeSymptoms: Symptom[] = [];
       days.subscribe($days => {
-        const day = $days[currentDate];
+        const day = $days[viewDate];
         if (day) {
           activeBlocks = day.blocks;
           activeSymptoms = day.symptoms || [];
@@ -367,7 +371,7 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
         }
 
         const apiMessages = [
-          { role: 'system', content: getSystemPrompt(currentDate, currentTime, allVibes, activeBlocks, activeSymptoms) },
+          { role: 'system', content: getSystemPrompt(viewDate, realDate, currentTime, allVibes, activeBlocks, activeSymptoms) },
           ...payloadMessages
         ];
 
@@ -412,10 +416,10 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
           },
           body: JSON.stringify({
             messages: payloadMessages,
-            currentDate,
+            currentDate: realDate,
             currentTime,
             vibes: allVibes,
-            systemPromptOverride: getSystemPrompt(currentDate, currentTime, allVibes, activeBlocks, activeSymptoms)
+            systemPromptOverride: getSystemPrompt(viewDate, realDate, currentTime, allVibes, activeBlocks, activeSymptoms)
           }),
         });
 
