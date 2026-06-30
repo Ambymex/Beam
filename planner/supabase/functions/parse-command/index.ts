@@ -25,13 +25,14 @@ interface RequestPayload {
   currentDate: string; // YYYY-MM-DD
   currentTime: string; // HH:MM
   vibes: Vibe[];
+  systemPromptOverride?: string;
 }
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
 
   try {
-    const { messages, currentDate, currentTime, vibes } = (await req.json()) as RequestPayload;
+    const { messages, currentDate, currentTime, vibes, systemPromptOverride } = (await req.json()) as RequestPayload;
     
     if (!messages || !messages.length) {
       return json({ error: 'messages array is required' }, 400);
@@ -44,7 +45,7 @@ Deno.serve(async (req) => {
 
     const modelName = Deno.env.get('OPENROUTER_MODEL') || 'google/gemma-2-27b-it';
 
-    const systemPrompt = `You are a supportive, warm, and clear AI companion for the "Radial Day Planner" app.
+    const systemPrompt = systemPromptOverride || `You are a supportive, warm, and clear AI companion for the "Radial Day Planner" app.
 The user has ADHD, autism, time blindness, and emotion-colour synesthesia. 
 Your job is to chat with the user, help them structure their day, and output JSON actions to update their radial planner ring.
 
