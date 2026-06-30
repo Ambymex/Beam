@@ -78,7 +78,12 @@
     importStatus = 'Restoring...';
     importError = '';
     try {
-      const ok = await importBackup(importCode);
+      const el = document.getElementById('import-textarea') as HTMLTextAreaElement;
+      const code = (el ? el.value : '') || importCode;
+      if (!code.trim()) {
+        throw new Error('Please paste your backup code first.');
+      }
+      const ok = await importBackup(code);
       if (ok) {
         importStatus = 'Restored successfully! Reloading...';
         setTimeout(() => {
@@ -236,11 +241,12 @@
 
       <div class="import-wrap">
         <textarea
+          id="import-textarea"
           bind:value={importCode}
           placeholder="Paste your backup code here to restore..."
           aria-label="Backup code input"
         ></textarea>
-        <button class="secondary" on:click={handleImport} disabled={!importCode.trim()}>
+        <button class="secondary" on:click={handleImport}>
           Import & Restore Backup
         </button>
         {#if importStatus}
