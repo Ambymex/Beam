@@ -559,6 +559,33 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
     return null;
   }
 
+  function resolveDate(val: any, realDateStr: string): string | null {
+    if (typeof val !== 'string') return null;
+    const clean = val.trim().toLowerCase();
+    
+    if (clean === 'today') {
+      return realDateStr;
+    }
+    if (clean === 'tomorrow') {
+      const [y, m, d] = realDateStr.split('-').map(Number);
+      const tomorrow = new Date(y, m - 1, d + 1);
+      const ty = tomorrow.getFullYear();
+      const tm = String(tomorrow.getMonth() + 1).padStart(2, '0');
+      const td = String(tomorrow.getDate()).padStart(2, '0');
+      return `${ty}-${tm}-${td}`;
+    }
+    
+    const match = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(clean);
+    if (match) {
+      const y = match[1];
+      const m = match[2].padStart(2, '0');
+      const d = match[3].padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+    
+    return null;
+  }
+
   function executeActions(actions: ChatMessage['actions']) {
     if (!actions) return;
 
@@ -568,24 +595,25 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
       const updated = { ...all };
 
       for (const act of actions) {
-        const date = act.targetDate;
+        const rawDate = act.targetDate || (act.block as any)?.targetDate || (act.symptom as any)?.targetDate;
         
         let activeViewKey = todayKey();
         currentKey.subscribe(k => { activeViewKey = k; })();
 
-        // Robust YYYY-MM-DD date validation
-        const isValidDate = typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date);
-        if (!isValidDate) {
+        const realDate = todayKey();
+        const resolved = resolveDate(rawDate, realDate);
+
+        if (!resolved) {
           if (act.type !== 'update_scratchpad') {
-            console.warn(`[Companion] Ignored invalid date format from LLM: "${date}"`);
-            errorMsg = `Warning: The AI tried to use an invalid date format "${date}". Reverted to today's date instead.`;
+            console.warn(`[Companion] Ignored invalid/missing date format from LLM: "${rawDate}"`);
+            errorMsg = `Warning: The AI tried to use an invalid or missing date format "${rawDate}". Reverted to viewed date instead.`;
           }
           targetDateToView = activeViewKey;
         } else {
-          targetDateToView = date as string;
+          targetDateToView = resolved;
         }
 
-        const actualDate = isValidDate ? (date as string) : activeViewKey;
+        const actualDate = resolved || activeViewKey;
         const dayData = updated[actualDate] ?? { blocks: [], nextId: 1, symptoms: [], nextSymptomId: 1 };
         const blocks = [...dayData.blocks];
         const symptoms = [...(dayData.symptoms || [])];
