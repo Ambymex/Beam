@@ -444,6 +444,7 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
       };
 
       debugActions = JSON.stringify(parsed, null, 2);
+      console.log('[Companion] Received API Payload:', parsed);
       localStorage.setItem('radial-planner-chat-debug-v1', debugActions);
 
       messages = [...messages, assistantMsg];
