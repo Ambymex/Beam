@@ -288,6 +288,9 @@
     flex-direction: column;
     gap: 14px;
     max-width: 480px;
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .lead {
     margin: 0;
