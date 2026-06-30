@@ -13,6 +13,7 @@
   import { scratchpadContent, saveScratchpad } from './scratchpad';
   import { BASE_CATEGORIES } from './categories';
   import { customCategories } from './customCategories';
+  import type { Symptom } from './symptoms';
 
   const dispatch = createEventDispatcher<{ close: void }>();
 
@@ -22,11 +23,18 @@
     content: string;
     timestamp: string;
     actions?: Array<{
-      type: 'add_block' | 'update_block' | 'delete_block' | 'update_scratchpad';
+      type: 'add_block' | 'update_block' | 'delete_block' | 'update_scratchpad' | 'add_symptom' | 'update_symptom' | 'delete_symptom';
       targetDate?: string;
       block?: Partial<Block>;
       labelToMatch?: string;
       content?: string;
+      symptomId?: number;
+      symptom?: {
+        category?: string;
+        severity?: number;
+        timeHours?: any;
+        note?: string;
+      };
     }>;
   }
 
@@ -149,7 +157,7 @@
   const SUPABASE_URL: string = import.meta.env.VITE_SUPABASE_URL ?? '';
   const SUPABASE_ANON: string = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
 
-  function getSystemPrompt(currentDate: string, currentTime: string, vibes: any[], currentBlocks: Block[]) {
+  function getSystemPrompt(currentDate: string, currentTime: string, vibes: any[], currentBlocks: Block[], currentSymptoms: Symptom[]) {
     let currentNotes = '';
     scratchpadContent.subscribe(val => { currentNotes = val; })();
     
@@ -160,6 +168,10 @@
     const blocksDesc = currentBlocks && currentBlocks.length > 0
       ? currentBlocks.map(b => `- "${b.label}" (vibeId: "${b.vibeId || 'null'}", start: ${b.startHours}h, end: ${b.coreEndHours}h, lane: "${b.laneId}")`).join('\n')
       : 'No tasks scheduled on this day yet.';
+
+    const symptomsDesc = currentSymptoms && currentSymptoms.length > 0
+      ? currentSymptoms.map(s => `- ID: ${s.id}, Category: "${s.category}" (Severity: ${s.severity}/5, Time: ${s.timeHours}h${s.note ? `, Note: "${s.note}"` : ''})`).join('\n')
+      : 'No symptoms logged on this day.';
 
     return `You are a supportive, warm, and clear AI companion for the "Radial Day Planner" app.
 The user has ADHD, autism, time blindness, and emotion-colour synesthesia. 
@@ -194,6 +206,10 @@ CURRENT SCHEDULE BLOCKS FOR ${currentDate} (You can modify these or change their
 ${blocksDesc}
 
 ---
+CURRENT LOGGED MCAS SYMPTOMS FOR ${currentDate} (Logged on the innermost ring, separate from standard tasks):
+${symptomsDesc}
+
+---
 CATEGORIES DICTIONARY (you can use category IDs like "cat:housework" for vibeId to match whole types of work):
 ${allCats.map(c => `- [Category ID: ${c.id}] Name: "${c.label}"`).join('\n')}
 
@@ -224,33 +240,56 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
         "travelAfterHours": number (optional)
       }
     },
-    // B. Update an existing block (matches by fuzzy label on the target date):
     {
       "type": "update_block",
       "targetDate": "YYYY-MM-DD",
       "labelToMatch": "label string to search and replace",
-      "block": { // only include properties that are changing
+      "block": { 
         "laneId": "main" | "washer" | "dryer" | "emotion" | "symptom" (optional),
         "startHours": number (optional),
         "coreEndHours": number (optional),
         "taperEndHours": number (optional),
         "vibeId": "vibe_id_string_or_null" (optional),
-        "label": "new label" (optional),
-        "kind": "appointment" (optional),
+        "label": "string" (optional),
+        "kind": "task" | "appointment" (optional),
         "travelBeforeHours": number (optional),
         "travelAfterHours": number (optional)
       }
     },
-    // C. Delete a block:
     {
       "type": "delete_block",
       "targetDate": "YYYY-MM-DD",
-      "labelToMatch": "label string to search and remove"
+      "labelToMatch": "label string"
     },
-    // D. Update collaborative scratch pad notes (overwrites or appends content as requested):
+    {
+      "type": "add_symptom",
+      "targetDate": "YYYY-MM-DD",
+      "symptom": {
+        "category": "sneezing" | "stuffy_nose" | "joint_muscle_pain" | "hives" | "skin_itchiness",
+        "severity": 1 | 2 | 3 | 4 | 5,
+        "timeHours": number,
+        "note": "optional details" (optional)
+      }
+    },
+    {
+      "type": "update_symptom",
+      "targetDate": "YYYY-MM-DD",
+      "symptomId": number,
+      "symptom": {
+        "category": "sneezing" | "stuffy_nose" | "joint_muscle_pain" | "hives" | "skin_itchiness" (optional),
+        "severity": 1 | 2 | 3 | 4 | 5 (optional),
+        "timeHours": number (optional),
+        "note": "optional details" (optional)
+      }
+    },
+    {
+      "type": "delete_symptom",
+      "targetDate": "YYYY-MM-DD",
+      "symptomId": number
+    },
     {
       "type": "update_scratchpad",
-      "content": "Full new scratch pad markdown content string"
+      "content": "new scratchpad content (entire markdown text)"
     }
   ]
 }
@@ -308,11 +347,15 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
       // Clear the image preview tray immediately as we send it
       clearSelectedImage();
 
-      // Get current blocks from store once
+      // Get current blocks and symptoms from store once
       let activeBlocks: Block[] = [];
+      let activeSymptoms: Symptom[] = [];
       days.subscribe($days => {
         const day = $days[currentDate];
-        if (day) activeBlocks = day.blocks;
+        if (day) {
+          activeBlocks = day.blocks;
+          activeSymptoms = day.symptoms || [];
+        }
       })();
 
       let parsed;
@@ -323,7 +366,7 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
         }
 
         const apiMessages = [
-          { role: 'system', content: getSystemPrompt(currentDate, currentTime, allVibes, activeBlocks) },
+          { role: 'system', content: getSystemPrompt(currentDate, currentTime, allVibes, activeBlocks, activeSymptoms) },
           ...payloadMessages
         ];
 
@@ -371,7 +414,7 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
             currentDate,
             currentTime,
             vibes: allVibes,
-            systemPromptOverride: getSystemPrompt(currentDate, currentTime, allVibes, activeBlocks)
+            systemPromptOverride: getSystemPrompt(currentDate, currentTime, allVibes, activeBlocks, activeSymptoms)
           }),
         });
 
@@ -540,7 +583,9 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
         const actualDate = isValidDate ? (date as string) : activeViewKey;
         const dayData = updated[actualDate] ?? { blocks: [], nextId: 1, symptoms: [], nextSymptomId: 1 };
         const blocks = [...dayData.blocks];
+        const symptoms = [...(dayData.symptoms || [])];
         let nextId = dayData.nextId;
+        let nextSymptomId = dayData.nextSymptomId || 1;
 
         if (act.type === 'add_block' && act.block) {
           const b = act.block;
@@ -610,14 +655,50 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
           }
         }
         
+        else if (act.type === 'add_symptom' && act.symptom) {
+          const s = act.symptom;
+          const id = nextSymptomId++;
+          symptoms.push({
+            id,
+            timeHours: parseLLMTime(s.timeHours),
+            severity: Math.min(5, Math.max(1, Number(s.severity) || 1)) as any,
+            category: (s.category || 'sneezing') as any,
+            note: s.note
+          });
+        }
+
+        else if (act.type === 'update_symptom' && act.symptomId !== undefined && act.symptom) {
+          const sId = Number(act.symptomId);
+          const matchedIdx = symptoms.findIndex(s => s.id === sId);
+          if (matchedIdx !== -1) {
+            const existing = symptoms[matchedIdx];
+            const s = act.symptom;
+            symptoms[matchedIdx] = {
+              ...existing,
+              category: s.category !== undefined ? (s.category as any) : existing.category,
+              severity: s.severity !== undefined ? Math.min(5, Math.max(1, Number(s.severity) || 1)) as any : existing.severity,
+              timeHours: s.timeHours !== undefined ? parseLLMTime(s.timeHours) : existing.timeHours,
+              note: s.note !== undefined ? s.note : existing.note
+            };
+          }
+        }
+
+        else if (act.type === 'delete_symptom' && act.symptomId !== undefined) {
+          const sId = Number(act.symptomId);
+          const matchedIdx = symptoms.findIndex(s => s.id === sId);
+          if (matchedIdx !== -1) {
+            symptoms.splice(matchedIdx, 1);
+          }
+        }
+
         else if (act.type === 'update_scratchpad' && act.content !== undefined) {
           saveScratchpad(act.content);
         }
 
         if (!updated[actualDate]) {
-          updated[actualDate] = { blocks, nextId, symptoms: [], nextSymptomId: 1 };
+          updated[actualDate] = { blocks, nextId, symptoms, nextSymptomId };
         } else {
-          updated[actualDate] = { ...updated[actualDate], blocks, nextId };
+          updated[actualDate] = { ...updated[actualDate], blocks, nextId, symptoms, nextSymptomId };
         }
       }
 
