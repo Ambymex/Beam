@@ -575,11 +575,30 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
       return `${ty}-${tm}-${td}`;
     }
     
-    const match = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(clean);
+    // ISO format or starting with YYYY-MM-DD/YYYY/MM/DD
+    const matchISO = /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})[T ]/.exec(clean);
+    if (matchISO) {
+      const y = matchISO[1];
+      const m = matchISO[2].padStart(2, '0');
+      const d = matchISO[3].padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    // Standard YYYY-MM-DD or YYYY/MM/DD
+    const match = /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/.exec(clean);
     if (match) {
       const y = match[1];
       const m = match[2].padStart(2, '0');
       const d = match[3].padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    // US format MM/DD/YYYY or MM-DD-YYYY
+    const matchUS = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(clean);
+    if (matchUS) {
+      const m = matchUS[1].padStart(2, '0');
+      const d = matchUS[2].padStart(2, '0');
+      const y = matchUS[3];
       return `${y}-${m}-${d}`;
     }
     
