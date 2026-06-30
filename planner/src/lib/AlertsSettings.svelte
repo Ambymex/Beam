@@ -46,18 +46,30 @@
   }
 
   let exportStatus = '';
+  let exportedCode = '';
   let importCode = '';
   let importStatus = '';
   let importError = '';
 
   async function handleExport() {
+    exportStatus = 'Generating...';
+    exportedCode = '';
     try {
       const code = await exportBackup();
-      await navigator.clipboard.writeText(code);
-      exportStatus = 'Copied to clipboard! ✓';
-      setTimeout(() => { exportStatus = ''; }, 3000);
+      exportedCode = code;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(code);
+          exportStatus = 'Copied to clipboard! ✓';
+        } else {
+          exportStatus = 'Copy code manually below.';
+        }
+      } catch (clipErr) {
+        exportStatus = 'Copy code manually below.';
+      }
     } catch (err) {
       exportStatus = 'Export failed';
+      exportedCode = '';
     }
   }
 
@@ -191,8 +203,22 @@
       </p>
       
       <button class="primary" on:click={handleExport}>
-        {exportStatus || 'Export Backup to Clipboard'}
+        {exportStatus || 'Export Backup'}
       </button>
+
+      {#if exportedCode}
+        <div class="card" style="margin-top: 8px;">
+          <p class="desc" style="margin: 0 0 6px 0; color: var(--signal); font-weight: 500;">
+            Clipboard auto-copy blocked by browser security. Double-tap inside to select all, then copy:
+          </p>
+          <textarea
+            style="width: 100%; height: 80px; font-size: 10px; font-family: monospace; background: var(--surface-3); color: var(--text); border: 1px solid var(--border-2); border-radius: 6px; padding: 6px; box-sizing: border-box;"
+            readonly
+            on:focus={(e) => e.currentTarget.select()}
+            value={exportedCode}
+          ></textarea>
+        </div>
+      {/if}
 
       <div class="import-wrap">
         <textarea
