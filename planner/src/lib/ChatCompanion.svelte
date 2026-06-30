@@ -98,6 +98,9 @@
       }
     }
     
+    // Load last debug JSON payload
+    debugActions = localStorage.getItem('radial-planner-chat-debug-v1') || '';
+    
     // Fetch latest active models from OpenRouter dynamically
     try {
       const res = await fetch('https://openrouter.ai/api/v1/models');
@@ -441,6 +444,7 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
       };
 
       debugActions = JSON.stringify(parsed, null, 2);
+      localStorage.setItem('radial-planner-chat-debug-v1', debugActions);
 
       messages = [...messages, assistantMsg];
       saveChat();
