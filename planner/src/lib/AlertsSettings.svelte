@@ -45,6 +45,7 @@
     testFired = await sendTestNotification();
   }
 
+  let textareaEl: HTMLTextAreaElement;
   let exportStatus = '';
   let exportedCode = '';
   let importCode = '';
@@ -207,16 +208,29 @@
       </button>
 
       {#if exportedCode}
-        <div class="card" style="margin-top: 8px;">
-          <p class="desc" style="margin: 0 0 6px 0; color: var(--signal); font-weight: 500;">
-            Clipboard auto-copy blocked by browser security. Double-tap inside to select all, then copy:
+        <div class="card" style="margin-top: 8px; display: flex; flex-direction: column; gap: 8px;">
+          <p class="desc" style="margin: 0; color: var(--signal); font-weight: 500;">
+            Clipboard auto-copy blocked by browser security. Tap "Select All Text" below, copy, then save it somewhere:
           </p>
           <textarea
-            style="width: 100%; height: 80px; font-size: 10px; font-family: monospace; background: var(--surface-3); color: var(--text); border: 1px solid var(--border-2); border-radius: 6px; padding: 6px; box-sizing: border-box;"
+            bind:this={textareaEl}
+            style="width: 100%; height: 160px; font-size: 10px; font-family: monospace; background: var(--surface-3); color: var(--text); border: 1px solid var(--border-2); border-radius: 6px; padding: 6px; box-sizing: border-box; overflow-y: auto; -webkit-overflow-scrolling: touch;"
             readonly
             on:focus={(e) => e.currentTarget.select()}
             value={exportedCode}
           ></textarea>
+          <button 
+            class="secondary" 
+            style="padding: 8px; font-size: 12px; font-weight: 600;" 
+            on:click={() => {
+              if (textareaEl) {
+                textareaEl.focus();
+                textareaEl.setSelectionRange(0, exportedCode.length);
+              }
+            }}
+          >
+            Select All Text for Copying
+          </button>
         </div>
       {/if}
 
