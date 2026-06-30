@@ -93,7 +93,14 @@
     </p>
 
     {#if $pushPermission === 'unsupported'}
-      <div class="card warn">This browser doesn't support notifications.</div>
+      {#if typeof window !== 'undefined' && !window.isSecureContext}
+        <div class="card warn">
+          <strong>HTTPS Connection Required:</strong><br>
+          Browsers block notifications on plain HTTP connections. To enable alerts on your device, please connect via the secure **Ngrok HTTPS link**.
+        </div>
+      {:else}
+        <div class="card warn">This browser doesn't support notifications.</div>
+      {/if}
     {:else}
       <div class="row">
         <span class="lbl">Permission</span>

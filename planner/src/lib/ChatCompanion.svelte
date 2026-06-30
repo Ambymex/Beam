@@ -446,6 +446,43 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
     if (/^[0-9a-fA-F]{6}$/.test(str)) {
       return str.toLowerCase();
     }
+
+    // If it is already a category ID or custom vibe ID, return it directly
+    if (str.startsWith('cat:') || str.startsWith('custom:')) {
+      return str;
+    }
+
+    const cleanName = str.toLowerCase();
+
+    // Map common synonyms to category IDs
+    const synonyms: Record<string, string> = {
+      'chores': 'cat:housework',
+      'chore': 'cat:housework',
+      'cleaning': 'cat:housework',
+      'laundry': 'cat:washing',
+      'washing': 'cat:washing',
+      'admin': 'cat:admin',
+      'paperwork': 'cat:admin',
+      'bills': 'cat:admin',
+      'finance': 'cat:admin',
+      'health': 'cat:selfcare',
+      'self care': 'cat:selfcare',
+      'exercise': 'cat:exercise',
+      'workout': 'cat:exercise',
+      'physio': 'cat:exercise',
+      'study': 'cat:admin',
+      'learning': 'cat:selfcare',
+      'sad': 'cat:sadness',
+      'anger': 'cat:anger',
+      'neutral': 'cat:calm',
+      'calm': 'cat:calm',
+      'love': 'cat:affection',
+      'desire': 'cat:desire',
+    };
+
+    if (synonyms[cleanName]) {
+      return synonyms[cleanName];
+    }
     
     // Try to match against category names (e.g. chores -> cat:housework)
     let allCats: any[] = [];
@@ -454,7 +491,6 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
     });
     unsubCats();
 
-    const cleanName = str.toLowerCase();
     const matchedCat = allCats.find(c => c.label && c.label.toLowerCase().includes(cleanName));
     if (matchedCat) {
       return matchedCat.id;

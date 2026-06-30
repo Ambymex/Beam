@@ -121,6 +121,8 @@ days.subscribe((value) => {
     return;
   }
 
+  const snapshotPrev = structuredClone(lastValue);
+
   // 1. Put changed or added days to Dexie
   for (const [key, data] of Object.entries(value)) {
     const prev = lastValue[key];
@@ -155,7 +157,7 @@ days.subscribe((value) => {
 
         gcalPushTimeout = window.setTimeout(async () => {
           for (const [dateStr, data] of Object.entries(value)) {
-            const prev = lastValue[dateStr];
+            const prev = snapshotPrev[dateStr];
             if (!prev) continue;
 
             const currentBlocks = data.blocks;
