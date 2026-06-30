@@ -829,7 +829,18 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
         </select>
       </div>
       <div class="field">
-        <label>Last API JSON Payload:</label>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+          <label style="margin: 0;">Last API JSON Payload:</label>
+          {#if debugActions}
+            <button 
+              type="button"
+              style="padding: 2px 6px; font-size: 10px; border-radius: 4px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer;"
+              on:click={() => navigator.clipboard.writeText(debugActions)}
+            >
+              Copy
+            </button>
+          {/if}
+        </div>
         <pre style="background: var(--surface); color: var(--text-dim); font-size: 10px; max-height: 150px; overflow: auto; padding: 8px; border-radius: 6px; border: 1px solid var(--border-2); white-space: pre-wrap; word-break: break-all; font-family: monospace;">{debugActions || 'No query sent yet.'}</pre>
       </div>
       <button class="save-settings-btn" on:click={saveSettings}>Save Settings</button>
