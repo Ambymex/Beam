@@ -22,12 +22,19 @@
     MAX_TRAVEL_HOURS,
     type Block,
   } from './blocks';
+  import {
+    type Symptom,
+    type SymptomCategory,
+    SYMPTOM_ARC_HOURS,
+    SYMPTOM_FILL,
+    severityOpacity,
+    symptomContains,
+  } from './symptoms';
   import { currentKey, currentDay, saveDay } from './days';
   import { todayKey } from './days';
-  import { selectedBlockStore, blockActions, cascadeMode, appointmentMode } from './daystate';
-  import CycleDial from './CycleDial.svelte';
+  import { selectedBlockStore, blockActions, cascadeMode, appointmentMode, selectedSymptomStore, symptomActions } from './daystate';
   import { computeMove, computeResizeStart, computeResizeCore, angDiffHours } from './cascade';
-  import { palette, theme } from './theme';
+  import { palette, theme, moonPhaseIcon, envLabel } from './theme';
 
   // Themed palette for the ring's structural marks (the signal inverts on
   // light, per §2). Vibe block fills are untouched — they're the user's data.
@@ -66,18 +73,37 @@
   // mutate the local copy only, then persist on pointer-up. -----
   let blocks: Block[] = [];
   let nextId = 1;
+  let symptoms: Symptom[] = [];
+  let nextSymptomId = 1;
   let loadedKey = '';
   let selectedId: number | null = null;
+  let selectedSymptomId: number | null = null;
 
-  $: if ($currentKey !== loadedKey) {
-    blocks = structuredClone($currentDay.blocks);
-    nextId = $currentDay.nextId;
-    selectedId = null;
-    loadedKey = $currentKey;
+  // Synchronise canvas blocks and symptoms with store changes (AI companion, database updates)
+  $: if (!create && !taperDragId && !edit && !wingDrag) {
+    const storeBlocks = $currentDay.blocks;
+    const storeSymptoms = $currentDay.symptoms || [];
+    
+    const blocksChanged = JSON.stringify(blocks) !== JSON.stringify(storeBlocks);
+    const symptomsChanged = JSON.stringify(symptoms) !== JSON.stringify(storeSymptoms);
+    const keyChanged = $currentKey !== loadedKey;
+
+    if (blocksChanged || symptomsChanged || keyChanged) {
+      blocks = structuredClone(storeBlocks);
+      nextId = $currentDay.nextId;
+      symptoms = structuredClone(storeSymptoms);
+      nextSymptomId = $currentDay.nextSymptomId || 1;
+      
+      if (keyChanged) {
+        selectedId = null;
+        selectedSymptomId = null;
+        loadedKey = $currentKey;
+      }
+    }
   }
 
   function persist() {
-    saveDay(loadedKey, structuredClone(blocks), nextId);
+    saveDay(loadedKey, structuredClone(blocks), nextId, structuredClone(symptoms), nextSymptomId);
   }
 
   const MIN_SWEEP_DEG = 1.5; // ignore an accidental tap-as-drag
@@ -265,8 +291,15 @@
       }
     }
 
-    // 2. Tapping a block: select it; a second tap on an already-selected block
-    // toggles done (interim tick-off until the text headers land — §6).
+    // 2. Tapping a block/symptom: select it
+    const symLane = LANES.find(l => l.id === 'symptom')!;
+    const symHit = [...symptoms].reverse().find((s) => symptomContains(s, r, hours, symLane.rInner, symLane.rOuter));
+    if (symHit) {
+      selectedSymptomId = symHit.id;
+      selectedId = null;
+      svgEl.setPointerCapture(ev.pointerId);
+      return;
+    }
     const hit = [...blocks].reverse().find((b) => blockContains(b, r, hours));
     if (hit) {
       wasAlreadySelected = hit.id === selectedId; // before we change selection
@@ -525,6 +558,13 @@
     blocks = blocks;
     persist();
   }
+  function setSelectedVibe(vibeId: string | null) {
+    const b = blocks.find((x) => x.id === selectedId);
+    if (!b) return;
+    b.vibeId = vibeId;
+    blocks = blocks;
+    persist();
+  }
   onMount(() => {
     blockActions.set({
       setLabel: setSelectedLabel,
@@ -532,11 +572,40 @@
       remove: removeSelected,
       setTimes: setSelectedTimes,
       setTravelTimes: setSelectedTravelTimes,
+      setVibe: setSelectedVibe,
       deselect: () => (selectedId = null),
       addBlock: handleAddBlock,
     });
+    symptomActions.set({
+      addSymptom: (timeHours: number, severity: 1 | 2 | 3 | 4 | 5, category: SymptomCategory) => {
+        const id = nextSymptomId++;
+        symptoms = [...symptoms, { id, timeHours, severity, category }];
+        selectedSymptomId = id;
+        selectedId = null;
+        persist();
+      },
+      updateSymptom: (severity: 1 | 2 | 3 | 4 | 5, category: SymptomCategory, timeHours: number, note?: string) => {
+        const s = symptoms.find(x => x.id === selectedSymptomId);
+        if (!s) return;
+        s.severity = severity;
+        s.category = category;
+        s.timeHours = timeHours;
+        s.note = note;
+        symptoms = symptoms;
+        persist();
+      },
+      remove: () => {
+        symptoms = symptoms.filter(x => x.id !== selectedSymptomId);
+        selectedSymptomId = null;
+        persist();
+      },
+      deselect: () => (selectedSymptomId = null),
+    });
   });
-  onDestroy(() => blockActions.set(null));
+  onDestroy(() => {
+    blockActions.set(null);
+    symptomActions.set(null);
+  });
 
   $: createLane = create ? LANES.find((l) => l.id === create!.laneId)! : null;
   $: createPath =
@@ -553,6 +622,9 @@
 
   $: selectedBlock = blocks.find((b) => b.id === selectedId) ?? null;
   $: selectedBlockStore.set(selectedBlock);
+  $: selectedSymptom = symptoms.find(s => s.id === selectedSymptomId) ?? null;
+  $: selectedSymptomStore.set(selectedSymptom);
+  const symLane = LANES.find(l => l.id === 'symptom')!;
 
   // The selected block's label — a floating header (§6), shown only when
   // selected. It floats OVER the ring (covering stuff is fine) with a subtle
@@ -675,10 +747,10 @@
 
   <!-- consumed "now" sweep (§14): the day-so-far as a FROSTED-GLASS pane, not a
        deeper grey. A milky white veil + frost speckle = luminosity/material,
-       never a hue or a heavier pigment. -->
+       never a hue or a heavier  <!-- now wedge -->
   {#if viewingToday}
-    <path d={nowWedge} fill="#ffffff" opacity={$theme === 'light' ? 0.16 : 0.1} filter="url(#frost)" />
-    <path d={nowWedge} fill="#ffffff" opacity={$theme === 'light' ? 0.05 : 0.04} />
+    <path d={nowWedge} fill="#ffffff" opacity={$theme === 'force-light' ? 0.16 : 0.1} filter="url(#frost)" />
+    <path d={nowWedge} fill="#ffffff" opacity={$theme === 'force-light' ? 0.05 : 0.04} />
   {/if}
 
   <!-- lane band outlines -->
@@ -690,6 +762,25 @@
   <!-- 15-min ticks + hour spokes -->
   {#each ticks as t}
     <line x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} stroke={t.isHour ? pal.tickHour : pal.tickMin} stroke-width={t.isHour ? 1 : 0.6} />
+  {/each}
+
+  <!-- symptoms -->
+  {#each symptoms as s (s.id)}
+    {@const a0 = hoursToAngle(s.timeHours - SYMPTOM_ARC_HOURS / 2)}
+    {@const a1 = hoursToAngle(s.timeHours + SYMPTOM_ARC_HOURS / 2)}
+    <path
+      d={annularSector(C, C, symLane.rInner, symLane.rOuter, a0, a1)}
+      fill={SYMPTOM_FILL}
+      opacity={severityOpacity(s.severity)}
+    />
+    {#if s.id === selectedSymptomId}
+      <path
+        d={annularSector(C, C, symLane.rInner, symLane.rOuter, a0, a1)}
+        fill="none"
+        stroke={pal.signal}
+        stroke-width="1.5"
+      />
+    {/if}
   {/each}
 
   <!-- placed blocks: solid core in the vibe hex (the one sanctioned use of
@@ -815,16 +906,18 @@
     <text x={l.x} y={l.y} text-anchor="middle" dominant-baseline="central" font-size="9" fill={l.marker ? pal.tickLabelMarker : pal.tickLabel} font-weight={l.marker ? 600 : 400}>{l.label}</text>
   {/each}
 
-  <!-- hub: current date (top) + the spatial cycle subdial (§11), Nautilus inset -->
+  <!-- hub: current date (top) + moon + env state -->
   <circle cx={C} cy={C} r={HUB_RADIUS} fill="url(#hubFade)" stroke={pal.hubStroke} stroke-width="1" />
-  <text x={C} y={C - HUB_RADIUS + 12} text-anchor="middle" font-size="10" fill={pal.textPrimary} font-weight="600">{hubDate}</text>
-  {#if !viewingToday}
-    <text x={C} y={C - HUB_RADIUS + 21} text-anchor="middle" font-size="6.5" fill={pal.textDim} letter-spacing="0.5">past day</text>
+  <text x={C} y={C - 15} text-anchor="middle" font-size="12" fill={pal.textPrimary} font-family="var(--font-display)" font-weight="600">{hubDate}</text>
+  
+  <text x={C} y={C + 5} text-anchor="middle" font-size="20" dominant-baseline="central">{$moonPhaseIcon}</text>
+  
+  {#if viewingToday}
+    <text x={C} y={C + 28} text-anchor="middle" font-size="8" fill={pal.textDim} font-family="var(--font-primary)" letter-spacing="0.5">{$envLabel}</text>
+  {:else}
+    <text x={C} y={C + 28} text-anchor="middle" font-size="7" fill={pal.textDim} font-family="var(--font-primary)" letter-spacing="0.5">past day</text>
   {/if}
-    <!-- the subdial fills the lower hub; tap it (via the editor button) to set
-         length / start. Drag the marker to set where you are. scaled for HUB_RADIUS=50 -->
-    <CycleDial x={C - 34} y={C - 23} size={68} interactive={viewingToday} />
-  </svg>
+</svg>
 
   <!-- zoom controls (non-colour): reliable +/− and reset alongside pinch.
        Reset only shows when zoomed, to stay out of the way. -->

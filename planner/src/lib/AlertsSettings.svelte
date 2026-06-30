@@ -15,6 +15,8 @@
   } from './push';
 
   import { syncConfigured, syncToServer, lastSyncError } from './sync';
+  import { gcalSyncActive, connectGCal, disconnectGCal } from './gcal';
+  import { exportBackup, importBackup } from './backup';
 
   const dispatch = createEventDispatcher<{ close: void }>();
   const standalone = isStandalone();
@@ -41,6 +43,39 @@
   }
   async function test() {
     testFired = await sendTestNotification();
+  }
+
+  let exportStatus = '';
+  let importCode = '';
+  let importStatus = '';
+  let importError = '';
+
+  async function handleExport() {
+    try {
+      const code = await exportBackup();
+      await navigator.clipboard.writeText(code);
+      exportStatus = 'Copied to clipboard! ✓';
+      setTimeout(() => { exportStatus = ''; }, 3000);
+    } catch (err) {
+      exportStatus = 'Export failed';
+    }
+  }
+
+  async function handleImport() {
+    importStatus = 'Restoring...';
+    importError = '';
+    try {
+      const ok = await importBackup(importCode);
+      if (ok) {
+        importStatus = 'Restored successfully! Reloading...';
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      }
+    } catch (err: any) {
+      importStatus = '';
+      importError = err.message || 'Restoration failed. Verify code.';
+    }
   }
 </script>
 
@@ -111,6 +146,64 @@
         already works.
       {/if}
     </p>
+
+    <!-- Google Calendar Sync section -->
+    <hr class="divider" />
+    
+    <div class="gcal-section">
+      <h3>Google Calendar Sync</h3>
+      <p class="desc">
+        Sync imported events onto your rings as hard-edged blocks. Local color choices are preserved.
+      </p>
+
+      <div class="row">
+        <span class="lbl">GCal Sync Status</span>
+        <span class="state" class:active={$gcalSyncActive}>
+          {$gcalSyncActive ? 'Connected & Synced ✓' : 'Disconnected'}
+        </span>
+      </div>
+
+      {#if !$gcalSyncActive}
+        <button class="primary gcal-btn" on:click={connectGCal}>
+          Connect Google Calendar
+        </button>
+      {:else}
+        <button class="secondary gcal-btn" on:click={disconnectGCal}>
+          Disconnect Google Calendar
+        </button>
+      {/if}
+    </div>
+
+    <!-- Backup & Migration section -->
+    <hr class="divider" />
+    
+    <div class="gcal-section">
+      <h3>Backup & Migration</h3>
+      <p class="desc">
+        Export all calendar tasks, symptom logs, scratch pad notes, settings, and chat history into a single backup code.
+      </p>
+      
+      <button class="primary" on:click={handleExport}>
+        {exportStatus || 'Export Backup to Clipboard'}
+      </button>
+
+      <div class="import-wrap">
+        <textarea
+          bind:value={importCode}
+          placeholder="Paste your backup code here to restore..."
+          aria-label="Backup code input"
+        ></textarea>
+        <button class="secondary" on:click={handleImport} disabled={!importCode.trim()}>
+          Import & Restore Backup
+        </button>
+        {#if importStatus}
+          <p class="ok">{importStatus}</p>
+        {/if}
+        {#if importError}
+          <p class="error-msg">{importError}</p>
+        {/if}
+      </div>
+    </div>
   </div>
 </div>
 
@@ -233,5 +326,70 @@
     border-radius: 6px;
     border: 1px solid var(--border-2);
     margin-top: 4px;
+  }
+  .divider {
+    border: none;
+    border-top: 1px solid var(--hairline);
+    margin: 8px 0;
+  }
+  .gcal-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .gcal-section h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .gcal-section .desc {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--text-dim);
+  }
+  .gcal-section .state.active {
+    color: var(--signal);
+    font-weight: 500;
+  }
+  .gcal-btn {
+    width: 100%;
+    margin-top: 4px;
+  }
+  .secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: 10px;
+    padding: 11px 14px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .secondary:active {
+    color: var(--text);
+    border-color: var(--text-faint);
+  }
+  .import-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 6px;
+  }
+  .import-wrap textarea {
+    width: 100%;
+    height: 60px;
+    background: var(--surface-2);
+    border: 1px solid var(--border-2);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 8px;
+    font-size: 11px;
+    font-family: monospace;
+    resize: none;
+    outline: none;
+  }
+  .import-wrap textarea:focus {
+    border-color: var(--text-faint);
   }
 </style>

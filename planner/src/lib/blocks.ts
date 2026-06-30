@@ -32,6 +32,7 @@ export interface Block {
   kind?: 'appointment';
   travelBeforeHours?: number; // prepend wing length ("leave by" window)
   travelAfterHours?: number; // append wing length ("get home" window)
+  gcalId?: string; // Google Calendar Event ID
 }
 
 export const SIZE = 400;

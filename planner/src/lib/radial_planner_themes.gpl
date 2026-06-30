@@ -1,0 +1,186 @@
+GIMP Palette
+Name: Radial Planner Themes
+Columns: 4
+#
+# Theme: common
+
+# Theme: pre_dawn
+ 16  21  37	pre_dawn app-bg
+ 21  27  45	pre_dawn surface
+ 26  34  53	pre_dawn surface-2
+ 35  43  64	pre_dawn surface-3
+ 40  50  74	pre_dawn border
+ 50  61  90	pre_dawn border-2
+224 229 240	pre_dawn text
+192 202 220	pre_dawn text-2
+139 152 178	pre_dawn text-dim
+ 95 109 138	pre_dawn text-faint
+ 33  41  60	pre_dawn hairline
+255 255 255	pre_dawn signal
+ 16  21  37	pre_dawn signal-contrast
+
+# Theme: sunrise
+252 216 182	sunrise app-bg
+245 206 176	sunrise surface
+235 191 161	sunrise surface-2
+223 178 146	sunrise surface-3
+207 161 128	sunrise border
+191 146 115	sunrise border-2
+ 42  26  16	sunrise text
+ 74  47  28	sunrise text-2
+128  93  66	sunrise text-dim
+166 125  94	sunrise text-faint
+235 210 190	sunrise hairline
+ 38  16   5	sunrise signal
+252 216 182	sunrise signal-contrast
+
+# Theme: day
+244 241 234	day app-bg
+244 241 234	day surface
+233 227 215	day surface-2
+222 215 200	day surface-3
+211 204 188	day border
+205 198 182	day border-2
+ 44  38  32	day text
+ 76  68  56	day text-2
+122 112  96	day text-dim
+154 144 128	day text-faint
+221 214 200	day hairline
+ 38  32  25	day signal
+244 241 234	day signal-contrast
+
+# Theme: sunset
+227 126  84	sunset app-bg
+207 107  66	sunset surface
+219 121  81	sunset surface-2
+230 138 101	sunset surface-3
+235 158 127	sunset border
+240 174 148	sunset border-2
+ 51  21   8	sunset text
+ 82  35  13	sunset text-2
+128  60  28	sunset text-dim
+166  86  45	sunset text-faint
+207 104  62	sunset hairline
+ 28  10   3	sunset signal
+227 126  84	sunset signal-contrast
+
+# Theme: twilight
+ 43  32  69	twilight app-bg
+ 37  28  59	twilight surface
+ 50  37  79	twilight surface-2
+ 62  46  97	twilight surface-3
+ 73  56 112	twilight border
+ 84  66 128	twilight border-2
+239 234 252	twilight text
+216 207 240	twilight text-2
+162 149 194	twilight text-dim
+119 107 150	twilight text-faint
+ 51  39  79	twilight hairline
+255 255 255	twilight signal
+ 43  32  69	twilight signal-contrast
+
+# Theme: night_new
+  7   7  10	night_new app-bg
+ 11  11  15	night_new surface
+ 17  17  23	night_new surface-2
+ 24  24  34	night_new surface-3
+ 32  32  45	night_new border
+ 39  39  55	night_new border-2
+204 204 204	night_new text
+163 163 163	night_new text-2
+102 102 102	night_new text-dim
+ 64  64  64	night_new text-faint
+ 20  20  26	night_new hairline
+255 255 255	night_new signal
+  7   7  10	night_new signal-contrast
+
+# Theme: night_full
+ 11  17  32	night_full app-bg
+ 15  23  42	night_full surface
+ 22  34  59	night_full surface-2
+ 32  48  79	night_full surface-3
+ 46  65 102	night_full border
+ 62  84 125	night_full border-2
+248 250 252	night_full text
+226 232 240	night_full text-2
+148 163 184	night_full text-dim
+100 116 139	night_full text-faint
+ 21  30  51	night_full hairline
+255 255 255	night_full signal
+ 11  17  32	night_full signal-contrast
+
+# Theme: storm
+ 24  34  42	storm app-bg
+ 19  27  33	storm surface
+ 28  40  49	storm surface-2
+ 38  53  65	storm surface-3
+ 49  68  84	storm border
+ 62  84 102	storm border-2
+219 231 240	storm text
+179 203 224	storm text-2
+117 148 174	storm text-dim
+ 76 103 124	storm text-faint
+ 31  42  51	storm hairline
+255 255 255	storm signal
+ 24  34  42	storm signal-contrast
+
+# Theme: heatwave
+ 66  24  32	heatwave app-bg
+ 59  21  28	heatwave surface
+ 77  28  37	heatwave surface-2
+ 97  37  49	heatwave surface-3
+112  45  59	heatwave border
+130  55  70	heatwave border-2
+252 240 242	heatwave text
+242 216 221	heatwave text-2
+199 155 163	heatwave text-dim
+156 111 120	heatwave text-faint
+ 77  32  40	heatwave hairline
+255 255 255	heatwave signal
+ 66  24  32	heatwave signal-contrast
+
+# Theme: aurora
+  5  10  10	aurora app-bg
+  8  18  18	aurora surface
+ 12  26  26	aurora surface-2
+ 18  38  38	aurora surface-3
+ 24  51  51	aurora border
+ 32  64  64	aurora border-2
+224 255 255	aurora text
+176 236 236	aurora text-2
+ 92 186 186	aurora text-dim
+ 50 128 128	aurora text-faint
+ 10  23  23	aurora hairline
+  0 255 204	aurora signal
+  0  38  30	aurora signal-contrast
+
+# Theme: lunar_eclipse
+ 50  16  22	lunar_eclipse app-bg
+ 44  14  19	lunar_eclipse surface
+ 58  18  25	lunar_eclipse surface-2
+ 77  23  34	lunar_eclipse surface-3
+ 88  26  39	lunar_eclipse border
+102  31  46	lunar_eclipse border-2
+252 227 231	lunar_eclipse text
+240 194 203	lunar_eclipse text-2
+186 124 135	lunar_eclipse text-dim
+145  83  94	lunar_eclipse text-faint
+ 58  18  25	lunar_eclipse hairline
+255 138 138	lunar_eclipse signal
+ 50  16  22	lunar_eclipse signal-contrast
+
+# Theme: solar_eclipse
+  5   5   5	solar_eclipse app-bg
+  0   0   0	solar_eclipse surface
+ 18  18  18	solar_eclipse surface-2
+ 34  34  34	solar_eclipse surface-3
+ 51  51  51	solar_eclipse border
+ 68  68  68	solar_eclipse border-2
+240 240 240	solar_eclipse text
+208 208 208	solar_eclipse text-2
+136 136 136	solar_eclipse text-dim
+ 85  85  85	solar_eclipse text-faint
+ 17  17  17	solar_eclipse hairline
+255 102   0	solar_eclipse signal
+  5   5   5	solar_eclipse signal-contrast
+

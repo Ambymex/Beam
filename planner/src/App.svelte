@@ -6,23 +6,45 @@
   import CaptureList from './lib/CaptureList.svelte';
   import CycleEditor from './lib/CycleEditor.svelte';
   import AlertsSettings from './lib/AlertsSettings.svelte';
+  import Search from './lib/Search.svelte';
+  import ChatCompanion from './lib/ChatCompanion.svelte';
+  import SymptomEditor from './lib/SymptomEditor.svelte';
+  import ScratchPad from './lib/ScratchPad.svelte';
   import { currentKey, todayKey } from './lib/days';
-  import { cascadeMode, appointmentMode } from './lib/daystate';
-  import { theme, toggleTheme } from './lib/theme';
+  import { cascadeMode, appointmentMode, symptomActions } from './lib/daystate';
+  import { theme, toggleTheme, envLabel } from './lib/theme';
+  import { startEnvTheme, stopEnvTheme, envThemeState, debugThemeOverride } from './lib/envTheme';
+  import { onMount, onDestroy } from 'svelte';
+
+  onMount(() => startEnvTheme());
+  onDestroy(() => stopEnvTheme());
 
   let showGallery = false;
   let showCapture = false;
   let showCycle = false;
   let showAlerts = false;
+  let showSearch = false;
+  let showCompanion = false;
+  let showScratchpad = false;
   $: viewingToday = $currentKey === todayKey();
+
+  function onAddSymptom() {
+    const now = new Date();
+    const timeHours = now.getHours() + now.getMinutes() / 60;
+    $symptomActions?.addSymptom(timeHours, 1, 'sneezing');
+  }
 </script>
 
-<main>
-  <header class="bar">
-    <button class="chip" on:click={() => (showGallery = true)} aria-label="Open day gallery">▦ Days</button>
-    <button class="chip" on:click={() => (showCapture = true)} aria-label="Open capture list">✎ List</button>
-    <button class="chip" on:click={() => (showCycle = true)} aria-label="Open cycle settings">◍ Cycle</button>
-    <button class="chip" on:click={() => (showAlerts = true)} aria-label="Open alerts settings">🔔 Alerts</button>
+<main class:meteor-shower={$envThemeState.isMeteorShower} class:storm-mode={$envThemeState.isStorm} class:aurora-mode={$envThemeState.isAurora}>
+  <header class="bar glass-panel">
+    <button class="chip" on:click={onAddSymptom} aria-label="Log symptom now">Symptom</button>
+    <button class="chip" on:click={() => (showGallery = true)} aria-label="Open day gallery">Days</button>
+    <button class="chip" on:click={() => (showCapture = true)} aria-label="Open capture list">List</button>
+    <button class="chip" on:click={() => (showCycle = true)} aria-label="Open cycle settings">Cycle</button>
+    <button class="chip" on:click={() => (showAlerts = true)} aria-label="Open alerts settings">Alerts</button>
+    <button class="chip" on:click={() => (showCompanion = true)} aria-label="Open chat companion">Companion</button>
+    <button class="chip" on:click={() => (showSearch = true)} aria-label="Open plan search">Search</button>
+    <button class="chip" on:click={() => (showScratchpad = true)} aria-label="Open scratch pad notes">Notes</button>
     <!-- Cascade toggle (§9): off = nudge just this; on = push my day. The "on"
          state is a non-colour cue — a luminous ring, never a hue. -->
     <button
@@ -32,7 +54,7 @@
       aria-pressed={$cascadeMode}
       aria-label="Toggle push-my-day cascade"
     >
-      {$cascadeMode ? '⇉ Push my day' : '→ Nudge'}
+      {$cascadeMode ? 'Push my day' : 'Nudge'}
     </button>
     <!-- Appointment-draw toggle (§8): when on, a sweep makes a hard-edged
          appointment with travel-time wings instead of a soft block. -->
@@ -43,17 +65,29 @@
       aria-pressed={$appointmentMode}
       aria-label="Toggle appointment draw mode"
     >
-      {$appointmentMode ? '📍 Appointment' : '◷ Block'}
+      {$appointmentMode ? 'Appointment' : 'Block'}
     </button>
-    <button
-      class="chip theme"
-      on:click={toggleTheme}
-      aria-label="Toggle light or dark theme"
-    >
-      {$theme === 'light' ? '☾ Dark' : '☀ Light'}
-    </button>
+    <!-- Theme Debugger -->
+    <select class="chip theme-debug" bind:value={$debugThemeOverride}>
+      <option value={null}>Auto Theme</option>
+      <option value="pre_dawn">Pre-Dawn</option>
+      <option value="sunrise">Sunrise</option>
+      <option value="day">Day</option>
+      <option value="sunset">Sunset</option>
+      <option value="twilight">Twilight</option>
+      <option value="night_new">Night (New Moon)</option>
+      <option value="night_full">Night (Full Moon)</option>
+      <option value="storm">Storm</option>
+      <option value="heatwave">Heatwave</option>
+      <option value="aurora">Aurora</option>
+      <option value="meteor_shower">Meteor Shower</option>
+      <option value="lunar_eclipse">Lunar Eclipse</option>
+      <option value="solar_eclipse">Solar Eclipse</option>
+      <option value="test">Sandbox (Test)</option>
+    </select>
+    
     {#if !viewingToday}
-      <button class="chip back" on:click={() => currentKey.set(todayKey())}>Today →</button>
+      <button class="chip back" on:click={() => currentKey.set(todayKey())}>Today</button>
     {/if}
   </header>
 
@@ -62,8 +96,9 @@
   </div>
 
   <BlockEditor />
+  <SymptomEditor />
 
-  <div class="tray-wrap">
+  <div class="tray-wrap glass-panel">
     <Palette />
   </div>
 </main>
@@ -79,6 +114,15 @@
 {/if}
 {#if showAlerts}
   <AlertsSettings on:close={() => (showAlerts = false)} />
+{/if}
+{#if showCompanion}
+  <ChatCompanion on:close={() => (showCompanion = false)} />
+{/if}
+{#if showSearch}
+  <Search on:close={() => (showSearch = false)} />
+{/if}
+{#if showScratchpad}
+  <ScratchPad on:close={() => (showScratchpad = false)} />
 {/if}
 
 <style>
@@ -159,6 +203,6 @@
     min-width: 0;
     padding: 6px 10px 4px;
     border-top: 1px solid var(--hairline);
-    background: var(--surface);
+    /* background: var(--surface); removed for glass */
   }
 </style>

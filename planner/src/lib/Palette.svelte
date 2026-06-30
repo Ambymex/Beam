@@ -28,7 +28,6 @@
   // new-category form
   let addingCat = false;
   let newCatLabel = '';
-  let newCatIcon = '✦';
 
   function armVibe(v: Vibe) {
     armedVibe.set(v);
@@ -57,10 +56,9 @@
   }
 
   function createCategory() {
-    const c = addCustomCategory(newCatLabel, newCatIcon);
+    const c = addCustomCategory(newCatLabel);
     addingCat = false;
     newCatLabel = '';
-    newCatIcon = '✦';
     expandedId = c.id;
     openCreate(c.id); // immediately offer to add its first vibe
   }
@@ -142,7 +140,6 @@
 
       {#if addingCat}
         <div class="create">
-          <input class="icon-in" type="text" maxlength="2" bind:value={newCatIcon} aria-label="Category icon" />
           <input
             class="emotion-in"
             type="text"
@@ -177,7 +174,6 @@
           <div class="cat" class:armed={$armedVibe?.id === cat.id}>
             <button class="cat-main" aria-pressed={$armedVibe?.id === cat.id} on:click={() => tapCategory(cat)}>
               <span class="swatch sm" style="background:{cat.repHex}"></span>
-              <span class="cat-ico">{cat.icon}</span>
               <span class="cat-label">{cat.label}</span>
               {#if cat.custom}<span class="badge">custom</span>{/if}
             </button>

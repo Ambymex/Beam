@@ -8,41 +8,35 @@
 
 import { writable } from 'svelte/store';
 import type { Vibe } from './vibes';
+import { db } from './db';
 
 // A custom vibe is a Vibe plus which category it belongs to (a base id like
 // 'cat:cooking' or a custom 'cat:custom:*'; undefined = uncategorised → "yours").
 export type CustomVibe = Vibe & { categoryId?: string };
 
-const STORAGE_KEY = 'radial-planner-custom-vibes-v1';
-
-function load(): CustomVibe[] {
-  if (typeof localStorage === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as CustomVibe[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-export const customVibes = writable<CustomVibe[]>(load());
+export const customVibes = writable<CustomVibe[]>([]);
 
 // A synchronous mirror so the pure resolveVibe() (categories.ts) can look custom
 // vibes up without being async or a store consumer.
-export const CUSTOM_BY_ID: Record<string, CustomVibe> = Object.fromEntries(
-  load().map((v) => [v.id, v]),
-);
+export const CUSTOM_BY_ID: Record<string, CustomVibe> = {};
 
 customVibes.subscribe((list) => {
   for (const k of Object.keys(CUSTOM_BY_ID)) delete CUSTOM_BY_ID[k];
   for (const v of list) CUSTOM_BY_ID[v.id] = v;
-  if (typeof localStorage === 'undefined') return;
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-  } catch {
-    /* quota / private mode — still works in-memory */
-  }
 });
+
+async function initCustomVibes() {
+  if (typeof window === 'undefined') return;
+  try {
+    const list = await db.customVibes.toArray();
+    customVibes.set(list);
+  } catch (err) {
+    console.error('[DB] Failed to load custom vibes:', err);
+  }
+}
+
+// Start loading immediately in the background
+initCustomVibes();
 
 function normHex(hex: string): string {
   let h = hex.trim().toLowerCase();
@@ -59,11 +53,13 @@ export function addCustomVibe(hex: string, emotion: string, categoryId?: string)
     categoryId: categoryId || undefined,
   };
   customVibes.update((list) => [...list, vibe]);
+  db.customVibes.put(vibe).catch((err) => console.error('[DB] Failed to add custom vibe:', err));
   return vibe;
 }
 
 export function removeCustomVibe(id: string) {
   customVibes.update((list) => list.filter((v) => v.id !== id));
+  db.customVibes.delete(id).catch((err) => console.error('[DB] Failed to delete custom vibe:', err));
 }
 
 // Re-file a custom vibe under a (different) category, or uncategorise it.
@@ -71,4 +67,10 @@ export function setVibeCategory(id: string, categoryId: string | undefined) {
   customVibes.update((list) =>
     list.map((v) => (v.id === id ? { ...v, categoryId: categoryId || undefined } : v)),
   );
+  db.customVibes.get(id).then(vibe => {
+    if (vibe) {
+      vibe.categoryId = categoryId || undefined;
+      return db.customVibes.put(vibe);
+    }
+  }).catch((err) => console.error('[DB] Failed to update vibe category:', err));
 }

@@ -6,8 +6,10 @@
 
 import { writable } from 'svelte/store';
 import type { Block } from './blocks';
+import type { Symptom, SymptomCategory } from './symptoms';
 
 export const selectedBlockStore = writable<Block | null>(null);
+export const selectedSymptomStore = writable<Symptom | null>(null);
 
 export interface BlockActions {
   setLabel: (text: string) => void;
@@ -18,6 +20,7 @@ export interface BlockActions {
   // "exactly 2 min" path (§0.3 was "never DEMAND precision", not "never allow").
   setTimes: (startHours: number, coreEndHours: number) => void;
   setTravelTimes: (beforeHours: number, afterHours: number) => void;
+  setVibe: (vibeId: string | null) => void;
   deselect: () => void;
   addBlock: (
     laneId: string,
@@ -31,6 +34,15 @@ export interface BlockActions {
 }
 
 export const blockActions = writable<BlockActions | null>(null);
+
+export interface SymptomActions {
+  addSymptom: (timeHours: number, severity: 1 | 2 | 3 | 4 | 5, category: SymptomCategory) => void;
+  updateSymptom: (severity: 1 | 2 | 3 | 4 | 5, category: SymptomCategory, timeHours: number, note?: string) => void;
+  remove: () => void;
+  deselect: () => void;
+}
+
+export const symptomActions = writable<SymptomActions | null>(null);
 
 // Cascade vs nudge (§9). Default OFF = "nudge just this" (drag moves only the
 // grabbed block). When ON = "push my day": dragging a block also shoves

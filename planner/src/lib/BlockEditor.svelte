@@ -5,6 +5,8 @@
   import { selectedBlockStore, blockActions } from './daystate';
   import { resolveVibe } from './categories';
   import { armedVibe } from './stores';
+  import { VIBES } from './vibes';
+  import { customVibes } from './customVibes';
 
   let draft = '';
   let lastId: number | null = null;
@@ -37,10 +39,12 @@
       travelAfterMins = Math.round((sb.travelAfterHours ?? 0) * 60);
     }
     showTimes = false;
+    showVibeGrid = false;
     lastId = sb.id;
   }
   $: if (!sb) {
     lastId = null;
+    showVibeGrid = false;
     initAddTimes();
   }
   // resolveVibe handles both member ids and category ids (cat:*).
@@ -118,11 +122,18 @@
       addTravelAfterMins / 60
     );
   }
+  let showVibeGrid = false;
+
+  function changeVibe(vibeId: string | null) {
+    $blockActions?.setVibe(vibeId);
+  }
 </script>
 
 {#if sb}
   <div class="editor">
-    <span class="dot" style="background:{vibe?.hex ?? '#6a6a78'}"></span>
+    <button class="dot-btn" on:click={() => showVibeGrid = !showVibeGrid} aria-label="Change block color" title="Change block color">
+      <span class="dot" style="background:{vibe?.hex ?? '#6a6a78'}"></span>
+    </button>
     <input
       class="label"
       type="text"
@@ -137,6 +148,29 @@
     <button class="act del" on:click={() => $blockActions?.remove()} aria-label="Delete block">🗑</button>
     <button class="act" on:click={() => $blockActions?.deselect()} aria-label="Deselect">✕</button>
   </div>
+
+  {#if showVibeGrid}
+    <div class="editor-swatches-grid">
+      <button 
+        class="swatch" 
+        class:active={!sb.vibeId}
+        style="background: #6a6a78;" 
+        title="No vibe"
+        on:click={() => { changeVibe(null); showVibeGrid = false; }}
+        aria-label="Remove vibe color"
+      ></button>
+      {#each [...VIBES, ...$customVibes] as v (v.id)}
+        <button
+          class="swatch"
+          class:active={sb.vibeId === v.id}
+          style="background:{v.hex}"
+          title={v.emotion}
+          on:click={() => { changeVibe(v.id); showVibeGrid = false; }}
+          aria-label="Set vibe to {v.emotion}"
+        ></button>
+      {/each}
+    </div>
+  {/if}
 
   <div class="times">
     <label>start <input type="time" bind:value={startStr} on:change={commitTimes} /></label>
@@ -365,5 +399,45 @@
     width: 15px;
     height: 15px;
     accent-color: var(--signal);
+  }
+
+  /* Color dot button and swatches grid */
+  .dot-btn {
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    border-radius: 50%;
+    transition: background-color 0.12s ease;
+  }
+  .dot-btn:hover {
+    background-color: var(--surface-3);
+  }
+  .editor-swatches-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--hairline);
+    width: 100%;
+  }
+  .swatch {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 1px solid var(--border-2);
+    cursor: pointer;
+    padding: 0;
+    transition: transform 0.08s ease, border-color 0.08s ease;
+  }
+  .swatch:hover {
+    transform: scale(1.15);
+  }
+  .swatch.active {
+    border-color: var(--text);
+    box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--text);
   }
 </style>

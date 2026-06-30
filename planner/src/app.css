@@ -1,45 +1,15 @@
-/* Theme variables for the chrome (bars, overlays, palette tray, editors).
-   The SVG ring/subdial are themed via the JS `palette` store; everything HTML
-   reads these tokens. Meaning stays constant across themes; only values flip.
-   Vibe hexes are never tokens — they're the user's data. */
+/* Environmental Theme Engine + Glassmorphism Overhaul
+   The static light/dark tokens have been moved to envTheme.ts, which drives
+   the CSS variables on the root document based on time/weather/celestial events.
+*/
 
-:root,
-:root[data-theme='dark'] {
-  color-scheme: dark;
-  --app-bg: #0d0d10; /* page */
-  --surface: #0b0b0e; /* overlays / trays */
-  --surface-2: #16161c; /* inputs, chips */
-  --surface-3: #23242c; /* keycaps, raised */
-  --border: #26262e;
-  --border-2: #2a2a33;
-  --text: #e7e7ea;
-  --text-2: #cfcfd6;
-  --text-dim: #9a9aa4;
-  --text-faint: #5d5d68;
-  --hairline: #1b1b22;
-  --signal: #fdfdff; /* the inverted-on-light luminosity mark */
-  --signal-contrast: #0d0d10; /* sits inside/under a signal mark */
-  --signal-glow: rgba(255, 255, 255, 0.5);
-  --swatch-edge: rgba(255, 255, 255, 0.08);
+:root {
+  color-scheme: light dark; /* let the browser know we handle both */
 }
 
-:root[data-theme='light'] {
-  color-scheme: light;
-  --app-bg: #f4f1ea; /* warm paper-white */
-  --surface: #f4f1ea;
-  --surface-2: #e9e3d7;
-  --surface-3: #ded7c8;
-  --border: #d3ccbc;
-  --border-2: #cdc6b6;
-  --text: #2c2620;
-  --text-2: #4c4438;
-  --text-dim: #7a7060;
-  --text-faint: #9a9080;
-  --hairline: #ddd6c8;
-  --signal: #262019; /* dark warm ink */
-  --signal-contrast: #f4f1ea;
-  --signal-glow: rgba(38, 32, 25, 0.35);
-  --swatch-edge: rgba(40, 32, 20, 0.14);
+/* Global 2.5s crossfade for environmental transitions, mimicking a sunrise */
+body, .bar, .tray-wrap, .glass-card, .glass-overlay, .ring, button, input {
+  transition: background-color 2.5s ease, color 2.5s ease, border-color 2.5s ease, box-shadow 2.5s ease;
 }
 
 * {
@@ -50,21 +20,18 @@ html,
 body {
   margin: 0;
   height: 100%;
-  background: var(--app-bg);
-  /* lock horizontal panning so a stray sideways swipe can't drag the whole
-     layout (the toolbar scrolls on its own; nothing else should move sideways) */
+  /* Ambient gradient driven by envTheme */
+  background: var(--ambient-gradient, var(--app-bg));
+  /* lock horizontal panning */
   overflow-x: hidden;
   width: 100%;
   max-width: 100%;
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-primary, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
   color: var(--text);
-  /* none = no rubber-banding in any direction at the page edges */
   overscroll-behavior: none;
-  /* only let the browser handle vertical gestures at the root; horizontal
-     panning is owned by scrollable children (the toolbar), not the page */
   touch-action: pan-y;
 }
 
@@ -75,4 +42,65 @@ body {
   max-width: 100vw;
   overflow: hidden;
   display: flex;
+}
+
+/* Glassmorphism shared utility classes */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  box-shadow: var(--glass-shadow);
+}
+
+.glass-overlay {
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* Meteor Shower Animation */
+@keyframes shooting-star {
+  0% { transform: translateX(0) translateY(0) rotate(45deg); opacity: 1; }
+  100% { transform: translateX(-500px) translateY(500px) rotate(45deg); opacity: 0; }
+}
+
+.meteor-shower::before {
+  content: '';
+  position: absolute;
+  top: -50px;
+  right: -50px;
+  width: 2px;
+  height: 50px;
+  background: linear-gradient(to bottom, rgba(255,255,255,0), #fff);
+  animation: shooting-star 3s linear infinite;
+  opacity: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Aurora animation */
+@keyframes aurora-wave {
+  0% { transform: translateY(0) scale(1) rotate(0deg); opacity: 0.3; }
+  50% { transform: translateY(-30px) scale(1.1) rotate(5deg); opacity: 0.6; }
+  100% { transform: translateY(0) scale(1) rotate(0deg); opacity: 0.3; }
+}
+
+.aurora-mode::before {
+  content: '';
+  position: absolute;
+  top: -10%; left: -10%; width: 120%; height: 50%;
+  background: radial-gradient(ellipse at top, rgba(0,255,204,0.15) 0%, rgba(0,38,30,0) 70%);
+  animation: aurora-wave 12s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
 }

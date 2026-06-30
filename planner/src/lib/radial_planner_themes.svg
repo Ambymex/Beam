@@ -1,0 +1,1004 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1130 1040" width="1130" height="1040" style="background-color: #121214; font-family: sans-serif;">
+  <defs>
+    <linearGradient id="grad-pre_dawn" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#101525" />
+      <stop offset="100%" stop-color="#1a2235" />
+    </linearGradient>
+    <linearGradient id="grad-sunrise" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fcd8b6" />
+      <stop offset="100%" stop-color="#ffc0a1" />
+    </linearGradient>
+    <linearGradient id="grad-day" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f4f1ea" />
+      <stop offset="100%" stop-color="#e8e3d8" />
+    </linearGradient>
+    <linearGradient id="grad-sunset" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e37e54" />
+      <stop offset="100%" stop-color="#c2592f" />
+    </linearGradient>
+    <linearGradient id="grad-twilight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2b2045" />
+      <stop offset="100%" stop-color="#1e1533" />
+    </linearGradient>
+    <linearGradient id="grad-night_new" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#07070a" />
+      <stop offset="100%" stop-color="#000000" />
+    </linearGradient>
+    <linearGradient id="grad-night_full" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b1120" />
+      <stop offset="100%" stop-color="#17243b" />
+    </linearGradient>
+    <linearGradient id="grad-storm" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#18222a" />
+      <stop offset="100%" stop-color="#10161b" />
+    </linearGradient>
+    <linearGradient id="grad-heatwave" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#421820" />
+      <stop offset="100%" stop-color="#822d2d" />
+    </linearGradient>
+    <linearGradient id="grad-aurora" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#050a0a" />
+      <stop offset="100%" stop-color="#03080d" />
+    </linearGradient>
+    <linearGradient id="grad-lunar_eclipse" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#321016" />
+      <stop offset="100%" stop-color="#6e2020" />
+    </linearGradient>
+    <linearGradient id="grad-solar_eclipse" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#050505" />
+      <stop offset="100%" stop-color="#0d0d0d" />
+    </linearGradient>
+  </defs>
+
+  <!-- Header -->
+  <text x="20" y="40" fill="#ffffff" font-size="24" font-weight="bold">Radial Planner Color Themes Spec</text>
+  <text x="20" y="65" fill="#8e8e93" font-size="14">Open this SVG in Krita or any image editor to color-pick directly.</text>
+
+  <!-- pre_dawn Card -->
+  <g transform="translate(20, 90)">
+    <!-- Card Background (Ambient Gradient/App Bg) -->
+    <rect width="350" height="220" rx="12" fill="url(#grad-pre_dawn)" stroke="#2c2c2e" stroke-width="1" />
+    
+    <!-- Theme Title -->
+    <text x="15" y="30" fill="#e0e5f0" font-size="16" font-weight="bold">PRE DAWN</text>
+    
+    <!-- Swatches Grid -->
+    <g transform="translate(15, 50)">
+  
+      <!-- Swatch: app-bg -->
+      <g transform="translate(0, 0)">
+        <rect width="35" height="35" rx="4" fill="#101525" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#e0e5f0" font-size="8" opacity="0.8" font-family="monospace">app-bg</text>
+      </g>
+      <!-- Swatch: surface -->
+      <g transform="translate(50, 0)">
+        <rect width="35" height="35" rx="4" fill="#151b2d" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#e0e5f0" font-size="8" opacity="0.8" font-family="monospace">surface</text>
+      </g>
+      <!-- Swatch: surface-2 -->
+      <g transform="translate(100, 0)">
+        <rect width="35" height="35" rx="4" fill="#1a2235" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#e0e5f0" font-size="8" opacity="0.8" font-family="monospace">surface-</text>
+      </g>
+      <!-- Swatch: surface-3 -->
+      <g transform="translate(150, 0)">
+        <rect width="35" height="35" rx="4" fill="#232b40" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#e0e5f0" font-size="8" opacity="0.8" font-family="monospace">surface-</text>
+      </g>
+      <!-- Swatch: border -->
+      <g transform="translate(200, 0)">
+        <rect width="35" height="35" rx="4" fill="#28324a" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#e0e5f0" font-size="8" opacity="0.8" font-family="monospace">border</text>
+      </g>
+      <!-- Swatch: border-2 -->
+      <g transform="translate(250, 0)">
+        <rect width="35" height="35" rx="4" fill="#323d5a" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#e0e5f0" font-size="8" opacity="0.8" font-family="monospace">border-2</text>
+      </g>
+      <!-- Swatch: text -->
+      <g transform="translate(0, 55)">
+        <rect width="35" height="35" rx="4" fill="#e0e5f0" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#e0e5f0" font-size="8" opacity="0.8" font-family="monospace">text</text>
+      </g>
+      <!-- Swatch: text-2 -->
+      <g transform="translate(50, 55)">
+        <rect width="35" height="35" rx="4" fill="#c0cadc" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#e0e5f0" font-size="8" opacity="0.8" font-family="monospace">text-2</text>
+      </g>
+      <!-- Swatch: text-dim -->
+      <g transform="translate(100, 55)">
+        <rect width="35" height="35" rx="4" fill="#8b98b2" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#e0e5f0" font-size="8" opacity="0.8" font-family="monospace">text-dim</text>
+      </g>
+      <!-- Swatch: text-faint -->
+      <g transform="translate(150, 55)">
+        <rect width="35" height="35" rx="4" fill="#5f6d8a" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#e0e5f0" font-size="8" opacity="0.8" font-family="monospace">text-fai</text>
+      </g>
+      <!-- Swatch: hairline -->
+      <g transform="translate(200, 55)">
+        <rect width="35" height="35" rx="4" fill="#21293c" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#e0e5f0" font-size="8" opacity="0.8" font-family="monospace">hairline</text>
+      </g>
+      <!-- Swatch: signal -->
+      <g transform="translate(250, 55)">
+        <rect width="35" height="35" rx="4" fill="#ffffff" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#e0e5f0" font-size="8" opacity="0.8" font-family="monospace">signal</text>
+      </g>
+      <!-- Swatch: signal-contrast -->
+      <g transform="translate(0, 110)">
+        <rect width="35" height="35" rx="4" fill="#101525" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#e0e5f0" font-size="8" opacity="0.8" font-family="monospace">signal-c</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- sunrise Card -->
+  <g transform="translate(390, 90)">
+    <!-- Card Background (Ambient Gradient/App Bg) -->
+    <rect width="350" height="220" rx="12" fill="url(#grad-sunrise)" stroke="#2c2c2e" stroke-width="1" />
+    
+    <!-- Theme Title -->
+    <text x="15" y="30" fill="#2a1a10" font-size="16" font-weight="bold">SUNRISE</text>
+    
+    <!-- Swatches Grid -->
+    <g transform="translate(15, 50)">
+  
+      <!-- Swatch: app-bg -->
+      <g transform="translate(0, 0)">
+        <rect width="35" height="35" rx="4" fill="#fcd8b6" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#2a1a10" font-size="8" opacity="0.8" font-family="monospace">app-bg</text>
+      </g>
+      <!-- Swatch: surface -->
+      <g transform="translate(50, 0)">
+        <rect width="35" height="35" rx="4" fill="#f5ceb0" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#2a1a10" font-size="8" opacity="0.8" font-family="monospace">surface</text>
+      </g>
+      <!-- Swatch: surface-2 -->
+      <g transform="translate(100, 0)">
+        <rect width="35" height="35" rx="4" fill="#ebbfa1" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#2a1a10" font-size="8" opacity="0.8" font-family="monospace">surface-</text>
+      </g>
+      <!-- Swatch: surface-3 -->
+      <g transform="translate(150, 0)">
+        <rect width="35" height="35" rx="4" fill="#dfb292" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#2a1a10" font-size="8" opacity="0.8" font-family="monospace">surface-</text>
+      </g>
+      <!-- Swatch: border -->
+      <g transform="translate(200, 0)">
+        <rect width="35" height="35" rx="4" fill="#cfa180" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#2a1a10" font-size="8" opacity="0.8" font-family="monospace">border</text>
+      </g>
+      <!-- Swatch: border-2 -->
+      <g transform="translate(250, 0)">
+        <rect width="35" height="35" rx="4" fill="#bf9273" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#2a1a10" font-size="8" opacity="0.8" font-family="monospace">border-2</text>
+      </g>
+      <!-- Swatch: text -->
+      <g transform="translate(0, 55)">
+        <rect width="35" height="35" rx="4" fill="#2a1a10" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#2a1a10" font-size="8" opacity="0.8" font-family="monospace">text</text>
+      </g>
+      <!-- Swatch: text-2 -->
+      <g transform="translate(50, 55)">
+        <rect width="35" height="35" rx="4" fill="#4a2f1c" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#2a1a10" font-size="8" opacity="0.8" font-family="monospace">text-2</text>
+      </g>
+      <!-- Swatch: text-dim -->
+      <g transform="translate(100, 55)">
+        <rect width="35" height="35" rx="4" fill="#805d42" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#2a1a10" font-size="8" opacity="0.8" font-family="monospace">text-dim</text>
+      </g>
+      <!-- Swatch: text-faint -->
+      <g transform="translate(150, 55)">
+        <rect width="35" height="35" rx="4" fill="#a67d5e" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#2a1a10" font-size="8" opacity="0.8" font-family="monospace">text-fai</text>
+      </g>
+      <!-- Swatch: hairline -->
+      <g transform="translate(200, 55)">
+        <rect width="35" height="35" rx="4" fill="#ebd2be" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#2a1a10" font-size="8" opacity="0.8" font-family="monospace">hairline</text>
+      </g>
+      <!-- Swatch: signal -->
+      <g transform="translate(250, 55)">
+        <rect width="35" height="35" rx="4" fill="#261005" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#2a1a10" font-size="8" opacity="0.8" font-family="monospace">signal</text>
+      </g>
+      <!-- Swatch: signal-contrast -->
+      <g transform="translate(0, 110)">
+        <rect width="35" height="35" rx="4" fill="#fcd8b6" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#2a1a10" font-size="8" opacity="0.8" font-family="monospace">signal-c</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- day Card -->
+  <g transform="translate(760, 90)">
+    <!-- Card Background (Ambient Gradient/App Bg) -->
+    <rect width="350" height="220" rx="12" fill="url(#grad-day)" stroke="#2c2c2e" stroke-width="1" />
+    
+    <!-- Theme Title -->
+    <text x="15" y="30" fill="#2c2620" font-size="16" font-weight="bold">DAY</text>
+    
+    <!-- Swatches Grid -->
+    <g transform="translate(15, 50)">
+  
+      <!-- Swatch: app-bg -->
+      <g transform="translate(0, 0)">
+        <rect width="35" height="35" rx="4" fill="#f4f1ea" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#2c2620" font-size="8" opacity="0.8" font-family="monospace">app-bg</text>
+      </g>
+      <!-- Swatch: surface -->
+      <g transform="translate(50, 0)">
+        <rect width="35" height="35" rx="4" fill="#f4f1ea" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#2c2620" font-size="8" opacity="0.8" font-family="monospace">surface</text>
+      </g>
+      <!-- Swatch: surface-2 -->
+      <g transform="translate(100, 0)">
+        <rect width="35" height="35" rx="4" fill="#e9e3d7" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#2c2620" font-size="8" opacity="0.8" font-family="monospace">surface-</text>
+      </g>
+      <!-- Swatch: surface-3 -->
+      <g transform="translate(150, 0)">
+        <rect width="35" height="35" rx="4" fill="#ded7c8" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#2c2620" font-size="8" opacity="0.8" font-family="monospace">surface-</text>
+      </g>
+      <!-- Swatch: border -->
+      <g transform="translate(200, 0)">
+        <rect width="35" height="35" rx="4" fill="#d3ccbc" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#2c2620" font-size="8" opacity="0.8" font-family="monospace">border</text>
+      </g>
+      <!-- Swatch: border-2 -->
+      <g transform="translate(250, 0)">
+        <rect width="35" height="35" rx="4" fill="#cdc6b6" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#2c2620" font-size="8" opacity="0.8" font-family="monospace">border-2</text>
+      </g>
+      <!-- Swatch: text -->
+      <g transform="translate(0, 55)">
+        <rect width="35" height="35" rx="4" fill="#2c2620" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#2c2620" font-size="8" opacity="0.8" font-family="monospace">text</text>
+      </g>
+      <!-- Swatch: text-2 -->
+      <g transform="translate(50, 55)">
+        <rect width="35" height="35" rx="4" fill="#4c4438" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#2c2620" font-size="8" opacity="0.8" font-family="monospace">text-2</text>
+      </g>
+      <!-- Swatch: text-dim -->
+      <g transform="translate(100, 55)">
+        <rect width="35" height="35" rx="4" fill="#7a7060" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#2c2620" font-size="8" opacity="0.8" font-family="monospace">text-dim</text>
+      </g>
+      <!-- Swatch: text-faint -->
+      <g transform="translate(150, 55)">
+        <rect width="35" height="35" rx="4" fill="#9a9080" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#2c2620" font-size="8" opacity="0.8" font-family="monospace">text-fai</text>
+      </g>
+      <!-- Swatch: hairline -->
+      <g transform="translate(200, 55)">
+        <rect width="35" height="35" rx="4" fill="#ddd6c8" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#2c2620" font-size="8" opacity="0.8" font-family="monospace">hairline</text>
+      </g>
+      <!-- Swatch: signal -->
+      <g transform="translate(250, 55)">
+        <rect width="35" height="35" rx="4" fill="#262019" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#2c2620" font-size="8" opacity="0.8" font-family="monospace">signal</text>
+      </g>
+      <!-- Swatch: signal-contrast -->
+      <g transform="translate(0, 110)">
+        <rect width="35" height="35" rx="4" fill="#f4f1ea" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#2c2620" font-size="8" opacity="0.8" font-family="monospace">signal-c</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- sunset Card -->
+  <g transform="translate(20, 330)">
+    <!-- Card Background (Ambient Gradient/App Bg) -->
+    <rect width="350" height="220" rx="12" fill="url(#grad-sunset)" stroke="#2c2c2e" stroke-width="1" />
+    
+    <!-- Theme Title -->
+    <text x="15" y="30" fill="#331508" font-size="16" font-weight="bold">SUNSET</text>
+    
+    <!-- Swatches Grid -->
+    <g transform="translate(15, 50)">
+  
+      <!-- Swatch: app-bg -->
+      <g transform="translate(0, 0)">
+        <rect width="35" height="35" rx="4" fill="#e37e54" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#331508" font-size="8" opacity="0.8" font-family="monospace">app-bg</text>
+      </g>
+      <!-- Swatch: surface -->
+      <g transform="translate(50, 0)">
+        <rect width="35" height="35" rx="4" fill="#cf6b42" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#331508" font-size="8" opacity="0.8" font-family="monospace">surface</text>
+      </g>
+      <!-- Swatch: surface-2 -->
+      <g transform="translate(100, 0)">
+        <rect width="35" height="35" rx="4" fill="#db7951" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#331508" font-size="8" opacity="0.8" font-family="monospace">surface-</text>
+      </g>
+      <!-- Swatch: surface-3 -->
+      <g transform="translate(150, 0)">
+        <rect width="35" height="35" rx="4" fill="#e68a65" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#331508" font-size="8" opacity="0.8" font-family="monospace">surface-</text>
+      </g>
+      <!-- Swatch: border -->
+      <g transform="translate(200, 0)">
+        <rect width="35" height="35" rx="4" fill="#eb9e7f" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#331508" font-size="8" opacity="0.8" font-family="monospace">border</text>
+      </g>
+      <!-- Swatch: border-2 -->
+      <g transform="translate(250, 0)">
+        <rect width="35" height="35" rx="4" fill="#f0ae94" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#331508" font-size="8" opacity="0.8" font-family="monospace">border-2</text>
+      </g>
+      <!-- Swatch: text -->
+      <g transform="translate(0, 55)">
+        <rect width="35" height="35" rx="4" fill="#331508" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#331508" font-size="8" opacity="0.8" font-family="monospace">text</text>
+      </g>
+      <!-- Swatch: text-2 -->
+      <g transform="translate(50, 55)">
+        <rect width="35" height="35" rx="4" fill="#52230d" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#331508" font-size="8" opacity="0.8" font-family="monospace">text-2</text>
+      </g>
+      <!-- Swatch: text-dim -->
+      <g transform="translate(100, 55)">
+        <rect width="35" height="35" rx="4" fill="#803c1c" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#331508" font-size="8" opacity="0.8" font-family="monospace">text-dim</text>
+      </g>
+      <!-- Swatch: text-faint -->
+      <g transform="translate(150, 55)">
+        <rect width="35" height="35" rx="4" fill="#a6562d" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#331508" font-size="8" opacity="0.8" font-family="monospace">text-fai</text>
+      </g>
+      <!-- Swatch: hairline -->
+      <g transform="translate(200, 55)">
+        <rect width="35" height="35" rx="4" fill="#cf683e" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#331508" font-size="8" opacity="0.8" font-family="monospace">hairline</text>
+      </g>
+      <!-- Swatch: signal -->
+      <g transform="translate(250, 55)">
+        <rect width="35" height="35" rx="4" fill="#1c0a03" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#331508" font-size="8" opacity="0.8" font-family="monospace">signal</text>
+      </g>
+      <!-- Swatch: signal-contrast -->
+      <g transform="translate(0, 110)">
+        <rect width="35" height="35" rx="4" fill="#e37e54" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#331508" font-size="8" opacity="0.8" font-family="monospace">signal-c</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- twilight Card -->
+  <g transform="translate(390, 330)">
+    <!-- Card Background (Ambient Gradient/App Bg) -->
+    <rect width="350" height="220" rx="12" fill="url(#grad-twilight)" stroke="#2c2c2e" stroke-width="1" />
+    
+    <!-- Theme Title -->
+    <text x="15" y="30" fill="#efeafc" font-size="16" font-weight="bold">TWILIGHT</text>
+    
+    <!-- Swatches Grid -->
+    <g transform="translate(15, 50)">
+  
+      <!-- Swatch: app-bg -->
+      <g transform="translate(0, 0)">
+        <rect width="35" height="35" rx="4" fill="#2b2045" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#efeafc" font-size="8" opacity="0.8" font-family="monospace">app-bg</text>
+      </g>
+      <!-- Swatch: surface -->
+      <g transform="translate(50, 0)">
+        <rect width="35" height="35" rx="4" fill="#251c3b" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#efeafc" font-size="8" opacity="0.8" font-family="monospace">surface</text>
+      </g>
+      <!-- Swatch: surface-2 -->
+      <g transform="translate(100, 0)">
+        <rect width="35" height="35" rx="4" fill="#32254f" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#efeafc" font-size="8" opacity="0.8" font-family="monospace">surface-</text>
+      </g>
+      <!-- Swatch: surface-3 -->
+      <g transform="translate(150, 0)">
+        <rect width="35" height="35" rx="4" fill="#3e2e61" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#efeafc" font-size="8" opacity="0.8" font-family="monospace">surface-</text>
+      </g>
+      <!-- Swatch: border -->
+      <g transform="translate(200, 0)">
+        <rect width="35" height="35" rx="4" fill="#493870" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#efeafc" font-size="8" opacity="0.8" font-family="monospace">border</text>
+      </g>
+      <!-- Swatch: border-2 -->
+      <g transform="translate(250, 0)">
+        <rect width="35" height="35" rx="4" fill="#544280" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#efeafc" font-size="8" opacity="0.8" font-family="monospace">border-2</text>
+      </g>
+      <!-- Swatch: text -->
+      <g transform="translate(0, 55)">
+        <rect width="35" height="35" rx="4" fill="#efeafc" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#efeafc" font-size="8" opacity="0.8" font-family="monospace">text</text>
+      </g>
+      <!-- Swatch: text-2 -->
+      <g transform="translate(50, 55)">
+        <rect width="35" height="35" rx="4" fill="#d8cff0" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#efeafc" font-size="8" opacity="0.8" font-family="monospace">text-2</text>
+      </g>
+      <!-- Swatch: text-dim -->
+      <g transform="translate(100, 55)">
+        <rect width="35" height="35" rx="4" fill="#a295c2" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#efeafc" font-size="8" opacity="0.8" font-family="monospace">text-dim</text>
+      </g>
+      <!-- Swatch: text-faint -->
+      <g transform="translate(150, 55)">
+        <rect width="35" height="35" rx="4" fill="#776b96" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#efeafc" font-size="8" opacity="0.8" font-family="monospace">text-fai</text>
+      </g>
+      <!-- Swatch: hairline -->
+      <g transform="translate(200, 55)">
+        <rect width="35" height="35" rx="4" fill="#33274f" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#efeafc" font-size="8" opacity="0.8" font-family="monospace">hairline</text>
+      </g>
+      <!-- Swatch: signal -->
+      <g transform="translate(250, 55)">
+        <rect width="35" height="35" rx="4" fill="#ffffff" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#efeafc" font-size="8" opacity="0.8" font-family="monospace">signal</text>
+      </g>
+      <!-- Swatch: signal-contrast -->
+      <g transform="translate(0, 110)">
+        <rect width="35" height="35" rx="4" fill="#2b2045" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#efeafc" font-size="8" opacity="0.8" font-family="monospace">signal-c</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- night_new Card -->
+  <g transform="translate(760, 330)">
+    <!-- Card Background (Ambient Gradient/App Bg) -->
+    <rect width="350" height="220" rx="12" fill="url(#grad-night_new)" stroke="#2c2c2e" stroke-width="1" />
+    
+    <!-- Theme Title -->
+    <text x="15" y="30" fill="#cccccc" font-size="16" font-weight="bold">NIGHT NEW</text>
+    
+    <!-- Swatches Grid -->
+    <g transform="translate(15, 50)">
+  
+      <!-- Swatch: app-bg -->
+      <g transform="translate(0, 0)">
+        <rect width="35" height="35" rx="4" fill="#07070a" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#cccccc" font-size="8" opacity="0.8" font-family="monospace">app-bg</text>
+      </g>
+      <!-- Swatch: surface -->
+      <g transform="translate(50, 0)">
+        <rect width="35" height="35" rx="4" fill="#0b0b0f" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#cccccc" font-size="8" opacity="0.8" font-family="monospace">surface</text>
+      </g>
+      <!-- Swatch: surface-2 -->
+      <g transform="translate(100, 0)">
+        <rect width="35" height="35" rx="4" fill="#111117" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#cccccc" font-size="8" opacity="0.8" font-family="monospace">surface-</text>
+      </g>
+      <!-- Swatch: surface-3 -->
+      <g transform="translate(150, 0)">
+        <rect width="35" height="35" rx="4" fill="#181822" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#cccccc" font-size="8" opacity="0.8" font-family="monospace">surface-</text>
+      </g>
+      <!-- Swatch: border -->
+      <g transform="translate(200, 0)">
+        <rect width="35" height="35" rx="4" fill="#20202d" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#cccccc" font-size="8" opacity="0.8" font-family="monospace">border</text>
+      </g>
+      <!-- Swatch: border-2 -->
+      <g transform="translate(250, 0)">
+        <rect width="35" height="35" rx="4" fill="#272737" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#cccccc" font-size="8" opacity="0.8" font-family="monospace">border-2</text>
+      </g>
+      <!-- Swatch: text -->
+      <g transform="translate(0, 55)">
+        <rect width="35" height="35" rx="4" fill="#cccccc" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#cccccc" font-size="8" opacity="0.8" font-family="monospace">text</text>
+      </g>
+      <!-- Swatch: text-2 -->
+      <g transform="translate(50, 55)">
+        <rect width="35" height="35" rx="4" fill="#a3a3a3" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#cccccc" font-size="8" opacity="0.8" font-family="monospace">text-2</text>
+      </g>
+      <!-- Swatch: text-dim -->
+      <g transform="translate(100, 55)">
+        <rect width="35" height="35" rx="4" fill="#666666" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#cccccc" font-size="8" opacity="0.8" font-family="monospace">text-dim</text>
+      </g>
+      <!-- Swatch: text-faint -->
+      <g transform="translate(150, 55)">
+        <rect width="35" height="35" rx="4" fill="#404040" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#cccccc" font-size="8" opacity="0.8" font-family="monospace">text-fai</text>
+      </g>
+      <!-- Swatch: hairline -->
+      <g transform="translate(200, 55)">
+        <rect width="35" height="35" rx="4" fill="#14141a" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#cccccc" font-size="8" opacity="0.8" font-family="monospace">hairline</text>
+      </g>
+      <!-- Swatch: signal -->
+      <g transform="translate(250, 55)">
+        <rect width="35" height="35" rx="4" fill="#ffffff" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#cccccc" font-size="8" opacity="0.8" font-family="monospace">signal</text>
+      </g>
+      <!-- Swatch: signal-contrast -->
+      <g transform="translate(0, 110)">
+        <rect width="35" height="35" rx="4" fill="#07070a" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#cccccc" font-size="8" opacity="0.8" font-family="monospace">signal-c</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- night_full Card -->
+  <g transform="translate(20, 570)">
+    <!-- Card Background (Ambient Gradient/App Bg) -->
+    <rect width="350" height="220" rx="12" fill="url(#grad-night_full)" stroke="#2c2c2e" stroke-width="1" />
+    
+    <!-- Theme Title -->
+    <text x="15" y="30" fill="#f8fafc" font-size="16" font-weight="bold">NIGHT FULL</text>
+    
+    <!-- Swatches Grid -->
+    <g transform="translate(15, 50)">
+  
+      <!-- Swatch: app-bg -->
+      <g transform="translate(0, 0)">
+        <rect width="35" height="35" rx="4" fill="#0b1120" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#f8fafc" font-size="8" opacity="0.8" font-family="monospace">app-bg</text>
+      </g>
+      <!-- Swatch: surface -->
+      <g transform="translate(50, 0)">
+        <rect width="35" height="35" rx="4" fill="#0f172a" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#f8fafc" font-size="8" opacity="0.8" font-family="monospace">surface</text>
+      </g>
+      <!-- Swatch: surface-2 -->
+      <g transform="translate(100, 0)">
+        <rect width="35" height="35" rx="4" fill="#16223b" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#f8fafc" font-size="8" opacity="0.8" font-family="monospace">surface-</text>
+      </g>
+      <!-- Swatch: surface-3 -->
+      <g transform="translate(150, 0)">
+        <rect width="35" height="35" rx="4" fill="#20304f" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#f8fafc" font-size="8" opacity="0.8" font-family="monospace">surface-</text>
+      </g>
+      <!-- Swatch: border -->
+      <g transform="translate(200, 0)">
+        <rect width="35" height="35" rx="4" fill="#2e4166" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#f8fafc" font-size="8" opacity="0.8" font-family="monospace">border</text>
+      </g>
+      <!-- Swatch: border-2 -->
+      <g transform="translate(250, 0)">
+        <rect width="35" height="35" rx="4" fill="#3e547d" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#f8fafc" font-size="8" opacity="0.8" font-family="monospace">border-2</text>
+      </g>
+      <!-- Swatch: text -->
+      <g transform="translate(0, 55)">
+        <rect width="35" height="35" rx="4" fill="#f8fafc" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#f8fafc" font-size="8" opacity="0.8" font-family="monospace">text</text>
+      </g>
+      <!-- Swatch: text-2 -->
+      <g transform="translate(50, 55)">
+        <rect width="35" height="35" rx="4" fill="#e2e8f0" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#f8fafc" font-size="8" opacity="0.8" font-family="monospace">text-2</text>
+      </g>
+      <!-- Swatch: text-dim -->
+      <g transform="translate(100, 55)">
+        <rect width="35" height="35" rx="4" fill="#94a3b8" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#f8fafc" font-size="8" opacity="0.8" font-family="monospace">text-dim</text>
+      </g>
+      <!-- Swatch: text-faint -->
+      <g transform="translate(150, 55)">
+        <rect width="35" height="35" rx="4" fill="#64748b" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#f8fafc" font-size="8" opacity="0.8" font-family="monospace">text-fai</text>
+      </g>
+      <!-- Swatch: hairline -->
+      <g transform="translate(200, 55)">
+        <rect width="35" height="35" rx="4" fill="#151e33" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#f8fafc" font-size="8" opacity="0.8" font-family="monospace">hairline</text>
+      </g>
+      <!-- Swatch: signal -->
+      <g transform="translate(250, 55)">
+        <rect width="35" height="35" rx="4" fill="#ffffff" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#f8fafc" font-size="8" opacity="0.8" font-family="monospace">signal</text>
+      </g>
+      <!-- Swatch: signal-contrast -->
+      <g transform="translate(0, 110)">
+        <rect width="35" height="35" rx="4" fill="#0b1120" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#f8fafc" font-size="8" opacity="0.8" font-family="monospace">signal-c</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- storm Card -->
+  <g transform="translate(390, 570)">
+    <!-- Card Background (Ambient Gradient/App Bg) -->
+    <rect width="350" height="220" rx="12" fill="url(#grad-storm)" stroke="#2c2c2e" stroke-width="1" />
+    
+    <!-- Theme Title -->
+    <text x="15" y="30" fill="#dbe7f0" font-size="16" font-weight="bold">STORM</text>
+    
+    <!-- Swatches Grid -->
+    <g transform="translate(15, 50)">
+  
+      <!-- Swatch: app-bg -->
+      <g transform="translate(0, 0)">
+        <rect width="35" height="35" rx="4" fill="#18222a" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#dbe7f0" font-size="8" opacity="0.8" font-family="monospace">app-bg</text>
+      </g>
+      <!-- Swatch: surface -->
+      <g transform="translate(50, 0)">
+        <rect width="35" height="35" rx="4" fill="#131b21" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#dbe7f0" font-size="8" opacity="0.8" font-family="monospace">surface</text>
+      </g>
+      <!-- Swatch: surface-2 -->
+      <g transform="translate(100, 0)">
+        <rect width="35" height="35" rx="4" fill="#1c2831" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#dbe7f0" font-size="8" opacity="0.8" font-family="monospace">surface-</text>
+      </g>
+      <!-- Swatch: surface-3 -->
+      <g transform="translate(150, 0)">
+        <rect width="35" height="35" rx="4" fill="#263541" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#dbe7f0" font-size="8" opacity="0.8" font-family="monospace">surface-</text>
+      </g>
+      <!-- Swatch: border -->
+      <g transform="translate(200, 0)">
+        <rect width="35" height="35" rx="4" fill="#314454" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#dbe7f0" font-size="8" opacity="0.8" font-family="monospace">border</text>
+      </g>
+      <!-- Swatch: border-2 -->
+      <g transform="translate(250, 0)">
+        <rect width="35" height="35" rx="4" fill="#3e5466" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#dbe7f0" font-size="8" opacity="0.8" font-family="monospace">border-2</text>
+      </g>
+      <!-- Swatch: text -->
+      <g transform="translate(0, 55)">
+        <rect width="35" height="35" rx="4" fill="#dbe7f0" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#dbe7f0" font-size="8" opacity="0.8" font-family="monospace">text</text>
+      </g>
+      <!-- Swatch: text-2 -->
+      <g transform="translate(50, 55)">
+        <rect width="35" height="35" rx="4" fill="#b3cbe0" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#dbe7f0" font-size="8" opacity="0.8" font-family="monospace">text-2</text>
+      </g>
+      <!-- Swatch: text-dim -->
+      <g transform="translate(100, 55)">
+        <rect width="35" height="35" rx="4" fill="#7594ae" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#dbe7f0" font-size="8" opacity="0.8" font-family="monospace">text-dim</text>
+      </g>
+      <!-- Swatch: text-faint -->
+      <g transform="translate(150, 55)">
+        <rect width="35" height="35" rx="4" fill="#4c677c" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#dbe7f0" font-size="8" opacity="0.8" font-family="monospace">text-fai</text>
+      </g>
+      <!-- Swatch: hairline -->
+      <g transform="translate(200, 55)">
+        <rect width="35" height="35" rx="4" fill="#1f2a33" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#dbe7f0" font-size="8" opacity="0.8" font-family="monospace">hairline</text>
+      </g>
+      <!-- Swatch: signal -->
+      <g transform="translate(250, 55)">
+        <rect width="35" height="35" rx="4" fill="#ffffff" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#dbe7f0" font-size="8" opacity="0.8" font-family="monospace">signal</text>
+      </g>
+      <!-- Swatch: signal-contrast -->
+      <g transform="translate(0, 110)">
+        <rect width="35" height="35" rx="4" fill="#18222a" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#dbe7f0" font-size="8" opacity="0.8" font-family="monospace">signal-c</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- heatwave Card -->
+  <g transform="translate(760, 570)">
+    <!-- Card Background (Ambient Gradient/App Bg) -->
+    <rect width="350" height="220" rx="12" fill="url(#grad-heatwave)" stroke="#2c2c2e" stroke-width="1" />
+    
+    <!-- Theme Title -->
+    <text x="15" y="30" fill="#fcf0f2" font-size="16" font-weight="bold">HEATWAVE</text>
+    
+    <!-- Swatches Grid -->
+    <g transform="translate(15, 50)">
+  
+      <!-- Swatch: app-bg -->
+      <g transform="translate(0, 0)">
+        <rect width="35" height="35" rx="4" fill="#421820" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#fcf0f2" font-size="8" opacity="0.8" font-family="monospace">app-bg</text>
+      </g>
+      <!-- Swatch: surface -->
+      <g transform="translate(50, 0)">
+        <rect width="35" height="35" rx="4" fill="#3b151c" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#fcf0f2" font-size="8" opacity="0.8" font-family="monospace">surface</text>
+      </g>
+      <!-- Swatch: surface-2 -->
+      <g transform="translate(100, 0)">
+        <rect width="35" height="35" rx="4" fill="#4d1c25" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#fcf0f2" font-size="8" opacity="0.8" font-family="monospace">surface-</text>
+      </g>
+      <!-- Swatch: surface-3 -->
+      <g transform="translate(150, 0)">
+        <rect width="35" height="35" rx="4" fill="#612531" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#fcf0f2" font-size="8" opacity="0.8" font-family="monospace">surface-</text>
+      </g>
+      <!-- Swatch: border -->
+      <g transform="translate(200, 0)">
+        <rect width="35" height="35" rx="4" fill="#702d3b" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#fcf0f2" font-size="8" opacity="0.8" font-family="monospace">border</text>
+      </g>
+      <!-- Swatch: border-2 -->
+      <g transform="translate(250, 0)">
+        <rect width="35" height="35" rx="4" fill="#823746" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#fcf0f2" font-size="8" opacity="0.8" font-family="monospace">border-2</text>
+      </g>
+      <!-- Swatch: text -->
+      <g transform="translate(0, 55)">
+        <rect width="35" height="35" rx="4" fill="#fcf0f2" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#fcf0f2" font-size="8" opacity="0.8" font-family="monospace">text</text>
+      </g>
+      <!-- Swatch: text-2 -->
+      <g transform="translate(50, 55)">
+        <rect width="35" height="35" rx="4" fill="#f2d8dd" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#fcf0f2" font-size="8" opacity="0.8" font-family="monospace">text-2</text>
+      </g>
+      <!-- Swatch: text-dim -->
+      <g transform="translate(100, 55)">
+        <rect width="35" height="35" rx="4" fill="#c79ba3" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#fcf0f2" font-size="8" opacity="0.8" font-family="monospace">text-dim</text>
+      </g>
+      <!-- Swatch: text-faint -->
+      <g transform="translate(150, 55)">
+        <rect width="35" height="35" rx="4" fill="#9c6f78" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#fcf0f2" font-size="8" opacity="0.8" font-family="monospace">text-fai</text>
+      </g>
+      <!-- Swatch: hairline -->
+      <g transform="translate(200, 55)">
+        <rect width="35" height="35" rx="4" fill="#4d2028" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#fcf0f2" font-size="8" opacity="0.8" font-family="monospace">hairline</text>
+      </g>
+      <!-- Swatch: signal -->
+      <g transform="translate(250, 55)">
+        <rect width="35" height="35" rx="4" fill="#ffffff" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#fcf0f2" font-size="8" opacity="0.8" font-family="monospace">signal</text>
+      </g>
+      <!-- Swatch: signal-contrast -->
+      <g transform="translate(0, 110)">
+        <rect width="35" height="35" rx="4" fill="#421820" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#fcf0f2" font-size="8" opacity="0.8" font-family="monospace">signal-c</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- aurora Card -->
+  <g transform="translate(20, 810)">
+    <!-- Card Background (Ambient Gradient/App Bg) -->
+    <rect width="350" height="220" rx="12" fill="url(#grad-aurora)" stroke="#2c2c2e" stroke-width="1" />
+    
+    <!-- Theme Title -->
+    <text x="15" y="30" fill="#e0ffff" font-size="16" font-weight="bold">AURORA</text>
+    
+    <!-- Swatches Grid -->
+    <g transform="translate(15, 50)">
+  
+      <!-- Swatch: app-bg -->
+      <g transform="translate(0, 0)">
+        <rect width="35" height="35" rx="4" fill="#050a0a" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#e0ffff" font-size="8" opacity="0.8" font-family="monospace">app-bg</text>
+      </g>
+      <!-- Swatch: surface -->
+      <g transform="translate(50, 0)">
+        <rect width="35" height="35" rx="4" fill="#081212" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#e0ffff" font-size="8" opacity="0.8" font-family="monospace">surface</text>
+      </g>
+      <!-- Swatch: surface-2 -->
+      <g transform="translate(100, 0)">
+        <rect width="35" height="35" rx="4" fill="#0c1a1a" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#e0ffff" font-size="8" opacity="0.8" font-family="monospace">surface-</text>
+      </g>
+      <!-- Swatch: surface-3 -->
+      <g transform="translate(150, 0)">
+        <rect width="35" height="35" rx="4" fill="#122626" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#e0ffff" font-size="8" opacity="0.8" font-family="monospace">surface-</text>
+      </g>
+      <!-- Swatch: border -->
+      <g transform="translate(200, 0)">
+        <rect width="35" height="35" rx="4" fill="#183333" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#e0ffff" font-size="8" opacity="0.8" font-family="monospace">border</text>
+      </g>
+      <!-- Swatch: border-2 -->
+      <g transform="translate(250, 0)">
+        <rect width="35" height="35" rx="4" fill="#204040" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#e0ffff" font-size="8" opacity="0.8" font-family="monospace">border-2</text>
+      </g>
+      <!-- Swatch: text -->
+      <g transform="translate(0, 55)">
+        <rect width="35" height="35" rx="4" fill="#e0ffff" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#e0ffff" font-size="8" opacity="0.8" font-family="monospace">text</text>
+      </g>
+      <!-- Swatch: text-2 -->
+      <g transform="translate(50, 55)">
+        <rect width="35" height="35" rx="4" fill="#b0ecec" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#e0ffff" font-size="8" opacity="0.8" font-family="monospace">text-2</text>
+      </g>
+      <!-- Swatch: text-dim -->
+      <g transform="translate(100, 55)">
+        <rect width="35" height="35" rx="4" fill="#5cbaba" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#e0ffff" font-size="8" opacity="0.8" font-family="monospace">text-dim</text>
+      </g>
+      <!-- Swatch: text-faint -->
+      <g transform="translate(150, 55)">
+        <rect width="35" height="35" rx="4" fill="#328080" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#e0ffff" font-size="8" opacity="0.8" font-family="monospace">text-fai</text>
+      </g>
+      <!-- Swatch: hairline -->
+      <g transform="translate(200, 55)">
+        <rect width="35" height="35" rx="4" fill="#0a1717" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#e0ffff" font-size="8" opacity="0.8" font-family="monospace">hairline</text>
+      </g>
+      <!-- Swatch: signal -->
+      <g transform="translate(250, 55)">
+        <rect width="35" height="35" rx="4" fill="#00ffcc" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#e0ffff" font-size="8" opacity="0.8" font-family="monospace">signal</text>
+      </g>
+      <!-- Swatch: signal-contrast -->
+      <g transform="translate(0, 110)">
+        <rect width="35" height="35" rx="4" fill="#00261e" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#e0ffff" font-size="8" opacity="0.8" font-family="monospace">signal-c</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- lunar_eclipse Card -->
+  <g transform="translate(390, 810)">
+    <!-- Card Background (Ambient Gradient/App Bg) -->
+    <rect width="350" height="220" rx="12" fill="url(#grad-lunar_eclipse)" stroke="#2c2c2e" stroke-width="1" />
+    
+    <!-- Theme Title -->
+    <text x="15" y="30" fill="#fce3e7" font-size="16" font-weight="bold">LUNAR ECLIPSE</text>
+    
+    <!-- Swatches Grid -->
+    <g transform="translate(15, 50)">
+  
+      <!-- Swatch: app-bg -->
+      <g transform="translate(0, 0)">
+        <rect width="35" height="35" rx="4" fill="#321016" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#fce3e7" font-size="8" opacity="0.8" font-family="monospace">app-bg</text>
+      </g>
+      <!-- Swatch: surface -->
+      <g transform="translate(50, 0)">
+        <rect width="35" height="35" rx="4" fill="#2c0e13" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#fce3e7" font-size="8" opacity="0.8" font-family="monospace">surface</text>
+      </g>
+      <!-- Swatch: surface-2 -->
+      <g transform="translate(100, 0)">
+        <rect width="35" height="35" rx="4" fill="#3a1219" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#fce3e7" font-size="8" opacity="0.8" font-family="monospace">surface-</text>
+      </g>
+      <!-- Swatch: surface-3 -->
+      <g transform="translate(150, 0)">
+        <rect width="35" height="35" rx="4" fill="#4d1722" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#fce3e7" font-size="8" opacity="0.8" font-family="monospace">surface-</text>
+      </g>
+      <!-- Swatch: border -->
+      <g transform="translate(200, 0)">
+        <rect width="35" height="35" rx="4" fill="#581a27" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#fce3e7" font-size="8" opacity="0.8" font-family="monospace">border</text>
+      </g>
+      <!-- Swatch: border-2 -->
+      <g transform="translate(250, 0)">
+        <rect width="35" height="35" rx="4" fill="#661f2e" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#fce3e7" font-size="8" opacity="0.8" font-family="monospace">border-2</text>
+      </g>
+      <!-- Swatch: text -->
+      <g transform="translate(0, 55)">
+        <rect width="35" height="35" rx="4" fill="#fce3e7" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#fce3e7" font-size="8" opacity="0.8" font-family="monospace">text</text>
+      </g>
+      <!-- Swatch: text-2 -->
+      <g transform="translate(50, 55)">
+        <rect width="35" height="35" rx="4" fill="#f0c2cb" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#fce3e7" font-size="8" opacity="0.8" font-family="monospace">text-2</text>
+      </g>
+      <!-- Swatch: text-dim -->
+      <g transform="translate(100, 55)">
+        <rect width="35" height="35" rx="4" fill="#ba7c87" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#fce3e7" font-size="8" opacity="0.8" font-family="monospace">text-dim</text>
+      </g>
+      <!-- Swatch: text-faint -->
+      <g transform="translate(150, 55)">
+        <rect width="35" height="35" rx="4" fill="#91535e" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#fce3e7" font-size="8" opacity="0.8" font-family="monospace">text-fai</text>
+      </g>
+      <!-- Swatch: hairline -->
+      <g transform="translate(200, 55)">
+        <rect width="35" height="35" rx="4" fill="#3a1219" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#fce3e7" font-size="8" opacity="0.8" font-family="monospace">hairline</text>
+      </g>
+      <!-- Swatch: signal -->
+      <g transform="translate(250, 55)">
+        <rect width="35" height="35" rx="4" fill="#ff8a8a" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#fce3e7" font-size="8" opacity="0.8" font-family="monospace">signal</text>
+      </g>
+      <!-- Swatch: signal-contrast -->
+      <g transform="translate(0, 110)">
+        <rect width="35" height="35" rx="4" fill="#321016" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#fce3e7" font-size="8" opacity="0.8" font-family="monospace">signal-c</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- solar_eclipse Card -->
+  <g transform="translate(760, 810)">
+    <!-- Card Background (Ambient Gradient/App Bg) -->
+    <rect width="350" height="220" rx="12" fill="url(#grad-solar_eclipse)" stroke="#2c2c2e" stroke-width="1" />
+    
+    <!-- Theme Title -->
+    <text x="15" y="30" fill="#f0f0f0" font-size="16" font-weight="bold">SOLAR ECLIPSE</text>
+    
+    <!-- Swatches Grid -->
+    <g transform="translate(15, 50)">
+  
+      <!-- Swatch: app-bg -->
+      <g transform="translate(0, 0)">
+        <rect width="35" height="35" rx="4" fill="#050505" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#f0f0f0" font-size="8" opacity="0.8" font-family="monospace">app-bg</text>
+      </g>
+      <!-- Swatch: surface -->
+      <g transform="translate(50, 0)">
+        <rect width="35" height="35" rx="4" fill="#000000" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#f0f0f0" font-size="8" opacity="0.8" font-family="monospace">surface</text>
+      </g>
+      <!-- Swatch: surface-2 -->
+      <g transform="translate(100, 0)">
+        <rect width="35" height="35" rx="4" fill="#121212" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#f0f0f0" font-size="8" opacity="0.8" font-family="monospace">surface-</text>
+      </g>
+      <!-- Swatch: surface-3 -->
+      <g transform="translate(150, 0)">
+        <rect width="35" height="35" rx="4" fill="#222222" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#f0f0f0" font-size="8" opacity="0.8" font-family="monospace">surface-</text>
+      </g>
+      <!-- Swatch: border -->
+      <g transform="translate(200, 0)">
+        <rect width="35" height="35" rx="4" fill="#333333" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#f0f0f0" font-size="8" opacity="0.8" font-family="monospace">border</text>
+      </g>
+      <!-- Swatch: border-2 -->
+      <g transform="translate(250, 0)">
+        <rect width="35" height="35" rx="4" fill="#444444" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#f0f0f0" font-size="8" opacity="0.8" font-family="monospace">border-2</text>
+      </g>
+      <!-- Swatch: text -->
+      <g transform="translate(0, 55)">
+        <rect width="35" height="35" rx="4" fill="#f0f0f0" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#f0f0f0" font-size="8" opacity="0.8" font-family="monospace">text</text>
+      </g>
+      <!-- Swatch: text-2 -->
+      <g transform="translate(50, 55)">
+        <rect width="35" height="35" rx="4" fill="#d0d0d0" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#f0f0f0" font-size="8" opacity="0.8" font-family="monospace">text-2</text>
+      </g>
+      <!-- Swatch: text-dim -->
+      <g transform="translate(100, 55)">
+        <rect width="35" height="35" rx="4" fill="#888888" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#f0f0f0" font-size="8" opacity="0.8" font-family="monospace">text-dim</text>
+      </g>
+      <!-- Swatch: text-faint -->
+      <g transform="translate(150, 55)">
+        <rect width="35" height="35" rx="4" fill="#555555" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#f0f0f0" font-size="8" opacity="0.8" font-family="monospace">text-fai</text>
+      </g>
+      <!-- Swatch: hairline -->
+      <g transform="translate(200, 55)">
+        <rect width="35" height="35" rx="4" fill="#111111" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#f0f0f0" font-size="8" opacity="0.8" font-family="monospace">hairline</text>
+      </g>
+      <!-- Swatch: signal -->
+      <g transform="translate(250, 55)">
+        <rect width="35" height="35" rx="4" fill="#ff6600" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#f0f0f0" font-size="8" opacity="0.8" font-family="monospace">signal</text>
+      </g>
+      <!-- Swatch: signal-contrast -->
+      <g transform="translate(0, 110)">
+        <rect width="35" height="35" rx="4" fill="#050505" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
+        <text x="0" y="47" fill="#f0f0f0" font-size="8" opacity="0.8" font-family="monospace">signal-c</text>
+      </g>
+    </g>
+  </g>
+</svg>

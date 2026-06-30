@@ -26,7 +26,7 @@ export const VIBES: Vibe[] = [
   { id: 'a24df0', hex: '#a24df0', emotion: 'laundry, small, light, possibly handwashing' },
   { id: 'ffda8a', hex: '#ffda8a', emotion: 'soft, enjoyable, affirming, gentle organisation or information sorting' },
   { id: '138d67', hex: '#138d67', emotion: 'doing a workout but it\'s not that pleasant for some reason, not difficult, just not really aligned' },
-  { id: 'de3e3e', hex: '#de3e3e', emotion: '🫦​🫦​🫦​🔥​' },
+  { id: 'de3e3e', hex: '#de3e3e', emotion: 'intense passion, physical desire, fire' },
   { id: '6deef2', hex: '#6deef2', emotion: 'childcare, physical tasks like going for a walk with Bug etc, pleasant' },
   { id: '422c1e', hex: '#422c1e', emotion: 'jealousy, competitiveness, malice tinged, unhealthy, directed towards other' },
   { id: 'f2a1d8', hex: '#f2a1d8', emotion: 'beauty routine stuff, boring, feels like work, not the fun bits' },

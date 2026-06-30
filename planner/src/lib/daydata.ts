@@ -2,15 +2,18 @@
 // can be unit-tested; the Svelte stores and persistence live in days.ts.
 
 import type { Block } from './blocks';
+import type { Symptom } from './symptoms';
 
 export interface DayData {
   blocks: Block[];
+  symptoms: Symptom[];
   nextId: number;
+  nextSymptomId: number;
 }
 
 export type DaysMap = Record<string, DayData>; // key: 'YYYY-MM-DD' (local date)
 
-export const emptyDay = (): DayData => ({ blocks: [], nextId: 1 });
+export const emptyDay = (): DayData => ({ blocks: [], symptoms: [], nextId: 1, nextSymptomId: 1 });
 
 // Local-date key. 'YYYY-MM-DD' sorts lexicographically === chronologically,
 // which the migration and gallery rely on.

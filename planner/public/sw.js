@@ -10,7 +10,6 @@
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
-self.addEventListener('fetch', () => {});
 
 // Shape a notification from a transition payload. Kept tiny and shared so the
 // real push path and the in-sandbox mock path render identically. This mirrors
