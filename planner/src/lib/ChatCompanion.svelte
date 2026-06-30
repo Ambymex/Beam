@@ -199,6 +199,7 @@ VISION & OCR INSTRUCTIONS:
 ---
 PLANNER SPECS:
 - Lanes: "main" (default tasks), "washer" (appliance cycle), "dryer" (appliance cycle), "emotion" (emotional tracking lane), "symptom" (MCAS symptoms tracker).
+- Date: Use YYYY-MM-DD. Resolve relative terms (e.g. "tomorrow", "next Tuesday", "in 3 days") relative to the user's current date: ${currentDate}.
 - Time: Resolve relative time terms (e.g. "starting now", "in an hour") relative to the user's current time: ${currentTime}.
 
 ---
