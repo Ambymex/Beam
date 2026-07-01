@@ -504,7 +504,7 @@ Do NOT speak or warn unless it is highly useful. Let them plan in peace.`;
         parsed = await res.json();
       }
 
-      if (parsed && parsed.message !== 'everything_good') {
+      if (parsed && parsed.message !== 'everything_good' && parsed.message !== '') {
         const assistantMsg: ChatMessage = {
           id: 'msg_' + Math.random().toString(36).slice(2) + Date.now(),
           role: 'assistant',
@@ -521,6 +521,34 @@ Do NOT speak or warn unless it is highly useful. Let them plan in peace.`;
       }
     } catch (err) {
       console.warn('[Heartbeat] Background proactive check failed:', err);
+    }
+  }
+
+  function formatMessageContent(text: string): string {
+    if (!text) return '';
+    let html = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    
+    // Replace **bold**
+    html = html.replace(/\*\*([\s\S]+?)\*\*/g, '<strong>$1</strong>');
+    
+    // Replace *italics*
+    html = html.replace(/\*([\s\S]+?)\*/g, '<em>$1</em>');
+    
+    // Replace newlines with <br>
+    html = html.replace(/\n/g, '<br>');
+    
+    return html;
+  }
+
+  function handleKeyDown(ev: KeyboardEvent) {
+    if (ev.key === 'Enter') {
+      if (ev.metaKey || ev.ctrlKey) {
+        ev.preventDefault();
+        sendMessage();
+      }
     }
   }
 
@@ -898,7 +926,10 @@ Do NOT speak or warn unless it is highly useful. Let them plan in peace.`;
           const id = nextId++;
           
           const startHours = parseLLMTime(b.startHours);
-          const coreEndHours = parseLLMTime(b.coreEndHours);
+          let coreEndHours = parseLLMTime(b.coreEndHours);
+          if (coreEndHours <= startHours) {
+            coreEndHours += 24;
+          }
           
           const isApp = b.laneId === 'washer' || b.laneId === 'dryer';
           const coreLen = coreEndHours - startHours;
@@ -940,9 +971,13 @@ Do NOT speak or warn unless it is highly useful. Let them plan in peace.`;
             if (act.block.travelBeforeHours !== undefined) updatedProps.travelBeforeHours = parseLLMTime(act.block.travelBeforeHours);
             if (act.block.travelAfterHours !== undefined) updatedProps.travelAfterHours = parseLLMTime(act.block.travelAfterHours);
 
-            const newCoreEnd = updatedProps.coreEndHours !== undefined ? updatedProps.coreEndHours : existing.coreEndHours;
+            const newStart = updatedProps.startHours !== undefined ? updatedProps.startHours : existing.startHours;
+            let newCoreEnd = updatedProps.coreEndHours !== undefined ? updatedProps.coreEndHours : existing.coreEndHours;
+            if (newCoreEnd <= newStart) {
+              newCoreEnd += 24;
+            }
             const newTaperEnd = updatedProps.taperEndHours !== undefined ? updatedProps.taperEndHours : 
-              (updatedProps.coreEndHours !== undefined ? updatedProps.coreEndHours + (existing.taperEndHours - existing.coreEndHours) : existing.taperEndHours);
+              (updatedProps.coreEndHours !== undefined ? newCoreEnd + (existing.taperEndHours - existing.coreEndHours) : existing.taperEndHours);
 
             blocks[matchedIdx] = {
               ...existing,
@@ -1072,16 +1107,6 @@ Do NOT speak or warn unless it is highly useful. Let them plan in peace.`;
       }
     })();
   }
-
-  function clearHistory() {
-    messages = [{
-      id: 'welcome_' + Date.now(),
-      role: 'assistant',
-      content: "Chat logs cleared. Ask me anything to start planning!",
-      timestamp: new Date().toISOString()
-    }];
-    saveChat();
-  }
 </script>
 
 <div class="overlay" role="dialog" aria-label="Companion chat">
@@ -1089,7 +1114,6 @@ Do NOT speak or warn unless it is highly useful. Let them plan in peace.`;
     <span>Planner Companion</span>
     <div class="head-btns">
       <button class="settings-btn" on:click={() => showSettings = !showSettings} aria-label="Open settings">⚙</button>
-      <button class="clear-history" on:click={clearHistory} aria-label="Clear chat logs">Clear</button>
       <button class="close" on:click={() => dispatch('close')} aria-label="Close companion">✕</button>
     </div>
   </header>
@@ -1172,7 +1196,7 @@ Do NOT speak or warn unless it is highly useful. Let them plan in peace.`;
         </div>
         <div class="bubble-wrap">
           <div class="bubble" style="position: relative; padding-right: 36px;">
-            {msg.content}
+            {@html formatMessageContent(msg.content)}
             <button 
               type="button" 
               class="copy-bubble-btn" 
@@ -1232,13 +1256,13 @@ Do NOT speak or warn unless it is highly useful. Let them plan in peace.`;
     <button type="button" class="upload-btn" on:click={triggerFileSelect} disabled={isLoading} aria-label="Upload image">
       📎
     </button>
-    <input
-      type="text"
-      placeholder={selectedImageBase64 ? "Describe this image or just press send..." : "physio at 2pm tomorrow..."}
+    <textarea
+      placeholder={selectedImageBase64 ? "Describe this image or press Ctrl+Enter to send..." : "physio at 2pm tomorrow... (Ctrl+Enter to send)"}
       bind:value={draft}
+      on:keydown={handleKeyDown}
       disabled={isLoading}
       aria-label="Companion message input"
-    />
+    ></textarea>
     <button type="submit" disabled={isLoading || (!draft.trim() && !selectedImageBase64)} aria-label="Send">
       Send
     </button>
@@ -1399,7 +1423,7 @@ Do NOT speak or warn unless it is highly useful. Let them plan in peace.`;
     border-top: 1px solid var(--hairline);
     background: var(--surface);
   }
-  .input-form input[type="text"] {
+  .input-form textarea {
     flex: 1 1 auto;
     min-width: 0;
     background: var(--surface-2);
@@ -1407,9 +1431,14 @@ Do NOT speak or warn unless it is highly useful. Let them plan in peace.`;
     border-radius: 8px;
     color: var(--text);
     font-size: 14px;
-    padding: 10px 14px;
+    padding: 8px 10px;
+    height: 38px;
+    max-height: 100px;
+    resize: none;
+    font-family: inherit;
+    line-height: 1.4;
   }
-  .input-form input[type="text"]:focus {
+  .input-form textarea:focus {
     outline: none;
     border-color: var(--text-faint);
   }

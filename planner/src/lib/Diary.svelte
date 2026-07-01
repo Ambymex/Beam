@@ -17,16 +17,17 @@
 
   function handleInput(e: Event) {
     const val = (e.currentTarget as HTMLTextAreaElement).value;
+    const keyToSave = activeKey;
     
     saveStatus = 'saving';
     if (saveTimeout) clearTimeout(saveTimeout);
     
     saveTimeout = window.setTimeout(() => {
       days.update((all) => {
-        const day = all[activeKey] ?? { blocks: [], symptoms: [], nextId: 1, nextSymptomId: 1, diary: '' };
+        const day = all[keyToSave] ?? { blocks: [], symptoms: [], nextId: 1, nextSymptomId: 1, diary: '' };
         return {
           ...all,
-          [activeKey]: {
+          [keyToSave]: {
             ...day,
             diary: val
           }
@@ -118,13 +119,15 @@
 
     <!-- Main Editor Panel -->
     <div class="editor-container">
-      <textarea
-        bind:this={textareaEl}
-        value={diaryContent}
-        on:input={handleInput}
-        placeholder="Record today's symptoms, sleep quality, food intake, allergy levels, energy levels, or notes here. Spotting patterns starts with simple logs..."
-        aria-label="Diary text content"
-      ></textarea>
+      {#key activeKey}
+        <textarea
+          bind:this={textareaEl}
+          value={diaryContent}
+          on:input={handleInput}
+          placeholder="Record today's symptoms, sleep quality, food intake, allergy levels, energy levels, or notes here. Spotting patterns starts with simple logs..."
+          aria-label="Diary text content"
+        ></textarea>
+      {/key}
     </div>
   </div>
 </div>

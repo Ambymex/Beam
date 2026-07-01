@@ -113,7 +113,7 @@
         <div class="head-actions">
           <button class="more" on:click={() => openCreate(null)} aria-label="Create a vibe">✛ vibe</button>
           <button class="more" class:on={addingCat} on:click={() => { addingCat = !addingCat; creating = false; }} aria-label="Create a category">✛ category</button>
-          <button class="more" class:on={showAll} on:click={() => (showAll = !showAll)}>
+          <button class="more toggle-btn" class:on={showAll} on:click={() => (showAll = !showAll)}>
             {showAll ? 'categories' : 'all 77'}
           </button>
           <button class="more close" on:click={() => (sheetOpen = false)} aria-label="Close">✕</button>
@@ -352,6 +352,10 @@
   }
   .more.close {
     padding: 4px 9px;
+  }
+  .more.toggle-btn {
+    min-width: 80px;
+    text-align: center;
   }
 
   .sheet-body {

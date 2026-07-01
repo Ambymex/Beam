@@ -106,7 +106,20 @@ export function futureKeys(n = 14): string[] {
 
 // Write a day's blocks back into the map.
 export function saveDay(key: string, blocks: DayData['blocks'], nextId: number, symptoms: DayData['symptoms'], nextSymptomId: number, diary?: string) {
-  days.update((all) => ({ ...all, [key]: { blocks, symptoms, nextId, nextSymptomId, diary: diary || '' } }));
+  days.update((all) => {
+    const existing = all[key];
+    const resolvedDiary = diary !== undefined ? diary : (existing?.diary || '');
+    return {
+      ...all,
+      [key]: {
+        blocks,
+        symptoms,
+        nextId,
+        nextSymptomId,
+        diary: resolvedDiary
+      }
+    };
+  });
 }
 
 // Store subscription for automatic persistence of all memory changes to IndexedDB

@@ -143,6 +143,7 @@
   const activePointers = new Map<number, { x: number; y: number }>();
   let pinch: { dist: number; cx: number; cy: number } | null = null;
   $: pinching = pinch !== null;
+  let lastTapTime = 0;
 
   // Re-window the viewBox to a target zoom, keeping the content under (ax, ay)
   // — a point in *viewBox* units — anchored in place.
@@ -235,6 +236,15 @@
   }
 
   function onPointerDown(ev: PointerEvent) {
+    const tapNow = Date.now();
+    if (tapNow - lastTapTime < 280) {
+      resetView();
+      lastTapTime = 0;
+      ev.preventDefault();
+      return;
+    }
+    lastTapTime = tapNow;
+
     // A second finger turns the gesture into a pinch-zoom; bail out of any
     // single-finger interaction.
     if (pinchDown(ev)) {
@@ -749,8 +759,8 @@
        deeper grey. A milky white veil + frost speckle = luminosity/material,
        never a hue or a heavier  <!-- now wedge -->
   {#if viewingToday}
-    <path d={nowWedge} fill="#ffffff" opacity={$theme === 'force-light' ? 0.16 : 0.1} filter="url(#frost)" />
-    <path d={nowWedge} fill="#ffffff" opacity={$theme === 'force-light' ? 0.05 : 0.04} />
+    <path d={nowWedge} fill="#ffffff" opacity={$theme === 'force-light' ? 0.1 : 0.06} filter="url(#frost)" />
+    <path d={nowWedge} fill="#ffffff" opacity={$theme === 'force-light' ? 0.03 : 0.02} />
   {/if}
 
   <!-- lane band outlines -->
@@ -797,7 +807,7 @@
         <path d={seg.d} fill={TRAVEL_HEX} opacity={b.done ? seg.opacity * 0.45 : seg.opacity} />
       {/each}
     {/if}
-    <path d={corePath(b)} fill={blockFill(b)} opacity={b.done ? 0.4 : 0.9} />
+    <path d={corePath(b)} fill={blockFill(b)} opacity={b.done ? 0.4 : 1.0} />
     {#each taperSegments(b) as seg}
       <path d={seg.d} fill={blockFill(b)} opacity={b.done ? seg.opacity * 0.45 : seg.opacity} />
     {/each}

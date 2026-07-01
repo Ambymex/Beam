@@ -11,6 +11,7 @@
   import SymptomEditor from './lib/SymptomEditor.svelte';
   import ScratchPad from './lib/ScratchPad.svelte';
   import Diary from './lib/Diary.svelte';
+  import ThemeDesigner from './lib/ThemeDesigner.svelte';
   import { currentKey, todayKey } from './lib/days';
   import { cascadeMode, appointmentMode, symptomActions } from './lib/daystate';
   import { theme, toggleTheme, envLabel } from './lib/theme';
@@ -28,6 +29,7 @@
   let showCompanion = false;
   let showScratchpad = false;
   let showDiary = false;
+  let showDesigner = false;
   $: viewingToday = $currentKey === todayKey();
 
   function onAddSymptom() {
@@ -48,6 +50,7 @@
     <button class="chip" on:click={() => (showSearch = true)} aria-label="Open plan search">Search</button>
     <button class="chip" on:click={() => (showDiary = true)} aria-label="Open daily diary">Diary</button>
     <button class="chip" on:click={() => (showScratchpad = true)} aria-label="Open scratch pad notes">Notes</button>
+    <button class="chip" on:click={() => (showDesigner = true)} aria-label="Open UI Theme Designer">🎨 Theme</button>
     <!-- Cascade toggle (§9): off = nudge just this; on = push my day. The "on"
          state is a non-colour cue — a luminous ring, never a hue. -->
     <button
@@ -130,6 +133,9 @@
 {#if showDiary}
   <Diary on:close={() => (showDiary = false)} />
 {/if}
+{#if showDesigner}
+  <ThemeDesigner on:close={() => (showDesigner = false)} />
+{/if}
 
 <style>
   main {
@@ -205,6 +211,8 @@
     padding: 0 10px;
   }
   .tray-wrap {
+    position: relative;
+    z-index: 3;
     flex: 0 0 auto;
     min-width: 0;
     padding: 6px 10px 4px;
