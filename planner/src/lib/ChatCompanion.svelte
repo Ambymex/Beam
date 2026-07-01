@@ -205,6 +205,17 @@
 
     const diaryDesc = currentDiary ? currentDiary : 'No diary entry logged for this day yet.';
 
+    let allDays: Record<string, any> = {};
+    days.subscribe(d => { allDays = d; })();
+
+    // Compile history of past diary entries (up to 7 days, excluding the current viewed date)
+    const pastDiaries = Object.entries(allDays)
+      .filter(([date, data]) => date !== viewDate && data.diary && data.diary.trim().length > 0)
+      .sort((a, b) => b[0].localeCompare(a[0])) // most recent first
+      .slice(0, 7)
+      .map(([date, data]) => `- ${date}: "${data.diary.replace(/\n/g, ' ')}"`)
+      .join('\n');
+
     return `You are a supportive, warm, and clear AI companion for the "Radial Day Planner" app.
 The user has ADHD, autism, time blindness, and emotion-colour synesthesia. 
 Your job is to chat with the user, help them structure their day, and output JSON actions to update their radial planner ring.
@@ -247,6 +258,10 @@ ${symptomsDesc}
 ---
 CURRENT DIARY ENTRY FOR ${viewDate} (Use this to read their daily diary reflections. You can write/edit thoughts, logs, or reflections for this day if they ask you to):
 ${diaryDesc}
+
+---
+HISTORICAL DIARY REFLECTIONS (Last 7 days. Use this to spot patterns or check past entries):
+${pastDiaries || 'No past reflections logged yet.'}
 
 ---
 CATEGORIES DICTIONARY (you can use category IDs like "cat:housework" for vibeId to match whole types of work):
@@ -815,7 +830,15 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
         }
 
         else if (act.type === 'update_diary' && act.content !== undefined) {
-          diary = act.content;
+          const newContent = act.content.trim();
+          const currentDiaryTrimmed = diary.trim();
+          if (currentDiaryTrimmed && !currentDiaryTrimmed.includes(newContent)) {
+            const now = new Date();
+            const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            diary = `${currentDiaryTrimmed}\n\n---\n*Companion Reflection (${timeStr}):*\n${newContent}`;
+          } else {
+            diary = newContent;
+          }
         }
 
         if (!updated[actualDate]) {
