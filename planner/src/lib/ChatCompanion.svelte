@@ -11,7 +11,7 @@
   import { selectedBlockStore } from './daystate';
   import type { Block } from './blocks';
   import { scratchpadContent, saveScratchpad } from './scratchpad';
-  import { BASE_CATEGORIES } from './categories';
+  import { BASE_CATEGORIES, resolveVibe } from './categories';
   import { customCategories } from './customCategories';
   import type { Symptom } from './symptoms';
   import { fetchContext, injectMemory } from './vault';
@@ -191,7 +191,12 @@
     unsubCats();
 
     const blocksDesc = currentBlocks && currentBlocks.length > 0
-      ? currentBlocks.map(b => `- "${b.label}" (vibeId: "${b.vibeId || 'null'}", start: ${b.startHours}h, end: ${b.coreEndHours}h, lane: "${b.laneId}")`).join('\n')
+      ? currentBlocks.map(b => {
+          const v = resolveVibe(b.vibeId);
+          const emotionLabel = v ? v.emotion : 'none';
+          const doneStr = b.done ? 'yes' : 'no';
+          return `- ID: ${b.id}, Label: "${b.label || ''}" (Vibe/Color Emotion: "${emotionLabel}", start: ${b.startHours}h, end: ${b.coreEndHours}h, lane: "${b.laneId}", done: "${doneStr}")`;
+        }).join('\n')
       : 'No tasks scheduled on this day yet.';
 
     const symptomsDesc = currentSymptoms && currentSymptoms.length > 0
