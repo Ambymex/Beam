@@ -1035,12 +1035,12 @@ Do NOT speak or warn unless it is highly useful. Let them plan in peace.`;
         else if (act.type === 'update_diary' && act.content !== undefined) {
           const newContent = act.content.trim();
           const currentDiaryTrimmed = diary.trim();
-          if (currentDiaryTrimmed && !currentDiaryTrimmed.includes(newContent)) {
+          if (!currentDiaryTrimmed) {
+            diary = newContent;
+          } else if (!currentDiaryTrimmed.includes(newContent)) {
             const now = new Date();
             const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
             diary = `${currentDiaryTrimmed}\n\n---\n*Companion Reflection (${timeStr}):*\n${newContent}`;
-          } else {
-            diary = newContent;
           }
         }
 
