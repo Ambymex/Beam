@@ -919,23 +919,11 @@
   {/if}
 </svg>
 
-  <!-- zoom controls (non-colour): reliable +/− and reset alongside pinch.
-       Reset only shows when zoomed, to stay out of the way. -->
-  <div class="zoom">
-    <button on:click={() => stepZoom(1.4)} aria-label="Zoom in">＋</button>
-    <button on:click={() => stepZoom(1 / 1.4)} disabled={zoom <= MIN_ZOOM + 0.001} aria-label="Zoom out">−</button>
-    {#if zoom > MIN_ZOOM + 0.001}
-      <button class="reset" on:click={resetView} aria-label="Reset zoom">⤢</button>
-    {/if}
-  </div>
 </div>
 
 <style>
   .stage {
     position: relative;
-    /* Size against the available space (which already excludes the safe-area
-       padding on <main>), not raw vw — so insets / AssistiveTouch room can't
-       push the ring wider than its column and clip the right edge. */
     width: min(100%, 64vh);
     aspect-ratio: 1 / 1;
     max-width: 100%;
@@ -947,33 +935,6 @@
     touch-action: none;
     -webkit-tap-highlight-color: transparent;
     user-select: none;
-  }
-  .zoom {
-    position: absolute;
-    right: 2px;
-    bottom: 2px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .zoom button {
-    width: 34px;
-    height: 34px;
-    border-radius: 9px;
-    background: rgba(18, 18, 22, 0.82);
-    border: 1px solid #2c2c35;
-    color: #d6d6dc;
-    font-size: 17px;
-    line-height: 1;
-    cursor: pointer;
-    backdrop-filter: blur(4px);
-  }
-  .zoom button:disabled {
-    opacity: 0.35;
-    cursor: default;
-  }
-  .zoom .reset {
-    font-size: 15px;
   }
   text {
     pointer-events: none;
