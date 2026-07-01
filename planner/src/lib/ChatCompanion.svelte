@@ -14,6 +14,7 @@
   import { BASE_CATEGORIES } from './categories';
   import { customCategories } from './customCategories';
   import type { Symptom } from './symptoms';
+  import { fetchContext, injectMemory } from './vault';
 
   const dispatch = createEventDispatcher<{ close: void }>();
 
@@ -65,6 +66,12 @@
   let fileInput: HTMLInputElement;
   let selectedImageBase64 = '';
   let selectedImageName = '';
+
+  // Pinecone Vector Memory settings
+  let pineconeKey = localStorage.getItem('radial-planner-pinecone-key') || '';
+  let pineconeHost = localStorage.getItem('radial-planner-pinecone-host') || '';
+  let enableVault = localStorage.getItem('radial-planner-vault-enabled') === 'true';
+  let isEmbedding = false;
 
   function triggerFileSelect() {
     if (fileInput) fileInput.click();
@@ -166,6 +173,9 @@
   function saveSettings() {
     localStorage.setItem('radial-planner-openrouter-key', openRouterKey.trim());
     localStorage.setItem('radial-planner-openrouter-model', selectedModel);
+    localStorage.setItem('radial-planner-pinecone-key', pineconeKey.trim());
+    localStorage.setItem('radial-planner-pinecone-host', pineconeHost.trim());
+    localStorage.setItem('radial-planner-vault-enabled', enableVault ? 'true' : 'false');
     showSettings = false;
   }
 
@@ -392,7 +402,24 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
         }
       })();
 
+      let vaultContext = '';
+      if (enableVault && pineconeKey && pineconeHost) {
+        isEmbedding = true;
+        try {
+          vaultContext = await fetchContext(text, pineconeKey, pineconeHost, 4);
+        } catch (vaultErr) {
+          console.warn('[Vault] Failed fetching context:', vaultErr);
+        } finally {
+          isEmbedding = false;
+        }
+      }
+
       let parsed;
+
+      let systemPrompt = getSystemPrompt(viewDate, realDate, currentTime, allVibes, activeBlocks, activeSymptoms, activeDiary);
+      if (vaultContext) {
+        systemPrompt += `\n\n--- RELEVANT RETRIEVED HISTORICAL DIARY/PLANNER MEMORY ---\n${vaultContext}\n----------------------------------------------------------\nUse the memory above if relevant to answer the user's query or logs.`;
+      }
 
       if (!SUPABASE_URL || openRouterKey) {
         if (!openRouterKey) {
@@ -400,7 +427,7 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
         }
 
         const apiMessages = [
-          { role: 'system', content: getSystemPrompt(viewDate, realDate, currentTime, allVibes, activeBlocks, activeSymptoms, activeDiary) },
+          { role: 'system', content: systemPrompt },
           ...payloadMessages
         ];
 
@@ -448,7 +475,7 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
             currentDate: realDate,
             currentTime,
             vibes: allVibes,
-            systemPromptOverride: getSystemPrompt(viewDate, realDate, currentTime, allVibes, activeBlocks, activeSymptoms, activeDiary)
+            systemPromptOverride: systemPrompt
           }),
         });
 
@@ -475,6 +502,13 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
 
       messages = [...messages, assistantMsg];
       saveChat();
+
+      // Upsert the exchange to the Pinecone Vector Vault in the background
+      if (enableVault && pineconeKey && pineconeHost) {
+        injectMemory(text, assistantMsg.content, pineconeKey, pineconeHost).catch(err => {
+          console.error('[Vault] Background memory upsert failed:', err);
+        });
+      }
 
       // Execute actions
       if (parsed.actions && parsed.actions.length > 0) {
@@ -860,6 +894,35 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
           {/each}
         </select>
       </div>
+      <div class="field">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; margin: 0; font-size: 12px; color: var(--text);">
+          <input type="checkbox" bind:checked={enableVault} on:change={saveSettings} style="margin: 0; width: auto;" />
+          Enable Semantic Vector Vault (Pinecone)
+        </label>
+      </div>
+
+      {#if enableVault}
+        <div class="field">
+          <label for="pinecone-key">Pinecone API Key:</label>
+          <input 
+            id="pinecone-key"
+            type="password" 
+            placeholder="pcsk_..." 
+            bind:value={pineconeKey} 
+            on:change={saveSettings}
+          />
+        </div>
+        <div class="field">
+          <label for="pinecone-host">Pinecone Index Host:</label>
+          <input 
+            id="pinecone-host"
+            type="text" 
+            placeholder="https://diary-memory-vault-..." 
+            bind:value={pineconeHost} 
+            on:change={saveSettings}
+          />
+        </div>
+      {/if}
       <div class="field">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
           <label style="margin: 0;">Last API JSON Payload:</label>
