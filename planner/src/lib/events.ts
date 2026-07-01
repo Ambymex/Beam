@@ -93,7 +93,7 @@ export function vibeToEmoji(hex: string): string {
 export function eventsForDay(dayKey: string, blocks: Block[]): TransitionEvent[] {
   const out: TransitionEvent[] = [];
   for (const b of blocks) {
-    if (b.done) continue; // done = no ping (and undone never nags either way)
+    if (b.done || b.laneId === 'emotion') continue; // done or emotion = no ping
     const label = b.label?.trim();
 
     if (isAppointment(b)) {
