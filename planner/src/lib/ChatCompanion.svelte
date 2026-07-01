@@ -15,6 +15,7 @@
   import { customCategories } from './customCategories';
   import type { Symptom } from './symptoms';
   import { fetchContext, injectMemory } from './vault';
+  import { checkPendingNotifications, scheduleNotification } from './notifications';
 
   const dispatch = createEventDispatcher<{ close: void }>();
 
@@ -24,7 +25,7 @@
     content: string;
     timestamp: string;
     actions?: Array<{
-      type: 'add_block' | 'update_block' | 'delete_block' | 'update_scratchpad' | 'update_diary' | 'add_symptom' | 'update_symptom' | 'delete_symptom';
+      type: 'add_block' | 'update_block' | 'delete_block' | 'update_scratchpad' | 'update_diary' | 'add_symptom' | 'update_symptom' | 'delete_symptom' | 'show_notification' | 'schedule_notification';
       targetDate?: string;
       block?: Partial<Block>;
       labelToMatch?: string;
@@ -36,6 +37,9 @@
         timeHours?: any;
         note?: string;
       };
+      title?: string;
+      body?: string;
+      timeHours?: any;
     }>;
   }
 
@@ -106,7 +110,7 @@
     { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash' }
   ];
 
-  onMount(async () => {
+  onMount(() => {
     // Load chat history from localStorage
     const saved = localStorage.getItem('radial-planner-chat-v1');
     if (saved) {
@@ -121,25 +125,26 @@
     debugActions = localStorage.getItem('radial-planner-chat-debug-v1') || '';
     
     // Fetch latest active models from OpenRouter dynamically
-    try {
-      const res = await fetch('https://openrouter.ai/api/v1/models');
-      if (res.ok) {
-        const json = await res.json();
-        if (json.data && json.data.length > 0) {
-          // Merge with defaults, removing duplicates
+    fetch('https://openrouter.ai/api/v1/models')
+      .then(res => {
+        if (res.ok) {
+          return res.json();
+        }
+      })
+      .then(json => {
+        if (json && json.data && json.data.length > 0) {
           const apiModels = json.data.map((m: any) => ({ id: m.id, name: m.name || m.id }));
           const merged = [...apiModels];
-          // Add default models if they aren't in the API list for some reason
           modelsList.forEach(def => {
             if (!merged.some(m => m.id === def.id)) merged.push(def);
           });
           merged.sort((a, b) => a.name.localeCompare(b.name));
           modelsList = merged;
         }
-      }
-    } catch (err) {
-      console.warn('[Companion] Failed to fetch live OpenRouter models list:', err);
-    }
+      })
+      .catch(err => {
+        console.warn('[Companion] Failed to fetch live OpenRouter models list:', err);
+      });
     
     // Add a welcoming prompt if empty
     if (messages.length === 0) {
@@ -151,6 +156,22 @@
       }];
     }
     scrollToBottom();
+
+    // Start background alert triggers and periodic proactive heartbeat checks
+    const checkInterval = setInterval(async () => {
+      await checkPendingNotifications();
+      await triggerHeartbeatCheck();
+    }, 60000); // Check once a minute
+
+    // Run immediately on startup
+    (async () => {
+      await checkPendingNotifications();
+      await triggerHeartbeatCheck();
+    })();
+
+    return () => {
+      if (checkInterval) clearInterval(checkInterval);
+    };
   });
 
   function saveChat() {
@@ -345,15 +366,162 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
       "type": "update_scratchpad",
       "content": "new scratchpad content (entire markdown text)"
     },
-    // H. Update the diary entry for the day:
     {
       "type": "update_diary",
       "targetDate": "YYYY-MM-DD",
       "content": "new diary entry markdown content"
+    },
+    // I. Fire a push notification to the user immediately:
+    {
+      "type": "show_notification",
+      "title": "Alert Title",
+      "body": "Alert body description text"
+    },
+    // J. Schedule a push notification for later today:
+    {
+      "type": "schedule_notification",
+      "targetDate": "YYYY-MM-DD",
+      "timeHours": number, // decimal hours from midnight (e.g., 18.25 for 6:15 PM)
+      "title": "Scheduled Alert Title",
+      "body": "Scheduled alert details text"
     }
   ]
 }
 `;
+  }
+
+  export async function triggerHeartbeatCheck(force = false) {
+    if (isLoading) return; // Don't run background check if already typing/busy
+
+    const now = new Date();
+    const currentHour = now.getHours();
+
+    // Check if the current time is between 6 AM and 11 PM
+    if (!force && (currentHour < 6 || currentHour > 23)) {
+      return;
+    }
+
+    const lastHeartbeatStr = localStorage.getItem('radial-planner-last-heartbeat');
+    const lastTime = lastHeartbeatStr ? Number(lastHeartbeatStr) : 0;
+    const elapsedMins = (Date.now() - lastTime) / 60000;
+
+    // Run every 30 minutes (unless forced)
+    if (!force && elapsedMins < 30) {
+      return;
+    }
+
+    localStorage.setItem('radial-planner-last-heartbeat', String(Date.now()));
+    console.log('[Heartbeat] Running proactive background planner check...');
+
+    try {
+      const realDate = todayKey();
+      let viewDate = '';
+      currentKey.subscribe(k => { viewDate = k; })();
+      const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+      const allVibes = [...VIBES, ...$customVibes].map(v => ({ id: v.id, emotion: v.emotion }));
+
+      let activeBlocks: Block[] = [];
+      let activeSymptoms: Symptom[] = [];
+      let activeDiary = '';
+      days.subscribe($days => {
+        const day = $days[viewDate];
+        if (day) {
+          activeBlocks = day.blocks;
+          activeSymptoms = day.symptoms || [];
+          activeDiary = day.diary || '';
+        }
+      })();
+
+      // 1. Fetch vector context from vault using a general summary query
+      let vaultContext = '';
+      if (enableVault && pineconeKey && pineconeHost) {
+        try {
+          vaultContext = await fetchContext("today summary energy allergy sleep mood", pineconeKey, pineconeHost, 3);
+        } catch {}
+      }
+
+      let systemPrompt = getSystemPrompt(viewDate, realDate, currentTimeStr, allVibes, activeBlocks, activeSymptoms, activeDiary);
+      if (vaultContext) {
+        systemPrompt += `\n\n--- RELEVANT RETRIEVED HISTORICAL DIARY/PLANNER MEMORY ---\n${vaultContext}`;
+      }
+
+      // Append Heartbeat-specific instruction overrides
+      systemPrompt += `\n\n=== SYSTEM HEARTBEAT MODE ===
+You are executing in a silent background heartbeat check. Read and analyze the user's current day state, symptom logs, and diary entries.
+- If you spot a trend or pattern (e.g. they logged high symptom severity earlier and might need a check-in, or they have a busy schedule and need custom breaks, or they have laundry blocks that finished cycles), you can speak up or send a custom notification.
+- To notify them immediately, add a "show_notification" action to the actions list.
+- To schedule an alert for later, add a "schedule_notification" action.
+- If everything is on track and there is no urgent warning or suggestion to give, you MUST respond exactly with:
+{ "message": "everything_good", "actions": [] }
+Do NOT speak or warn unless it is highly useful. Let them plan in peace.`;
+
+      // We slice the last 6 messages to keep context size low and cheap
+      const payloadMessages = [
+        ...messages.slice(-6).map(m => ({ role: m.role, content: m.content })),
+        { role: 'user', content: 'SYSTEM HEARTBEAT CHECK: Run a check on today\'s planner state, diary logs, and symptoms.' }
+      ];
+
+      let parsed;
+      if (!SUPABASE_URL || openRouterKey) {
+        if (!openRouterKey) return;
+        const openRouterRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openRouterKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: selectedModel,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              ...payloadMessages
+            ],
+            response_format: { type: 'json_object' },
+          }),
+        });
+        if (!openRouterRes.ok) return;
+        const result = await openRouterRes.json();
+        const completionText = result.choices?.[0]?.message?.content?.trim() ?? '';
+        parsed = JSON.parse(completionText);
+      } else {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/parse-command`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            apikey: SUPABASE_ANON,
+            authorization: `Bearer ${SUPABASE_ANON}`,
+          },
+          body: JSON.stringify({
+            messages: payloadMessages,
+            currentDate: realDate,
+            currentTime: currentTimeStr,
+            vibes: allVibes,
+            systemPromptOverride: systemPrompt
+          }),
+        });
+        if (!res.ok) return;
+        parsed = await res.json();
+      }
+
+      if (parsed && parsed.message !== 'everything_good') {
+        const assistantMsg: ChatMessage = {
+          id: 'msg_' + Math.random().toString(36).slice(2) + Date.now(),
+          role: 'assistant',
+          content: parsed.message || "I've checked your planner and have an update.",
+          timestamp: new Date().toISOString(),
+          actions: parsed.actions || []
+        };
+        messages = [...messages, assistantMsg];
+        saveChat();
+
+        if (parsed.actions && parsed.actions.length > 0) {
+          executeActions(parsed.actions);
+        }
+      }
+    } catch (err) {
+      console.warn('[Heartbeat] Background proactive check failed:', err);
+    }
   }
 
   async function sendMessage() {
@@ -839,6 +1007,32 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
           } else {
             diary = newContent;
           }
+        }
+
+        else if (act.type === 'show_notification' && act.title !== undefined) {
+          if ('serviceWorker' in navigator && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+            navigator.serviceWorker.ready.then(reg => {
+              const payload = {
+                title: act.title,
+                body: act.body || '',
+                tag: 'companion-alert-' + Date.now(),
+                kind: 'companion-alert',
+                url: '/'
+              };
+              if (reg.active) {
+                reg.active.postMessage({ type: 'mock-push', payload });
+              } else {
+                reg.showNotification(payload.title || 'Alert', { body: payload.body, icon: '/icon.svg' });
+              }
+            });
+          }
+        }
+
+        else if (act.type === 'schedule_notification' && act.timeHours !== undefined && act.title !== undefined) {
+          const schedTime = parseLLMTime(act.timeHours);
+          scheduleNotification(actualDate, schedTime, act.title, act.body || '').catch(err => {
+            console.error('[Companion] Background schedule alert failed:', err);
+          });
         }
 
         if (!updated[actualDate]) {

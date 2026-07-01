@@ -16,6 +16,14 @@ export class RadialPlannerDB extends Dexie {
   customVibes!: Table<CustomVibe, string>;
   customCategories!: Table<CustomCategory, string>;
   scratchpad!: Table<{ id: string; content: string; updatedAt: Date }, string>;
+  notifications!: Table<{
+    id: string;
+    date: string;
+    timeHours: number;
+    title: string;
+    body: string;
+    sent: number; // 0 = pending, 1 = sent
+  }, string>;
 
   constructor() {
     super('RadialPlannerDB');
@@ -29,6 +37,13 @@ export class RadialPlannerDB extends Dexie {
       customVibes: 'id, categoryId',
       customCategories: 'id',
       scratchpad: 'id',
+    });
+    this.version(3).stores({
+      days: 'date',
+      customVibes: 'id, categoryId',
+      customCategories: 'id',
+      scratchpad: 'id',
+      notifications: 'id, date, sent',
     });
   }
 }
