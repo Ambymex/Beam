@@ -9,11 +9,12 @@ export interface DayData {
   symptoms: Symptom[];
   nextId: number;
   nextSymptomId: number;
+  diary?: string; // Daily reflection/notes
 }
 
 export type DaysMap = Record<string, DayData>; // key: 'YYYY-MM-DD' (local date)
 
-export const emptyDay = (): DayData => ({ blocks: [], symptoms: [], nextId: 1, nextSymptomId: 1 });
+export const emptyDay = (): DayData => ({ blocks: [], symptoms: [], nextId: 1, nextSymptomId: 1, diary: '' });
 
 // Local-date key. 'YYYY-MM-DD' sorts lexicographically === chronologically,
 // which the migration and gallery rely on.

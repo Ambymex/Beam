@@ -27,7 +27,8 @@ async function initDays() {
         blocks: row.blocks,
         symptoms: row.symptoms,
         nextId: row.nextId,
-        nextSymptomId: row.nextSymptomId
+        nextSymptomId: row.nextSymptomId,
+        diary: row.diary || ''
       };
     }
 
@@ -44,7 +45,8 @@ async function initDays() {
           blocks: data.blocks,
           symptoms: data.symptoms,
           nextId: data.nextId,
-          nextSymptomId: data.nextSymptomId
+          nextSymptomId: data.nextSymptomId,
+          diary: data.diary || ''
         }));
       }
     }
@@ -103,8 +105,8 @@ export function futureKeys(n = 14): string[] {
 }
 
 // Write a day's blocks back into the map.
-export function saveDay(key: string, blocks: DayData['blocks'], nextId: number, symptoms: DayData['symptoms'], nextSymptomId: number) {
-  days.update((all) => ({ ...all, [key]: { blocks, symptoms, nextId, nextSymptomId } }));
+export function saveDay(key: string, blocks: DayData['blocks'], nextId: number, symptoms: DayData['symptoms'], nextSymptomId: number, diary?: string) {
+  days.update((all) => ({ ...all, [key]: { blocks, symptoms, nextId, nextSymptomId, diary: diary || '' } }));
 }
 
 // Store subscription for automatic persistence of all memory changes to IndexedDB
@@ -132,7 +134,8 @@ days.subscribe((value) => {
         blocks: data.blocks,
         symptoms: data.symptoms,
         nextId: data.nextId,
-        nextSymptomId: data.nextSymptomId
+        nextSymptomId: data.nextSymptomId,
+        diary: data.diary || ''
       }).catch((err) => console.error('[DB] Subscriber failed to save day:', err));
     }
   }

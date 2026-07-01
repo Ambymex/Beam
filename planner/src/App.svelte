@@ -10,6 +10,7 @@
   import ChatCompanion from './lib/ChatCompanion.svelte';
   import SymptomEditor from './lib/SymptomEditor.svelte';
   import ScratchPad from './lib/ScratchPad.svelte';
+  import Diary from './lib/Diary.svelte';
   import { currentKey, todayKey } from './lib/days';
   import { cascadeMode, appointmentMode, symptomActions } from './lib/daystate';
   import { theme, toggleTheme, envLabel } from './lib/theme';
@@ -26,6 +27,7 @@
   let showSearch = false;
   let showCompanion = false;
   let showScratchpad = false;
+  let showDiary = false;
   $: viewingToday = $currentKey === todayKey();
 
   function onAddSymptom() {
@@ -44,6 +46,7 @@
     <button class="chip" on:click={() => (showAlerts = true)} aria-label="Open alerts settings">Alerts</button>
     <button class="chip" on:click={() => (showCompanion = true)} aria-label="Open chat companion">Companion</button>
     <button class="chip" on:click={() => (showSearch = true)} aria-label="Open plan search">Search</button>
+    <button class="chip" on:click={() => (showDiary = true)} aria-label="Open daily diary">Diary</button>
     <button class="chip" on:click={() => (showScratchpad = true)} aria-label="Open scratch pad notes">Notes</button>
     <!-- Cascade toggle (§9): off = nudge just this; on = push my day. The "on"
          state is a non-colour cue — a luminous ring, never a hue. -->
@@ -123,6 +126,9 @@
 {/if}
 {#if showScratchpad}
   <ScratchPad on:close={() => (showScratchpad = false)} />
+{/if}
+{#if showDiary}
+  <Diary on:close={() => (showDiary = false)} />
 {/if}
 
 <style>

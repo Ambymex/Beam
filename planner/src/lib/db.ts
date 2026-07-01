@@ -10,6 +10,7 @@ export class RadialPlannerDB extends Dexie {
     symptoms: DayData['symptoms'];
     nextId: number;
     nextSymptomId: number;
+    diary?: string;
   }, string>;
 
   customVibes!: Table<CustomVibe, string>;

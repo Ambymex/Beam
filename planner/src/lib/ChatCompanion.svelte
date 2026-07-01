@@ -23,7 +23,7 @@
     content: string;
     timestamp: string;
     actions?: Array<{
-      type: 'add_block' | 'update_block' | 'delete_block' | 'update_scratchpad' | 'add_symptom' | 'update_symptom' | 'delete_symptom';
+      type: 'add_block' | 'update_block' | 'delete_block' | 'update_scratchpad' | 'update_diary' | 'add_symptom' | 'update_symptom' | 'delete_symptom';
       targetDate?: string;
       block?: Partial<Block>;
       labelToMatch?: string;
@@ -172,7 +172,7 @@
   const SUPABASE_URL: string = import.meta.env.VITE_SUPABASE_URL ?? '';
   const SUPABASE_ANON: string = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
 
-  function getSystemPrompt(viewDate: string, realDate: string, currentTime: string, vibes: any[], currentBlocks: Block[], currentSymptoms: Symptom[]) {
+  function getSystemPrompt(viewDate: string, realDate: string, currentTime: string, vibes: any[], currentBlocks: Block[], currentSymptoms: Symptom[], currentDiary: string) {
     let currentNotes = '';
     scratchpadContent.subscribe(val => { currentNotes = val; })();
     
@@ -187,6 +187,8 @@
     const symptomsDesc = currentSymptoms && currentSymptoms.length > 0
       ? currentSymptoms.map(s => `- ID: ${s.id}, Category: "${s.category}" (Severity: ${s.severity}/5, Time: ${s.timeHours}h${s.note ? `, Note: "${s.note}"` : ''})`).join('\n')
       : 'No symptoms logged on this day.';
+
+    const diaryDesc = currentDiary ? currentDiary : 'No diary entry logged for this day yet.';
 
     return `You are a supportive, warm, and clear AI companion for the "Radial Day Planner" app.
 The user has ADHD, autism, time blindness, and emotion-colour synesthesia. 
@@ -226,6 +228,10 @@ ${blocksDesc}
 ---
 CURRENT LOGGED MCAS SYMPTOMS FOR ${viewDate} (Logged on the innermost ring, separate from standard tasks):
 ${symptomsDesc}
+
+---
+CURRENT DIARY ENTRY FOR ${viewDate} (Use this to read their daily diary reflections. You can write/edit thoughts, logs, or reflections for this day if they ask you to):
+${diaryDesc}
 
 ---
 CATEGORIES DICTIONARY (you can use category IDs like "cat:housework" for vibeId to match whole types of work):
@@ -308,6 +314,12 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
     {
       "type": "update_scratchpad",
       "content": "new scratchpad content (entire markdown text)"
+    },
+    // H. Update the diary entry for the day:
+    {
+      "type": "update_diary",
+      "targetDate": "YYYY-MM-DD",
+      "content": "new diary entry markdown content"
     }
   ]
 }
@@ -370,11 +382,13 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
       // Get current blocks and symptoms from store once for the viewed day
       let activeBlocks: Block[] = [];
       let activeSymptoms: Symptom[] = [];
+      let activeDiary = '';
       days.subscribe($days => {
         const day = $days[viewDate];
         if (day) {
           activeBlocks = day.blocks;
           activeSymptoms = day.symptoms || [];
+          activeDiary = day.diary || '';
         }
       })();
 
@@ -386,7 +400,7 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
         }
 
         const apiMessages = [
-          { role: 'system', content: getSystemPrompt(viewDate, realDate, currentTime, allVibes, activeBlocks, activeSymptoms) },
+          { role: 'system', content: getSystemPrompt(viewDate, realDate, currentTime, allVibes, activeBlocks, activeSymptoms, activeDiary) },
           ...payloadMessages
         ];
 
@@ -434,7 +448,7 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
             currentDate: realDate,
             currentTime,
             vibes: allVibes,
-            systemPromptOverride: getSystemPrompt(viewDate, realDate, currentTime, allVibes, activeBlocks, activeSymptoms)
+            systemPromptOverride: getSystemPrompt(viewDate, realDate, currentTime, allVibes, activeBlocks, activeSymptoms, activeDiary)
           }),
         });
 
@@ -650,11 +664,12 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
         }
 
         const actualDate = resolved || activeViewKey;
-        const dayData = updated[actualDate] ?? { blocks: [], nextId: 1, symptoms: [], nextSymptomId: 1 };
+        const dayData = updated[actualDate] ?? { blocks: [], nextId: 1, symptoms: [], nextSymptomId: 1, diary: '' };
         const blocks = [...dayData.blocks];
         const symptoms = [...(dayData.symptoms || [])];
         let nextId = dayData.nextId;
         let nextSymptomId = dayData.nextSymptomId || 1;
+        let diary = dayData.diary || '';
 
         if (act.type === 'add_block' && act.block) {
           const b = act.block;
@@ -760,14 +775,14 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
           }
         }
 
-        else if (act.type === 'update_scratchpad' && act.content !== undefined) {
-          saveScratchpad(act.content);
+        else if (act.type === 'update_diary' && act.content !== undefined) {
+          diary = act.content;
         }
 
         if (!updated[actualDate]) {
-          updated[actualDate] = { blocks, nextId, symptoms, nextSymptomId };
+          updated[actualDate] = { blocks, nextId, symptoms, nextSymptomId, diary };
         } else {
-          updated[actualDate] = { ...updated[actualDate], blocks, nextId, symptoms, nextSymptomId };
+          updated[actualDate] = { ...updated[actualDate], blocks, nextId, symptoms, nextSymptomId, diary };
         }
       }
 
@@ -780,8 +795,8 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
   }
 
   function handleActionClick(act: any) {
-    if (act.type === 'update_scratchpad') {
-      // Just confirm and let the user open notes manually
+    if (act.type === 'update_scratchpad' || act.type === 'update_diary') {
+      // Just confirm and let the user open notes/diary manually
       return;
     }
     
@@ -890,7 +905,7 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
             <div class="actions-notif">
               {#each msg.actions as act}
                 <button class="action-pill" on:click={() => handleActionClick(act)}>
-                  ⚡ {act.type === 'update_scratchpad' ? 'Updated your Scratch Pad notes' : `Click to view: ${act.type === 'add_block' ? `Created "${act.block?.label || 'block'}"` : act.type === 'update_block' ? `Updated "${act.labelToMatch}"` : `Deleted "${act.labelToMatch}"`} on ${act.targetDate}`}
+                  ⚡ {act.type === 'update_scratchpad' ? 'Updated your Scratch Pad notes' : act.type === 'update_diary' ? `Updated the Daily Diary for ${act.targetDate}` : `Click to view: ${act.type === 'add_block' ? `Created "${act.block?.label || 'block'}"` : act.type === 'update_block' ? `Updated "${act.labelToMatch}"` : `Deleted "${act.labelToMatch}"`} on ${act.targetDate}`}
                 </button>
               {/each}
             </div>
