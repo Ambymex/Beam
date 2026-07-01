@@ -127,6 +127,55 @@
   function changeVibe(vibeId: string | null) {
     $blockActions?.setVibe(vibeId);
   }
+
+  function hexToHSL(hex: string) {
+    const h = hex.replace('#', '');
+    const r = parseInt(h.substring(0, 2), 16) / 255;
+    const g = parseInt(h.substring(2, 4), 16) / 255;
+    const b = parseInt(h.substring(4, 6), 16) / 255;
+
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    let hVal = 0;
+    let sVal = 0;
+    const lVal = (max + min) / 2;
+
+    if (max !== min) {
+      const d = max - min;
+      sVal = lVal > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case r: hVal = (g - b) / d + (g < b ? 6 : 0); break;
+        case g: hVal = (b - r) / d + 2; break;
+        case b: hVal = (r - g) / d + 4; break;
+      }
+      hVal /= 6;
+    }
+    return { h: hVal * 360, s: sVal * 100, l: lVal * 100 };
+  }
+
+  function sortVibesChromatically(list: any[]) {
+    return [...list].sort((a, b) => {
+      const hslA = hexToHSL(a.hex);
+      const hslB = hexToHSL(b.hex);
+
+      // Put neutral grays/slates (low saturation) at the very end
+      const grayThreshold = 12;
+      const isGrayA = hslA.s < grayThreshold;
+      const isGrayB = hslB.s < grayThreshold;
+
+      if (isGrayA && !isGrayB) return 1;
+      if (!isGrayA && isGrayB) return -1;
+      if (isGrayA && isGrayB) return hslA.l - hslB.l; // Sort grays by lightness
+
+      // Sort colored swatches by Hue, then Lightness
+      if (Math.abs(hslA.h - hslB.h) > 2) {
+        return hslA.h - hslB.h;
+      }
+      return hslA.l - hslB.l;
+    });
+  }
+
+  $: sortedVibes = sortVibesChromatically([...VIBES, ...$customVibes]);
 </script>
 
 {#if sb}
@@ -159,7 +208,7 @@
         on:click={() => { changeVibe(null); setTimeout(() => { showVibeGrid = false; }, 150); }}
         aria-label="Remove vibe color"
       ></button>
-      {#each [...VIBES, ...$customVibes] as v (v.id)}
+      {#each sortedVibes as v (v.id)}
         <button
           class="swatch"
           class:active={sb.vibeId === v.id}
