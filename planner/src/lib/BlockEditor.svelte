@@ -231,6 +231,8 @@
 
 <style>
   .editor {
+    position: relative;
+    z-index: 2;
     flex: 0 0 auto;
     display: flex;
     align-items: center;
@@ -280,6 +282,8 @@
     font-size: 13px;
   }
   .times {
+    position: relative;
+    z-index: 2;
     flex: 0 0 auto;
     display: flex;
     align-items: center;
@@ -351,6 +355,8 @@
   /* Travel times editing and adding */
   .travel-times,
   .add-travel-times {
+    position: relative;
+    z-index: 2;
     width: 100%;
     padding: 2px 12px 6px;
     display: flex;
@@ -416,6 +422,8 @@
     background-color: var(--surface-3);
   }
   .editor-swatches-grid {
+    position: relative;
+    z-index: 2;
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
