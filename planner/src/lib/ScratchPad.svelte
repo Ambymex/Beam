@@ -33,6 +33,18 @@
       textareaEl.setSelectionRange(start + prefix.length, start + prefix.length + selected.length);
     }, 50);
   }
+
+  let copyStatus = 'Copy Notes';
+  function handleCopy() {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText($scratchpadContent).then(() => {
+        copyStatus = 'Copied! ✓';
+        setTimeout(() => {
+          copyStatus = 'Copy Notes';
+        }, 1500);
+      });
+    }
+  }
 </script>
 
 <div class="overlay" role="dialog" aria-label="Scratch Pad notes">
@@ -53,6 +65,7 @@
     <button on:click={() => insertMarkdown('*', '*')} title="Make text italic"><i>I</i></button>
     <button on:click={() => insertMarkdown('`', '`')} title="Add code inline">Code</button>
     <button on:click={() => insertMarkdown('\n---\n')} title="Add horizontal divider">Divider</button>
+    <button on:click={handleCopy} style="margin-left: auto; border-color: var(--signal); color: var(--text);" title="Copy all scratch pad notes">{copyStatus}</button>
   </div>
 
   <div class="editor-container">

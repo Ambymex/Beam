@@ -44,6 +44,18 @@
   let errorMsg = '';
   let scrollContainer: HTMLDivElement;
 
+  let copiedMsgId = '';
+  function copyMessageText(id: string, text: string) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        copiedMsgId = id;
+        setTimeout(() => {
+          if (copiedMsgId === id) copiedMsgId = '';
+        }, 1500);
+      });
+    }
+  }
+
   // OpenRouter direct settings
   let openRouterKey = localStorage.getItem('radial-planner-openrouter-key') || import.meta.env.VITE_OPENROUTER_KEY || '';
   let selectedModel = localStorage.getItem('radial-planner-openrouter-model') || import.meta.env.VITE_OPENROUTER_MODEL || 'google/gemma-2-27b-it';
@@ -859,8 +871,19 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
           {msg.role === 'assistant' ? '✦' : '✎'}
         </div>
         <div class="bubble-wrap">
-          <div class="bubble">
+          <div class="bubble" style="position: relative; padding-right: 36px;">
             {msg.content}
+            <button 
+              type="button" 
+              class="copy-bubble-btn" 
+              on:click={() => copyMessageText(msg.id, msg.content)}
+              aria-label="Copy message"
+              style="position: absolute; right: 6px; top: 8px; background: transparent; border: none; font-size: 13px; cursor: pointer; opacity: 0.4; transition: opacity 0.15s; padding: 4px; line-height: 1;"
+              on:mouseenter={(e) => e.currentTarget.style.opacity = '1'}
+              on:mouseleave={(e) => e.currentTarget.style.opacity = '0.4'}
+            >
+              {copiedMsgId === msg.id ? '✓' : '📋'}
+            </button>
           </div>
           
           {#if msg.actions && msg.actions.length > 0}
