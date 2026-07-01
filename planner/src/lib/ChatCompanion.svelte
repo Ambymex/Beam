@@ -25,7 +25,7 @@
     content: string;
     timestamp: string;
     actions?: Array<{
-      type: 'add_block' | 'update_block' | 'delete_block' | 'update_scratchpad' | 'update_diary' | 'add_symptom' | 'update_symptom' | 'delete_symptom' | 'show_notification' | 'schedule_notification';
+      type: 'add_block' | 'update_block' | 'delete_block' | 'update_scratchpad' | 'update_diary' | 'add_symptom' | 'update_symptom' | 'delete_symptom' | 'show_notification' | 'schedule_notification' | 'web_search';
       targetDate?: string;
       block?: Partial<Block>;
       labelToMatch?: string;
@@ -40,6 +40,7 @@
       title?: string;
       body?: string;
       timeHours?: any;
+      query?: string;
     }>;
   }
 
@@ -76,6 +77,9 @@
   let pineconeHost = localStorage.getItem('radial-planner-pinecone-host') || '';
   let enableVault = localStorage.getItem('radial-planner-vault-enabled') === 'true';
   let isEmbedding = false;
+
+  // Tavily Search API Settings
+  let tavilyKey = localStorage.getItem('radial-planner-tavily-key') || '';
 
   function triggerFileSelect() {
     if (fileInput) fileInput.click();
@@ -197,6 +201,7 @@
     localStorage.setItem('radial-planner-pinecone-key', pineconeKey.trim());
     localStorage.setItem('radial-planner-pinecone-host', pineconeHost.trim());
     localStorage.setItem('radial-planner-vault-enabled', enableVault ? 'true' : 'false');
+    localStorage.setItem('radial-planner-tavily-key', tavilyKey.trim());
     showSettings = false;
   }
 
@@ -237,7 +242,7 @@
       .map(([date, data]) => `- ${date}: "${data.diary.replace(/\n/g, ' ')}"`)
       .join('\n');
 
-    return `You are a supportive, warm, and clear AI companion for the "Radial Day Planner" app.
+    let systemPrompt = `You are a supportive, warm, and clear AI companion for the "Radial Day Planner" app.
 The user has ADHD, autism, time blindness, and emotion-colour synesthesia. 
 Your job is to chat with the user, help them structure their day, and output JSON actions to update their radial planner ring.
 
@@ -388,6 +393,16 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
   ]
 }
 `;
+    if (tavilyKey) {
+      systemPrompt += `\nAdditional Search action capability:
+- Since a Web Search API Key is configured, you can search the web for current or factual information (e.g. weather, MCAS scientific findings, news, external definitions). To do this, include this action in your list:
+{
+  "type": "web_search",
+  "query": "highly specific search query keywords"
+}
+When you return a "web_search" action, let the user know in your conversational "message" that you are querying the web. The system will run the search and feed the results back into your memory context in a follow-up exchange.`;
+    }
+    return systemPrompt;
   }
 
   export async function triggerHeartbeatCheck(force = false) {
@@ -541,6 +556,150 @@ Do NOT speak or warn unless it is highly useful. Let them plan in peace.`;
     html = html.replace(/\n/g, '<br>');
     
     return html;
+  }
+
+  async function submitBackgroundMessage(msg: ChatMessage) {
+    messages = [...messages, msg];
+    saveChat();
+    isLoading = true;
+    errorMsg = '';
+
+    try {
+      const now = new Date();
+      const realDate = todayKey();
+      let viewDate = '';
+      currentKey.subscribe(k => { viewDate = k; })();
+      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const allVibes = [...VIBES, ...$customVibes].map(v => ({ id: v.id, emotion: v.emotion }));
+
+      const payloadMessages = messages.slice(-100).map(m => ({
+        role: m.role,
+        content: m.content
+      }));
+
+      let activeBlocks: Block[] = [];
+      let activeSymptoms: Symptom[] = [];
+      let activeDiary = '';
+      days.subscribe($days => {
+        const day = $days[viewDate];
+        if (day) {
+          activeBlocks = day.blocks;
+          activeSymptoms = day.symptoms || [];
+          activeDiary = day.diary || '';
+        }
+      })();
+
+      const systemPrompt = getSystemPrompt(viewDate, realDate, currentTime, allVibes, activeBlocks, activeSymptoms, activeDiary);
+
+      const openRouterRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openRouterKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: selectedModel,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...payloadMessages
+          ],
+          response_format: { type: 'json_object' },
+        }),
+      });
+
+      if (!openRouterRes.ok) {
+        const errText = await openRouterRes.text();
+        throw new Error(`OpenRouter API error: ${openRouterRes.status} ${errText}`);
+      }
+
+      const result = await openRouterRes.json();
+      const completionText = result.choices?.[0]?.message?.content?.trim() ?? '';
+      let parsed;
+      try {
+        parsed = JSON.parse(completionText);
+      } catch {
+        const jsonMatch = /\{[\s\S]*\}/.exec(completionText);
+        if (jsonMatch) {
+          parsed = JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error('LLM did not return a valid JSON structure.');
+        }
+      }
+
+      const assistantMsg: ChatMessage = {
+        id: 'msg_' + Math.random().toString(36).slice(2) + Date.now(),
+        role: 'assistant',
+        content: parsed.message || "Here are the search results.",
+        timestamp: new Date().toISOString(),
+        actions: parsed.actions || []
+      };
+
+      messages = [...messages, assistantMsg];
+      saveChat();
+
+      if (parsed.actions && parsed.actions.length > 0) {
+        executeActions(parsed.actions);
+      }
+    } catch (err: any) {
+      console.error('[Companion] Failed to complete background search response:', err);
+      errorMsg = err.message || 'Web search response generation failed.';
+    } finally {
+      isLoading = false;
+    }
+  }
+
+  async function runWebSearch(query: string) {
+    const searchStatusMsg: ChatMessage = {
+      id: 'search_log_' + Date.now(),
+      role: 'assistant',
+      content: `🔍 *Searching the web for:* "${query}"...`,
+      timestamp: new Date().toISOString()
+    };
+    messages = [...messages, searchStatusMsg];
+    saveChat();
+
+    try {
+      const res = await fetch('https://api.tavily.com/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          api_key: tavilyKey,
+          query: query,
+          search_depth: 'basic',
+          include_answer: false
+        })
+      });
+
+      if (!res.ok) {
+        throw new Error(`Tavily search API returned status ${res.status}`);
+      }
+
+      const data = await res.json();
+      const results = data.results || [];
+      let formatted = '';
+
+      if (results.length === 0) {
+        formatted = 'No results found.';
+      } else {
+        formatted = results.slice(0, 4).map((r: any, idx: number) => {
+          return `[Result ${idx + 1}] Title: "${r.title}"\nURL: ${r.url}\nContent: ${r.content}\n`;
+        }).join('\n');
+      }
+
+      const finalSearchMsg: ChatMessage = {
+        id: 'search_res_' + Date.now(),
+        role: 'user',
+        content: `WEB SEARCH RESULTS for query "${query}":\n\n${formatted}\n\n=== INSTRUCTION ===\nAnswer the user based on the factual search results above.`,
+        timestamp: new Date().toISOString()
+      };
+
+      messages = messages.filter(m => m.id !== searchStatusMsg.id);
+      await submitBackgroundMessage(finalSearchMsg);
+    } catch (err: any) {
+      console.error('[Companion] Tavily search execution failed:', err);
+      messages = messages.filter(m => m.id !== searchStatusMsg.id);
+      errorMsg = `Web search failed: ${err.message || err}`;
+    }
   }
 
   function handleKeyDown(ev: KeyboardEvent) {
@@ -1070,6 +1229,18 @@ Do NOT speak or warn unless it is highly useful. Let them plan in peace.`;
           });
         }
 
+        else if (act.type === 'web_search' && act.query !== undefined) {
+          if (!tavilyKey) {
+            console.warn('[Companion] AI tried to web search, but Tavily Key is not configured.');
+            errorMsg = 'Web search failed: Tavily API key is not configured in settings.';
+          } else {
+            const queryText = act.query.trim();
+            runWebSearch(queryText).catch(err => {
+              console.error('[Companion] Web search failed:', err);
+            });
+          }
+        }
+
         if (!updated[actualDate]) {
           updated[actualDate] = { blocks, nextId, symptoms, nextSymptomId, diary };
         } else {
@@ -1169,6 +1340,18 @@ Do NOT speak or warn unless it is highly useful. Let them plan in peace.`;
           />
         </div>
       {/if}
+
+      <div class="field">
+        <label for="tavily-key">Tavily Search API Key:</label>
+        <input 
+          id="tavily-key"
+          type="password" 
+          placeholder="tvly-..." 
+          bind:value={tavilyKey} 
+          on:change={saveSettings}
+        />
+        <span class="tip">Enables the companion to search the web autonomously.</span>
+      </div>
       <div class="field">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
           <label style="margin: 0;">Last API JSON Payload:</label>
