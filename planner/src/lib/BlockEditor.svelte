@@ -156,7 +156,7 @@
         class:active={!sb.vibeId}
         style="background: #6a6a78;" 
         title="No vibe"
-        on:click={() => { changeVibe(null); showVibeGrid = false; }}
+        on:click={() => { changeVibe(null); setTimeout(() => { showVibeGrid = false; }, 150); }}
         aria-label="Remove vibe color"
       ></button>
       {#each [...VIBES, ...$customVibes] as v (v.id)}
@@ -165,7 +165,7 @@
           class:active={sb.vibeId === v.id}
           style="background:{v.hex}"
           title={v.emotion}
-          on:click={() => { changeVibe(v.id); showVibeGrid = false; }}
+          on:click={() => { changeVibe(v.id); setTimeout(() => { showVibeGrid = false; }, 150); }}
           aria-label="Set vibe to {v.emotion}"
         ></button>
       {/each}
