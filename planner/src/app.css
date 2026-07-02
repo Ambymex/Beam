@@ -205,3 +205,72 @@ main {
   background: radial-gradient(ellipse at top, rgba(0,255,204,0.15) 0%, rgba(0,38,30,0) 70%);
   animation: aurora-wave 12s ease-in-out infinite;
 }
+
+/* Storm Canopy (rain puddle ripples) */
+@keyframes ripple-wave {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.28;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+    border-width: 0.5px;
+  }
+}
+
+.storm-canopy {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 2s ease-in-out;
+}
+.storm-canopy.active {
+  opacity: 1;
+}
+
+.ripple {
+  position: absolute;
+  width: 100px;
+  height: 100px;
+  display: inline-block;
+  pointer-events: none;
+}
+.ripple::before, .ripple::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.16);
+  animation: ripple-wave 3.5s cubic-bezier(0.1, 0.8, 0.3, 1) infinite;
+  opacity: 0;
+}
+
+/* Distribute the ripples across organic offsets and delays */
+.ripple.r1 { top: 25%; left: 15%; animation-delay: 0s; transform: scale(0.7); }
+.ripple.r2 { top: 60%; left: 80%; animation-delay: 1.4s; transform: scale(1.1); }
+.ripple.r3 { top: 15%; left: 70%; animation-delay: 2.8s; transform: scale(0.8); }
+.ripple.r4 { top: 75%; left: 30%; animation-delay: 0.9s; transform: scale(1.3); }
+.ripple.r5 { top: 40%; left: 45%; animation-delay: 2.1s; transform: scale(0.95); }
+
+/* Stagger inner and outer rings of each ripple drop */
+.r1::before { animation-delay: 0s; }
+.r1::after { animation-delay: 0.6s; }
+
+.r2::before { animation-delay: 1.4s; }
+.r2::after { animation-delay: 2.0s; }
+
+.r3::before { animation-delay: 2.8s; }
+.r3::after { animation-delay: 3.4s; }
+
+.r4::before { animation-delay: 0.9s; }
+.r4::after { animation-delay: 1.5s; }
+
+.r5::before { animation-delay: 2.1s; }
+.r5::after { animation-delay: 2.7s; }

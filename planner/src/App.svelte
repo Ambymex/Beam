@@ -59,6 +59,13 @@
   <div class="stars-canopy" class:active={$envThemeState.isStars}></div>
   <div class="meteor-canopy" class:active={$envThemeState.isMeteorShower}></div>
   <div class="aurora-canopy" class:active={$envThemeState.isAurora}></div>
+  <div class="storm-canopy" class:active={$envThemeState.isStorm}>
+    <div class="ripple r1"></div>
+    <div class="ripple r2"></div>
+    <div class="ripple r3"></div>
+    <div class="ripple r4"></div>
+    <div class="ripple r5"></div>
+  </div>
 
   <header class="bar glass-panel">
     <button class="chip" on:click={onAddSymptom} aria-label="Log symptom now">Symptom</button>
