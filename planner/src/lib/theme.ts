@@ -44,6 +44,7 @@ const CUSTOM_KEYS = [
   '--ambient-gradient',
   '--app-bg',
   '--glass-bg',
+  '--glass-border',
   '--glass-blur',
   '--surface',
   '--surface-2',

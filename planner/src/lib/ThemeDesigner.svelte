@@ -12,8 +12,10 @@
   let glassOpacity = 0.5;
   let glassBlurPx = 18;
   let surfaceHex = '#121829';
+  let surfaceOpacity = 1.0;
   let surface2Hex = '#172037';
-  
+  let surface2Opacity = 1.0;
+
   let signalHex = '#a24df0';
   let signalGlowOpacity = 0.2;
   let signalContrast = '#ffffff';
@@ -152,19 +154,23 @@
       glassBlurPx = parseInt(blurVal) || glassBlurPx;
     }
     
-    surfaceHex = colorToHex(style.getPropertyValue('--surface').trim() || surfaceHex);
-    surface2Hex = colorToHex(style.getPropertyValue('--surface-2').trim() || surface2Hex);
-    
-    signalHex = colorToHex(style.getPropertyValue('--signal').trim() || signalHex);
-    signalContrast = colorToHex(style.getPropertyValue('--signal-contrast').trim() || signalContrast);
-    
-    const parseOpacity = (property: string, fallback: number) => {
+    const parseOpacity = (property: string, fallback: number, hexMeansOpaque = false) => {
       const val = style.getPropertyValue(property).trim();
       const match = /rgba?\([^,]+,[^,]+,[^,]+,\s*([\d.]+)\)/.exec(val);
       if (match) return parseFloat(match[1]);
-      return fallback;
+      // a solid hex/rgb() surface is fully opaque; borders keep their fallback
+      return hexMeansOpaque && val ? 1.0 : fallback;
     };
-    
+
+    surfaceHex = colorToHex(style.getPropertyValue('--surface').trim() || surfaceHex);
+    surfaceOpacity = parseOpacity('--surface', surfaceOpacity, true);
+    surface2Hex = colorToHex(style.getPropertyValue('--surface-2').trim() || surface2Hex);
+    surface2Opacity = parseOpacity('--surface-2', surface2Opacity, true);
+
+    signalHex = colorToHex(style.getPropertyValue('--signal').trim() || signalHex);
+    signalContrast = colorToHex(style.getPropertyValue('--signal-contrast').trim() || signalContrast);
+    signalGlowOpacity = parseOpacity('--signal-glow', signalGlowOpacity, true);
+
     borderOpacity = parseOpacity('--border', borderOpacity);
     border2Opacity = parseOpacity('--border-2', border2Opacity);
     hairlineOpacity = parseOpacity('--hairline', hairlineOpacity);
@@ -187,10 +193,22 @@
       glassOpacity = match ? parseFloat(match[1]) : 1.0;
     }
     if (vars['--glass-blur']) glassBlurPx = parseInt(vars['--glass-blur']) || glassBlurPx;
-    if (vars['--surface']) surfaceHex = colorToHex(vars['--surface']);
-    if (vars['--surface-2']) surface2Hex = colorToHex(vars['--surface-2']);
+    const alphaOf = (val: string | undefined, fallback: number) => {
+      if (!val) return fallback;
+      const match = /rgba?\([^,]+,[^,]+,[^,]+,\s*([\d.]+)\)/.exec(val);
+      return match ? parseFloat(match[1]) : 1.0;
+    };
+    if (vars['--surface']) {
+      surfaceHex = colorToHex(vars['--surface']);
+      surfaceOpacity = alphaOf(vars['--surface'], surfaceOpacity);
+    }
+    if (vars['--surface-2']) {
+      surface2Hex = colorToHex(vars['--surface-2']);
+      surface2Opacity = alphaOf(vars['--surface-2'], surface2Opacity);
+    }
     if (vars['--signal']) signalHex = colorToHex(vars['--signal']);
     if (vars['--signal-contrast']) signalContrast = colorToHex(vars['--signal-contrast']);
+    if (vars['--signal-glow']) signalGlowOpacity = alphaOf(vars['--signal-glow'], signalGlowOpacity);
     
     // Extract opacities for white borders
     const borderMatch = /rgba\(255, 255, 255, ([\d.]+)\)/.exec(vars['--border'] || '');
@@ -214,10 +232,11 @@
       '--ambient-gradient': `linear-gradient(135deg, ${gradientStart} 0%, ${gradientEnd} 100%)`,
       '--app-bg': gradientStart,
       '--glass-bg': hexToRgba(glassHex, glassOpacity),
+      '--glass-border': hexToRgba(glassHex, Math.min(1, glassOpacity + 0.25)),
       '--glass-blur': `${glassBlurPx}px`,
-      '--surface': surfaceHex,
-      '--surface-2': surface2Hex,
-      '--surface-3': interpolateHex(surface2Hex, '#ffffff', 0.2),
+      '--surface': hexToRgba(surfaceHex, surfaceOpacity),
+      '--surface-2': hexToRgba(surface2Hex, surface2Opacity),
+      '--surface-3': hexToRgba(interpolateHex(surface2Hex, '#ffffff', 0.2), Math.min(1, surface2Opacity * 1.3)),
       '--signal': signalHex,
       '--signal-glow': hexToRgba(signalHex, signalGlowOpacity),
       '--signal-contrast': signalContrast,
@@ -240,10 +259,11 @@
         '--ambient-gradient': `linear-gradient(135deg, ${gradientStart} 0%, ${gradientEnd} 100%)`,
         '--app-bg': gradientStart,
         '--glass-bg': hexToRgba(glassHex, glassOpacity),
+        '--glass-border': hexToRgba(glassHex, Math.min(1, glassOpacity + 0.25)),
         '--glass-blur': `${glassBlurPx}px`,
-        '--surface': surfaceHex,
-        '--surface-2': surface2Hex,
-        '--surface-3': interpolateHex(surface2Hex, '#ffffff', 0.2),
+        '--surface': hexToRgba(surfaceHex, surfaceOpacity),
+        '--surface-2': hexToRgba(surface2Hex, surface2Opacity),
+        '--surface-3': hexToRgba(interpolateHex(surface2Hex, '#ffffff', 0.2), Math.min(1, surface2Opacity * 1.3)),
         '--signal': signalHex,
         '--signal-glow': hexToRgba(signalHex, signalGlowOpacity),
         '--signal-contrast': signalContrast,
@@ -516,8 +536,18 @@
     </div>
 
     <div class="field">
-      <span>Chip Background</span>
-      <button class="color-indicator-btn" style="background: {surface2Hex};" on:click={() => openColorPicker('surface2Hex')} aria-label="Chip Background color"></button>
+      <label for="surfaceOpacity">Surface Opacity ({Math.round(surfaceOpacity * 100)}%):</label>
+      <input id="surfaceOpacity" type="range" min="0" max="1" step="0.02" bind:value={surfaceOpacity} on:input={saveCustomTheme} />
+    </div>
+
+    <div class="field">
+      <span>Card / Chip Background</span>
+      <button class="color-indicator-btn" style="background: {surface2Hex};" on:click={() => openColorPicker('surface2Hex')} aria-label="Card and chip background color"></button>
+    </div>
+
+    <div class="field">
+      <label for="surface2Opacity">Card / Chip Opacity ({Math.round(surface2Opacity * 100)}%):</label>
+      <input id="surface2Opacity" type="range" min="0" max="1" step="0.02" bind:value={surface2Opacity} on:input={saveCustomTheme} />
     </div>
 
     <div class="field">
