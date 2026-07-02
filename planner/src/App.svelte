@@ -66,7 +66,7 @@
     <button class="chip" on:click={() => (showSearch = true)} aria-label="Open plan search">Search</button>
     <button class="chip" on:click={() => (showDiary = true)} aria-label="Open daily diary">Diary</button>
     <button class="chip" on:click={() => (showScratchpad = true)} aria-label="Open scratch pad notes">Notes</button>
-    <button class="chip" on:click={() => (showDesigner = true)} aria-label="Open UI Theme Designer">🎨 Theme</button>
+    <button class="chip" on:click={() => (showDesigner = true)} aria-label="Open UI Theme Designer">Theme</button>
     <!-- Cascade toggle (§9): off = nudge just this; on = push my day. The "on"
          state is a non-colour cue — a luminous ring, never a hue. -->
     <button

@@ -243,7 +243,7 @@
   <div class="editor add-bar">
     <span class="dot" style="background:{$armedVibe?.hex ?? '#6a6a78'}"></span>
     <button class="act now-btn" on:click={addNow} title="Start task now using armed vibe">
-      ⚡ Start now
+      Start now
     </button>
     
     <div class="times select-times">
