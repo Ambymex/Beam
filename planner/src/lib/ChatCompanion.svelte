@@ -7,6 +7,7 @@
   import { onMount, createEventDispatcher } from 'svelte';
   import { days, currentKey, todayKey } from './days';
   import { glucoseContextSummary } from './glucose';
+  import { novelDiaryContent } from './diaryDedupe';
   import { VIBES } from './vibes';
   import { customVibes } from './customVibes';
   import { selectedBlockStore } from './daystate';
@@ -26,7 +27,7 @@
     content: string;
     timestamp: string;
     actions?: Array<{
-      type: 'add_block' | 'update_block' | 'delete_block' | 'update_scratchpad' | 'update_diary' | 'add_symptom' | 'update_symptom' | 'delete_symptom' | 'show_notification' | 'schedule_notification' | 'web_search';
+      type: 'add_block' | 'update_block' | 'delete_block' | 'read_scratchpad' | 'update_scratchpad' | 'update_diary' | 'add_symptom' | 'update_symptom' | 'delete_symptom' | 'show_notification' | 'schedule_notification' | 'web_search';
       targetDate?: string;
       block?: Partial<Block>;
       labelToMatch?: string;
@@ -229,9 +230,6 @@
   const SUPABASE_ANON: string = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
 
   function getSystemPrompt(viewDate: string, realDate: string, currentTime: string, vibes: any[], currentBlocks: Block[], currentSymptoms: Symptom[], currentDiary: string) {
-    let currentNotes = '';
-    scratchpadContent.subscribe(val => { currentNotes = val; })();
-    
     let allCats: any[] = [];
     const unsubCats = customCategories.subscribe(c => { allCats = [...BASE_CATEGORIES, ...c]; });
     unsubCats();
@@ -249,7 +247,13 @@
       ? currentSymptoms.map(s => `- ID: ${s.id}, Category: "${s.category}" (Severity: ${s.severity}/5, Time: ${s.timeHours}h${s.note ? `, Note: "${s.note}"` : ''})`).join('\n')
       : 'No symptoms logged on this day.';
 
-    const diaryDesc = currentDiary ? currentDiary : 'No diary entry logged for this day yet.';
+    // Safety cap: keep the most recent 6000 chars so a runaway diary can never
+    // dominate the prompt again (normal daily entries sit far below this).
+    const diaryDesc = currentDiary
+      ? currentDiary.length > 6000
+        ? '…(earlier content trimmed)\n' + currentDiary.slice(-6000)
+        : currentDiary
+      : 'No diary entry logged for this day yet.';
 
     let allDays: Record<string, any> = {};
     days.subscribe(d => { allDays = d; })();
@@ -259,7 +263,12 @@
       .filter(([date, data]) => date !== viewDate && data.diary && data.diary.trim().length > 0)
       .sort((a, b) => b[0].localeCompare(a[0])) // most recent first
       .slice(0, 7)
-      .map(([date, data]) => `- ${date}: "${data.diary.replace(/\n/g, ' ')}"`)
+      // capped per day — full past diaries can dwarf everything else in the
+      // prompt; the vault handles deep recall when it's needed
+      .map(([date, data]) => {
+        const flat = data.diary.replace(/\n/g, ' ');
+        return `- ${date}: "${flat.length > 300 ? flat.slice(0, 300) + '…' : flat}"`;
+      })
       .join('\n');
 
     let systemPrompt = `You are a supportive, warm, and clear AI companion for the "Radial Day Planner" app.
@@ -267,8 +276,7 @@ The user has ADHD, autism, time blindness, and emotion-colour synesthesia.
 Your job is to chat with the user, help them structure their day, and output JSON actions to update their radial planner ring.
 
 ---
-COLLABORATIVE SCRATCH PAD NOTES (The user's thoughts, bug logs, and feature requests. Read this for context. You can modify these notes if the user asks you to):
-${currentNotes || 'No notes written yet.'}
+COLLABORATIVE SCRATCH PAD NOTES: The user keeps a scratch pad (thoughts, bug logs, feature requests). Its content is NOT included here to save tokens. When you need it — or before ANY update to it — return a "read_scratchpad" action and the content will be fed back to you in a follow-up turn. Your Pinecone vault also covers historical recall.
 
 ---
 CORE RULES:
@@ -302,7 +310,7 @@ CURRENT LOGGED MCAS SYMPTOMS FOR ${viewDate} (Logged on the innermost ring, sepa
 ${symptomsDesc}
 
 ---
-CURRENT DIARY ENTRY FOR ${viewDate} (Use this to read their daily diary reflections. You can write/edit thoughts, logs, or reflections for this day if they ask you to):
+CURRENT DIARY ENTRY FOR ${viewDate} (Read-only reference. To add to it, use the update_diary action with ONLY your new text — the app appends and timestamps it for you. Never resend anything you can already see below):
 ${diaryDesc}
 
 ---
@@ -391,14 +399,19 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
       "targetDate": "YYYY-MM-DD",
       "symptomId": number
     },
+    // Read the user's scratch pad — content is fed back to you in a follow-up
+    // turn. ALWAYS do this before update_scratchpad.
+    {
+      "type": "read_scratchpad"
+    },
     {
       "type": "update_scratchpad",
-      "content": "new scratchpad content (entire markdown text)"
+      "content": "the ENTIRE new scratchpad markdown. WARNING: this REPLACES the whole scratch pad — read_scratchpad first and include everything that should remain."
     },
     {
       "type": "update_diary",
       "targetDate": "YYYY-MM-DD",
-      "content": "new diary entry markdown content"
+      "content": "ONLY the brand-new text to add. NEVER repeat, copy, or summarize existing diary content here — the app automatically appends your text to the existing diary with a timestamp. Sending old content again creates duplicates."
     },
     // I. Fire a push notification to the user immediately:
     {
@@ -427,6 +440,41 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
 When you return a "web_search" action, let the user know in your conversational "message" that you are querying the web. The system will run the search and feed the results back into your memory context in a follow-up exchange.`;
     }
     return systemPrompt;
+  }
+
+  // Lean prompt for the background heartbeat. It runs ~30 times a day and only
+  // ever notifies, so it skips everything the full prompt carries for block
+  // creation: the vibe/category dictionaries, scratchpad, diary history, JSON
+  // action grammar, and vault context.
+  function getHeartbeatPrompt(viewDate: string, realDate: string, currentTime: string, currentBlocks: Block[], currentSymptoms: Symptom[], currentDiary: string) {
+    const blocksDesc = currentBlocks.length
+      ? currentBlocks.map(b => `- "${b.label || 'unlabelled'}" ${b.startHours}h–${b.coreEndHours}h lane:${b.laneId} done:${b.done ? 'yes' : 'no'}`).join('\n')
+      : 'No tasks scheduled.';
+    const symptomsDesc = currentSymptoms.length
+      ? currentSymptoms.map(s => `- ${s.category} severity ${s.severity}/5 at ${s.timeHours}h${s.note ? ` ("${s.note}")` : ''}`).join('\n')
+      : 'No symptoms logged.';
+    const diaryDesc = currentDiary
+      ? currentDiary.length > 1500 ? '…' + currentDiary.slice(-1500) : currentDiary
+      : 'None yet.';
+    const glucose = glucoseContextSummary();
+    return `You are the silent background heartbeat of the user's radial day planner. The user has ADHD, autism, time blindness, and emotion-colour synesthesia; they track MCAS symptoms and blood glucose. Analyze the state below and speak ONLY if a notification would be highly useful (worsening symptoms needing a check-in, a packed stretch needing a break, an appliance cycle finishing, glucose trouble). Let them plan in peace otherwise.
+
+Viewed day: ${viewDate} (real today: ${realDate}, time now: ${currentTime})
+SCHEDULE:
+${blocksDesc}
+SYMPTOMS:
+${symptomsDesc}
+DIARY (today):
+${diaryDesc}
+${glucose ? `GLUCOSE: ${glucose}` : ''}
+
+Respond ONLY with JSON. The ONLY allowed actions in heartbeat mode are:
+- {"type":"show_notification","title":"...","body":"..."} — alert immediately
+- {"type":"schedule_notification","targetDate":"YYYY-MM-DD","timeHours":18.25,"title":"...","body":"..."} — alert later (decimal hours from midnight)
+Never write to the diary, scratchpad, blocks, or symptoms from a heartbeat.
+If everything is on track you MUST respond exactly with:
+{ "message": "everything_good", "actions": [] }
+Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }`;
   }
 
   export async function triggerHeartbeatCheck(force = false) {
@@ -476,28 +524,9 @@ When you return a "web_search" action, let the user know in your conversational 
         }
       })();
 
-      // 1. Fetch vector context from vault using a general summary query
-      let vaultContext = '';
-      if (enableVault && pineconeKey && pineconeHost) {
-        try {
-          vaultContext = await fetchContext("today summary energy allergy sleep mood", pineconeKey, pineconeHost, 3);
-        } catch {}
-      }
-
-      let systemPrompt = getSystemPrompt(viewDate, realDate, currentTimeStr, allVibes, activeBlocks, activeSymptoms, activeDiary);
-      if (vaultContext) {
-        systemPrompt += `\n\n--- RELEVANT RETRIEVED HISTORICAL DIARY/PLANNER MEMORY ---\n${vaultContext}`;
-      }
-
-      // Append Heartbeat-specific instruction overrides
-      systemPrompt += `\n\n=== SYSTEM HEARTBEAT MODE ===
-You are executing in a silent background heartbeat check. Read and analyze the user's current day state, symptom logs, and diary entries.
-- If you spot a trend or pattern (e.g. they logged high symptom severity earlier and might need a check-in, or they have a busy schedule and need custom breaks, or they have laundry blocks that finished cycles), you can speak up or send a custom notification.
-- To notify them immediately, add a "show_notification" action to the actions list.
-- To schedule an alert for later, add a "schedule_notification" action.
-- If everything is on track and there is no urgent warning or suggestion to give, you MUST respond exactly with:
-{ "message": "everything_good", "actions": [] }
-Do NOT speak or warn unless it is highly useful. Let them plan in peace.`;
+      // Lean heartbeat prompt: no vibes/categories/scratchpad/history/vault —
+      // a notify-only check doesn't need them, and it runs ~30×/day.
+      const systemPrompt = getHeartbeatPrompt(viewDate, realDate, currentTimeStr, activeBlocks, activeSymptoms, activeDiary);
 
       // We slice the last 6 messages to keep context size low and cheap
       const payloadMessages = [
@@ -548,18 +577,24 @@ Do NOT speak or warn unless it is highly useful. Let them plan in peace.`;
       }
 
       if (parsed && parsed.message !== 'everything_good' && parsed.message !== '') {
+        // Heartbeat is notify-only: enforce it, so a background check can
+        // never write to the diary, scratchpad, blocks, or symptoms even if
+        // the model returns other action types.
+        const allowedActions = (parsed.actions || []).filter(
+          (a: any) => a.type === 'show_notification' || a.type === 'schedule_notification'
+        );
         const assistantMsg: ChatMessage = {
           id: 'msg_' + Math.random().toString(36).slice(2) + Date.now(),
           role: 'assistant',
           content: parsed.message || "I've checked your planner and have an update.",
           timestamp: new Date().toISOString(),
-          actions: parsed.actions || []
+          actions: allowedActions
         };
         messages = [...messages, assistantMsg];
         saveChat();
 
-        if (parsed.actions && parsed.actions.length > 0) {
-          executeActions(parsed.actions);
+        if (allowedActions.length > 0) {
+          executeActions(allowedActions);
         }
       }
     } catch (err) {
@@ -676,6 +711,20 @@ Do NOT speak or warn unless it is highly useful. Let them plan in peace.`;
     }
   }
 
+  // Feed the scratch pad back to the model on demand (same follow-up-turn
+  // pattern as web_search). Keeps it out of the every-turn prompt.
+  async function runScratchpadRead() {
+    let content = '';
+    scratchpadContent.subscribe((val) => { content = val; })();
+    const msg: ChatMessage = {
+      id: 'scratch_res_' + Date.now(),
+      role: 'user',
+      content: `SCRATCH PAD CONTENT (you requested this via read_scratchpad):\n\n${content || '(The scratch pad is currently empty.)'}\n\n=== INSTRUCTION ===\nContinue helping the user using the scratch pad content above. If you update it, remember update_scratchpad REPLACES the entire content — include everything that should remain.`,
+      timestamp: new Date().toISOString()
+    };
+    await submitBackgroundMessage(msg);
+  }
+
   async function runWebSearch(query: string) {
     const searchStatusMsg: ChatMessage = {
       id: 'search_log_' + Date.now(),
@@ -770,8 +819,10 @@ Do NOT speak or warn unless it is highly useful. Let them plan in peace.`;
         emotion: v.emotion
       }));
 
-      // Slice messages to last 100 for API payload pruning
-      const payloadMessages = messages.slice(-100).map(m => ({
+      // Slice messages to last 30 for API payload pruning — the system prompt
+      // already carries the full day state, so deep chat history mostly
+      // re-bills tokens without adding context.
+      const payloadMessages = messages.slice(-30).map(m => ({
         role: m.role,
         content: m.content
       }));
@@ -1223,14 +1274,16 @@ Do NOT speak or warn unless it is highly useful. Let them plan in peace.`;
         }
 
         else if (act.type === 'update_diary' && act.content !== undefined) {
-          const newContent = act.content.trim();
+          // LLMs love echoing the whole existing diary back through this
+          // action; keep only the genuinely new paragraphs (see diaryDedupe).
+          const novel = novelDiaryContent(diary, String(act.content));
           const currentDiaryTrimmed = diary.trim();
           if (!currentDiaryTrimmed) {
-            diary = newContent;
-          } else if (!currentDiaryTrimmed.includes(newContent)) {
+            diary = novel;
+          } else if (novel) {
             const now = new Date();
             const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-            diary = `${currentDiaryTrimmed}\n\n---\n*Companion Reflection (${timeStr}):*\n${newContent}`;
+            diary = `${currentDiaryTrimmed}\n\n---\n*Companion Reflection (${timeStr}):*\n${novel}`;
           }
         }
 
@@ -1257,6 +1310,12 @@ Do NOT speak or warn unless it is highly useful. Let them plan in peace.`;
           const schedTime = parseLLMTime(act.timeHours);
           scheduleNotification(actualDate, schedTime, act.title, act.body || '').catch(err => {
             console.error('[Companion] Background schedule alert failed:', err);
+          });
+        }
+
+        else if (act.type === 'read_scratchpad') {
+          runScratchpadRead().catch(err => {
+            console.error('[Companion] Scratch pad read failed:', err);
           });
         }
 
@@ -1288,7 +1347,7 @@ Do NOT speak or warn unless it is highly useful. Let them plan in peace.`;
   }
 
   function handleActionClick(act: any) {
-    if (act.type === 'update_scratchpad' || act.type === 'update_diary') {
+    if (act.type === 'update_scratchpad' || act.type === 'update_diary' || act.type === 'read_scratchpad') {
       // Just confirm and let the user open notes/diary manually
       return;
     }
@@ -1428,7 +1487,7 @@ Do NOT speak or warn unless it is highly useful. Let them plan in peace.`;
             <div class="actions-notif">
               {#each msg.actions as act}
                 <button class="action-pill" on:click={() => handleActionClick(act)}>
-                  ⚡ {act.type === 'update_scratchpad' ? 'Updated your Scratch Pad notes' : act.type === 'update_diary' ? `Updated the Daily Diary for ${act.targetDate}` : `Click to view: ${act.type === 'add_block' ? `Created "${act.block?.label || 'block'}"` : act.type === 'update_block' ? `Updated "${act.labelToMatch}"` : `Deleted "${act.labelToMatch}"`} on ${act.targetDate}`}
+                  ⚡ {act.type === 'read_scratchpad' ? 'Read your Scratch Pad notes' : act.type === 'update_scratchpad' ? 'Updated your Scratch Pad notes' : act.type === 'update_diary' ? `Updated the Daily Diary for ${act.targetDate}` : `Click to view: ${act.type === 'add_block' ? `Created "${act.block?.label || 'block'}"` : act.type === 'update_block' ? `Updated "${act.labelToMatch}"` : `Deleted "${act.labelToMatch}"`} on ${act.targetDate}`}
                 </button>
               {/each}
             </div>

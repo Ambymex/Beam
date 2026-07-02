@@ -4,6 +4,7 @@
   import { createEventDispatcher } from 'svelte';
   import { days, currentKey, todayKey } from './days';
   import { get } from 'svelte/store';
+  import { dedupeDiary } from './diaryDedupe';
 
   const dispatch = createEventDispatcher<{ close: void }>();
 
@@ -58,6 +59,43 @@
     }
   }
 
+  // One-shot cleanup for entries that accumulated companion duplicates.
+  // Destructive-ish, so the button flips into an Undo for a few seconds.
+  let tidyStatus = 'Tidy duplicates';
+  let tidyUndo: string | null = null;
+  let tidyTimeout: number;
+  function saveDiaryText(val: string) {
+    const keyToSave = activeKey;
+    days.update((all) => {
+      const day = all[keyToSave] ?? { blocks: [], symptoms: [], nextId: 1, nextSymptomId: 1, diary: '' };
+      return { ...all, [keyToSave]: { ...day, diary: val } };
+    });
+  }
+  function handleTidy() {
+    if (tidyTimeout) clearTimeout(tidyTimeout);
+    if (tidyUndo !== null) {
+      saveDiaryText(tidyUndo);
+      tidyUndo = null;
+      tidyStatus = 'Restored ✓';
+    } else {
+      const before = diaryContent;
+      const after = dedupeDiary(before);
+      if (after.length >= before.length) {
+        tidyStatus = 'No duplicates ✓';
+      } else {
+        saveDiaryText(after);
+        tidyUndo = before;
+        tidyStatus = `Removed ${(before.length - after.length).toLocaleString()} chars — tap to undo`;
+        tidyTimeout = window.setTimeout(() => {
+          tidyUndo = null;
+          tidyStatus = 'Tidy duplicates';
+        }, 8000);
+        return;
+      }
+    }
+    tidyTimeout = window.setTimeout(() => (tidyStatus = 'Tidy duplicates'), 2500);
+  }
+
   function selectHistoryDay(date: string) {
     currentKey.set(date);
   }
@@ -85,6 +123,7 @@
     </div>
     <div class="head-btns">
       {#if diaryContent}
+        <button class="copy-btn" on:click={handleTidy}>{tidyStatus}</button>
         <button class="copy-btn" on:click={handleCopy}>{copyStatus}</button>
       {/if}
       <button class="close" on:click={() => dispatch('close')} aria-label="Close diary">✕</button>
