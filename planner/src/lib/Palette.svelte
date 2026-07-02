@@ -338,8 +338,10 @@
     gap: 6px;
   }
   .more {
-    background: var(--surface-2);
-    border: 1px solid var(--border);
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
     color: var(--text-dim);
     border-radius: 999px;
     padding: 4px 10px;
@@ -347,8 +349,10 @@
     cursor: pointer;
   }
   .more.on {
-    box-shadow: 0 0 0 1px var(--signal) inset;
-    color: var(--signal);
+    background: var(--signal);
+    color: var(--signal-contrast);
+    box-shadow: 0 0 6px var(--signal-glow);
+    border-color: var(--signal);
   }
   .more.close {
     padding: 4px 9px;

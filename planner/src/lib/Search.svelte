@@ -320,7 +320,7 @@ You MUST respond with a single, valid JSON object containing exactly "vibeId" an
     position: fixed;
     inset: 0;
     z-index: 20;
-    background: var(--surface);
+    background: var(--ambient-gradient, var(--app-bg));
     display: flex;
     flex-direction: column;
     padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);

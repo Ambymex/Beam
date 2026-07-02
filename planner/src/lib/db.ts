@@ -55,13 +55,13 @@ const MIGRATION_KEY = 'radial-planner-db-migrated-v1';
 
 // Migration logic from localStorage to Dexie
 export async function migrateFromLocalStorage() {
-  if (typeof localStorage === 'undefined') return;
-  const isMigrated = localStorage.getItem(MIGRATION_KEY);
-  if (isMigrated === 'true') return;
-
-  console.log('[DB] Starting migrations from localStorage to Dexie...');
-
   try {
+    if (typeof localStorage === 'undefined') return;
+    const isMigrated = localStorage.getItem(MIGRATION_KEY);
+    if (isMigrated === 'true') return;
+
+    console.log('[DB] Starting migrations from localStorage to Dexie...');
+
     // 1. Migrate DaysMap
     const daysRaw = localStorage.getItem('radial-planner-days-v1');
     if (daysRaw) {

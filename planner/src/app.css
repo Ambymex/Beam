@@ -7,9 +7,15 @@
   color-scheme: light dark; /* let the browser know we handle both */
 }
 
-/* Global 2.5s crossfade for environmental transitions, mimicking a sunrise */
-body, .bar, .tray-wrap, .glass-card, .glass-overlay, .ring, button, input {
+/* Global 2.5s crossfade for environmental transitions, mimicking a sunrise.
+   Interactive controls are excluded: their state feedback (arming, toggling,
+   hover) must feel instant, so they get a short transition instead. */
+body, .bar, .tray-wrap, .glass-card, .glass-overlay, .ring {
   transition: background-color 2.5s ease, color 2.5s ease, border-color 2.5s ease, box-shadow 2.5s ease;
+}
+
+button, input, select {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 * {

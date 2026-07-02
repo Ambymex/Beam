@@ -14,12 +14,28 @@
   import ThemeDesigner from './lib/ThemeDesigner.svelte';
   import { currentKey, todayKey } from './lib/days';
   import { cascadeMode, appointmentMode, symptomActions } from './lib/daystate';
-  import { theme, toggleTheme, envLabel } from './lib/theme';
+  import { theme, toggleTheme, envLabel, customThemeStore } from './lib/theme';
   import { startEnvTheme, stopEnvTheme, envThemeState, debugThemeOverride } from './lib/envTheme';
   import { onMount, onDestroy } from 'svelte';
+  import { get } from 'svelte/store';
 
   onMount(() => startEnvTheme());
   onDestroy(() => stopEnvTheme());
+
+  function handleDropdownChange(e: Event) {
+    const val = (e.target as HTMLSelectElement).value;
+    if (val === 'custom') {
+      const saved = localStorage.getItem('radial-planner-custom-theme');
+      if (saved) {
+        try {
+          customThemeStore.set(JSON.parse(saved));
+        } catch {}
+      }
+    } else {
+      customThemeStore.set(null);
+    }
+  }
+
 
   let showGallery = false;
   let showCapture = false;
@@ -73,9 +89,9 @@
     >
       {$appointmentMode ? 'Appointment' : 'Block'}
     </button>
-    <!-- Theme Debugger -->
-    <select class="chip theme-debug" bind:value={$debugThemeOverride}>
+    <select class="chip theme-debug" bind:value={$debugThemeOverride} on:change={handleDropdownChange}>
       <option value={null}>Auto Theme</option>
+      <option value="custom">Custom Theme</option>
       <option value="pre_dawn">Pre-Dawn</option>
       <option value="sunrise">Sunrise</option>
       <option value="day">Day</option>
@@ -89,7 +105,6 @@
       <option value="meteor_shower">Meteor Shower</option>
       <option value="lunar_eclipse">Lunar Eclipse</option>
       <option value="solar_eclipse">Solar Eclipse</option>
-      <option value="test">Sandbox (Test)</option>
     </select>
     
     {#if !viewingToday}
@@ -183,21 +198,26 @@
   }
   .chip {
     flex: 0 0 auto;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
     color: var(--text-2);
     border-radius: 999px;
     padding: 5px 12px;
     font-size: 13px;
     cursor: pointer;
+    box-shadow: var(--glass-shadow);
   }
   .chip.back {
     margin-left: auto;
   }
   /* cascade ON = luminous ring (non-colour, §2) */
   .chip.push.on {
-    box-shadow: 0 0 0 1px var(--signal) inset;
-    color: var(--signal);
+    background: var(--signal);
+    color: var(--signal-contrast);
+    box-shadow: 0 0 8px var(--signal-glow);
+    border-color: var(--signal);
   }
   .ring {
     flex: 1;

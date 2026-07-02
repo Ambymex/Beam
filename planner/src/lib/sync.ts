@@ -23,13 +23,17 @@ export const lastSyncError = writable<string>('');
 // A stable per-install id so the server can replace this device's events/sub
 // without a login. Not personal — just a random handle in localStorage.
 function installId(): string {
-  if (typeof localStorage === 'undefined') return 'anon';
-  let id = localStorage.getItem('radial-planner-install-id');
-  if (!id) {
-    id = 'inst_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-    localStorage.setItem('radial-planner-install-id', id);
+  try {
+    if (typeof localStorage === 'undefined') return 'anon';
+    let id = localStorage.getItem('radial-planner-install-id');
+    if (!id) {
+      id = 'inst_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      localStorage.setItem('radial-planner-install-id', id);
+    }
+    return id;
+  } catch {
+    return 'anon';
   }
-  return id;
 }
 
 function headers(): Record<string, string> {

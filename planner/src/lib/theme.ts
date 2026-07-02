@@ -1,35 +1,96 @@
-import { writable, derived } from 'svelte/store';
+import { writable, derived, get } from 'svelte/store';
 import { envThemeState } from './envTheme';
 
 export type ThemeName = 'auto' | 'force-dark' | 'force-light';
 
 const STORAGE_KEY = 'radial-planner-theme-v2';
 
+function loadCustomTheme(): Record<string, string> | null {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    const saved = localStorage.getItem('radial-planner-custom-theme');
+    if (!saved) return null;
+    return JSON.parse(saved);
+  } catch {
+    return null;
+  }
+}
+
 function load(): ThemeName {
-  if (typeof localStorage === 'undefined') return 'auto';
-  const v = localStorage.getItem(STORAGE_KEY);
-  return (v === 'force-dark' || v === 'force-light') ? v : 'auto';
+  try {
+    if (typeof localStorage === 'undefined') return 'auto';
+    const v = localStorage.getItem(STORAGE_KEY);
+    return (v === 'force-dark' || v === 'force-light') ? v : 'auto';
+  } catch {
+    return 'auto';
+  }
 }
 
 export const theme = writable<ThemeName>(load());
 
+export const customThemeStore = writable<Record<string, string> | null>(loadCustomTheme());
+
 // Apply CSS variables to the document root based on env theme or manual override.
 // We subscribe to both the theme preference and the env state.
 let currentMode: 'dark' | 'light' = 'dark'; // for meta tags
+let currentEnvVars: Record<string, string> = {};
+let currentCustom: Record<string, string> | null = loadCustomTheme();
+
+// Must be initialized before the subscriptions below: they call applyTheme
+// synchronously during module evaluation, which reads this list.
+const CUSTOM_KEYS = [
+  '--gradient-start',
+  '--gradient-end',
+  '--ambient-gradient',
+  '--app-bg',
+  '--glass-bg',
+  '--glass-blur',
+  '--surface',
+  '--surface-2',
+  '--surface-3',
+  '--signal',
+  '--signal-glow',
+  '--signal-contrast',
+  '--border',
+  '--border-2',
+  '--hairline',
+  '--text',
+  '--text-2',
+  '--text-dim',
+  '--text-faint'
+];
 
 envThemeState.subscribe(($env) => {
-  applyTheme(load(), $env.cssVars);
+  currentEnvVars = $env.cssVars;
+  applyTheme(load(), currentEnvVars);
 });
 
 theme.subscribe(($theme) => {
-  if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEY, $theme);
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEY, $theme);
+  } catch (e) {
+    console.warn('localStorage write failed:', e);
+  }
+  applyTheme($theme, currentEnvVars);
+});
+
+customThemeStore.subscribe(($custom) => {
+  currentCustom = $custom;
+  try {
+    if (typeof localStorage !== 'undefined') {
+      if ($custom) {
+        localStorage.setItem('radial-planner-custom-theme', JSON.stringify($custom));
+      } else {
+        localStorage.removeItem('radial-planner-custom-theme');
+      }
+    }
+  } catch (e) {
+    console.warn('localStorage write failed:', e);
+  }
   
-  // Need to read the current envVars synchronously without getting stuck
-  let vars = {};
-  const unsub = envThemeState.subscribe(v => vars = v.cssVars);
-  unsub();
-  
-  applyTheme($theme, vars);
+  if (typeof document !== 'undefined') {
+    applyTheme(load(), currentEnvVars);
+  }
 });
 
 function applyTheme(pref: ThemeName, envVars: Record<string, string>) {
@@ -37,20 +98,33 @@ function applyTheme(pref: ThemeName, envVars: Record<string, string>) {
   
   const root = document.documentElement;
   
+  if (!currentCustom) {
+    for (const key of CUSTOM_KEYS) {
+      root.style.removeProperty(key);
+    }
+  }
+  
+  const activeVars: Record<string, string> = currentCustom ? { ...envVars, ...(currentCustom as Record<string, string>) } : envVars;
+  
+  if (currentCustom && currentCustom['--app-bg'] && !currentCustom['--ambient-gradient']) {
+    root.style.removeProperty('--ambient-gradient');
+    delete activeVars['--ambient-gradient'];
+  }
+  
   // If forced, we could apply static vars, but for now we'll just let envTheme run.
   // In a full implementation, force-dark might manually load the night palette.
   // For this v1, the env engine is the source of truth, and we just apply its vars.
-  for (const [key, val] of Object.entries(envVars)) {
-    root.style.setProperty(key, val);
+  for (const [key, val] of Object.entries(activeVars)) {
+    root.style.setProperty(key, val as string | null);
   }
   
-  const isDark = pref === 'force-dark' || (pref === 'auto' && envVars['--app-bg']?.startsWith('#0'));
+  const isDark = pref === 'force-dark' || (pref === 'auto' && activeVars['--app-bg']?.startsWith('#0'));
   currentMode = isDark ? 'dark' : 'light';
   
   root.dataset.theme = currentMode;
   
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', envVars['--app-bg'] ?? '#0d0d10');
+  if (meta) meta.setAttribute('content', activeVars['--app-bg'] ?? '#0d0d10');
   
   const iconLink = document.querySelector('link[rel="icon"]');
   if (iconLink) iconLink.setAttribute('href', currentMode === 'light' ? '/icon-light.svg' : '/icon.svg');
@@ -100,8 +174,8 @@ const VAR_PALETTE: Palette = {
   tickLabel: 'var(--text-faint)',
   tickLabelMarker: 'var(--text-2)',
   hubStroke: 'var(--border)',
-  hubFrom: 'var(--surface-2)',
-  hubTo: 'var(--surface)',
+  hubFrom: 'transparent',
+  hubTo: 'transparent',
 };
 
 export const palette = derived(theme, () => VAR_PALETTE);

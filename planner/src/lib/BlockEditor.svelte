@@ -298,8 +298,10 @@
   .label {
     flex: 1 1 auto;
     min-width: 0;
-    background: var(--surface-2);
-    border: 1px solid var(--border-2);
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
     border-radius: 8px;
     color: var(--text);
     font-size: 14px;
@@ -314,8 +316,10 @@
   }
   .act {
     flex: 0 0 auto;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
     color: var(--text-2);
     border-radius: 8px;
     padding: 7px 10px;
@@ -324,8 +328,10 @@
   }
   /* done-state cue is non-colour: a luminous ring (§2) */
   .act.on {
-    box-shadow: 0 0 0 1px var(--signal) inset;
-    color: var(--signal);
+    background: var(--signal);
+    color: var(--signal-contrast);
+    box-shadow: 0 0 6px var(--signal-glow);
+    border-color: var(--signal);
   }
   .act.del {
     font-size: 13px;

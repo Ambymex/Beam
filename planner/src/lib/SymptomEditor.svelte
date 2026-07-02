@@ -115,15 +115,17 @@
     transform: translateX(-50%);
     width: max-content;
     max-width: 94vw;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
     border-radius: 12px;
     padding: 12px;
     display: flex;
     flex-direction: column;
     gap: 12px;
     z-index: 50;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    box-shadow: var(--glass-shadow);
   }
   .row {
     display: flex;

@@ -5,9 +5,18 @@ import { customVibes } from './customVibes';
 import type { Block } from './blocks';
 
 // Track if Google Calendar sync is active
-export const gcalSyncActive = writable<boolean>(
-  typeof localStorage !== 'undefined' ? localStorage.getItem('radial-planner-gcal-active') === 'true' : false
-);
+function getInitialGCalActive(): boolean {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      return localStorage.getItem('radial-planner-gcal-active') === 'true';
+    }
+  } catch (e) {
+    console.warn('localStorage read failed:', e);
+  }
+  return false;
+}
+
+export const gcalSyncActive = writable<boolean>(getInitialGCalActive());
 
 let tokenClient: any = null;
 
@@ -69,16 +78,20 @@ export function disconnectGCal() {
 
 // Get clean, unexpired access token
 export function getGCalToken(): string | null {
-  if (typeof localStorage === 'undefined') return null;
-  const token = localStorage.getItem('radial-planner-gcal-token');
-  const expiryStr = localStorage.getItem('radial-planner-gcal-expiry');
-  if (!token || !expiryStr) return null;
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    const token = localStorage.getItem('radial-planner-gcal-token');
+    const expiryStr = localStorage.getItem('radial-planner-gcal-expiry');
+    if (!token || !expiryStr) return null;
 
-  const expiry = Number(expiryStr);
-  if (Date.now() >= expiry - 60000) { // expires in less than 1 minute
+    const expiry = Number(expiryStr);
+    if (Date.now() >= expiry - 60000) { // expires in less than 1 minute
+      return null;
+    }
+    return token;
+  } catch {
     return null;
   }
-  return token;
 }
 
 // Helper to convert GCal event time to decimal hours

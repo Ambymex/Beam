@@ -31,12 +31,29 @@ const DEFAULT_STATE: EnvThemeState = {
 };
 
 export const envThemeState = writable<EnvThemeState>(DEFAULT_STATE);
-export const debugThemeOverride = writable<string | null>(null);
+
+function getInitialDebugOverride(): string | null {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    if (localStorage.getItem('radial-planner-custom-theme')) {
+      return 'custom';
+    }
+  } catch (e) {
+    console.warn('localStorage read failed:', e);
+  }
+  return null;
+}
+
+export const debugThemeOverride = writable<string | null>(getInitialDebugOverride());
 
 // City config for weather
 const CITY_KEY = 'radial-planner-weather-city';
 export function setWeatherCity(lat: number, lon: number, name: string) {
-  localStorage.setItem(CITY_KEY, JSON.stringify({ lat, lon, name }));
+  try {
+    localStorage.setItem(CITY_KEY, JSON.stringify({ lat, lon, name }));
+  } catch (e) {
+    console.warn('localStorage write failed:', e);
+  }
   fetchWeather();
 }
 
@@ -55,12 +72,12 @@ async function fetchWithTimeout(url: string, timeoutMs = 2500): Promise<Response
 
 let weatherCache: { isStorm: boolean, isHeatwave: boolean, fetchTime: number } | null = null;
 async function fetchWeather() {
-  if (typeof localStorage === 'undefined') return;
-  const raw = localStorage.getItem(CITY_KEY);
-  if (!raw) return;
-  const { lat, lon } = JSON.parse(raw);
-  
   try {
+    if (typeof localStorage === 'undefined') return;
+    const raw = localStorage.getItem(CITY_KEY);
+    if (!raw) return;
+    const { lat, lon } = JSON.parse(raw);
+    
     const res = await fetchWithTimeout(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code`);
     const data = await res.json();
     const temp = data.current.temperature_2m;
@@ -74,7 +91,7 @@ async function fetchWeather() {
     weatherCache = { isStorm, isHeatwave, fetchTime: Date.now() };
     updateTheme();
   } catch {
-    // Ignore weather failure
+    // Ignore weather or localStorage failure
   }
 }
 
@@ -188,7 +205,7 @@ export function updateTheme() {
     }
   }
   
-  const vars = { ...PALETTES.common, ...PALETTES[activePal] };
+  const vars = { ...PALETTES.common, ...(PALETTES[activePal] || {}) };
   if (vars['--gradient-start'] && vars['--gradient-end']) {
     vars['--ambient-gradient'] = `linear-gradient(135deg, ${vars['--gradient-start']} 0%, ${vars['--gradient-end']} 100%)`;
   }

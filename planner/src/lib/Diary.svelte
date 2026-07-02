@@ -137,7 +137,7 @@
     position: fixed;
     inset: 0;
     z-index: 20;
-    background: var(--surface);
+    background: var(--ambient-gradient, var(--app-bg));
     display: flex;
     flex-direction: column;
     padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
@@ -151,7 +151,6 @@
     font-weight: 600;
     color: var(--text);
     border-bottom: 1px solid var(--hairline);
-    background: var(--surface-2);
   }
   .title-wrap {
     display: flex;

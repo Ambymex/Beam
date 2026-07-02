@@ -62,9 +62,20 @@
     }
   }
 
+  function safeGetItem(key: string, defaultVal = ''): string {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        return localStorage.getItem(key) || defaultVal;
+      }
+    } catch (e) {
+      console.warn('localStorage read failed:', key, e);
+    }
+    return defaultVal;
+  }
+
   // OpenRouter direct settings
-  let openRouterKey = localStorage.getItem('radial-planner-openrouter-key') || import.meta.env.VITE_OPENROUTER_KEY || '';
-  let selectedModel = localStorage.getItem('radial-planner-openrouter-model') || import.meta.env.VITE_OPENROUTER_MODEL || 'google/gemma-2-27b-it';
+  let openRouterKey = safeGetItem('radial-planner-openrouter-key', import.meta.env.VITE_OPENROUTER_KEY || '');
+  let selectedModel = safeGetItem('radial-planner-openrouter-model', import.meta.env.VITE_OPENROUTER_MODEL || 'google/gemma-2-27b-it');
   let showSettings = false;
   let debugActions = '';
   
@@ -73,13 +84,13 @@
   let selectedImageName = '';
 
   // Pinecone Vector Memory settings
-  let pineconeKey = localStorage.getItem('radial-planner-pinecone-key') || '';
-  let pineconeHost = localStorage.getItem('radial-planner-pinecone-host') || '';
-  let enableVault = localStorage.getItem('radial-planner-vault-enabled') === 'true';
+  let pineconeKey = safeGetItem('radial-planner-pinecone-key');
+  let pineconeHost = safeGetItem('radial-planner-pinecone-host');
+  let enableVault = safeGetItem('radial-planner-vault-enabled') === 'true';
   let isEmbedding = false;
 
   // Tavily Search API Settings
-  let tavilyKey = localStorage.getItem('radial-planner-tavily-key') || '';
+  let tavilyKey = safeGetItem('radial-planner-tavily-key');
 
   function triggerFileSelect() {
     if (fileInput) fileInput.click();
@@ -116,7 +127,7 @@
 
   onMount(() => {
     // Load chat history from localStorage
-    const saved = localStorage.getItem('radial-planner-chat-v1');
+    const saved = safeGetItem('radial-planner-chat-v1');
     if (saved) {
       try {
         messages = JSON.parse(saved);
@@ -126,7 +137,7 @@
     }
     
     // Load last debug JSON payload
-    debugActions = localStorage.getItem('radial-planner-chat-debug-v1') || '';
+    debugActions = safeGetItem('radial-planner-chat-debug-v1');
     
     // Fetch latest active models from OpenRouter dynamically
     fetch('https://openrouter.ai/api/v1/models')
@@ -183,7 +194,11 @@
     if (messages.length > 100) {
       messages = messages.slice(messages.length - 100);
     }
-    localStorage.setItem('radial-planner-chat-v1', JSON.stringify(messages));
+    try {
+      localStorage.setItem('radial-planner-chat-v1', JSON.stringify(messages));
+    } catch (e) {
+      console.warn('localStorage write failed:', e);
+    }
     scrollToBottom();
   }
 
@@ -196,12 +211,16 @@
   }
 
   function saveSettings() {
-    localStorage.setItem('radial-planner-openrouter-key', openRouterKey.trim());
-    localStorage.setItem('radial-planner-openrouter-model', selectedModel);
-    localStorage.setItem('radial-planner-pinecone-key', pineconeKey.trim());
-    localStorage.setItem('radial-planner-pinecone-host', pineconeHost.trim());
-    localStorage.setItem('radial-planner-vault-enabled', enableVault ? 'true' : 'false');
-    localStorage.setItem('radial-planner-tavily-key', tavilyKey.trim());
+    try {
+      localStorage.setItem('radial-planner-openrouter-key', openRouterKey.trim());
+      localStorage.setItem('radial-planner-openrouter-model', selectedModel);
+      localStorage.setItem('radial-planner-pinecone-key', pineconeKey.trim());
+      localStorage.setItem('radial-planner-pinecone-host', pineconeHost.trim());
+      localStorage.setItem('radial-planner-vault-enabled', enableVault ? 'true' : 'false');
+      localStorage.setItem('radial-planner-tavily-key', tavilyKey.trim());
+    } catch (e) {
+      console.warn('localStorage write failed:', e);
+    }
     showSettings = false;
   }
 
@@ -416,7 +435,7 @@ When you return a "web_search" action, let the user know in your conversational 
       return;
     }
 
-    const lastHeartbeatStr = localStorage.getItem('radial-planner-last-heartbeat');
+    const lastHeartbeatStr = safeGetItem('radial-planner-last-heartbeat');
     const lastTime = lastHeartbeatStr ? Number(lastHeartbeatStr) : 0;
     const elapsedMins = (Date.now() - lastTime) / 60000;
 
@@ -425,7 +444,11 @@ When you return a "web_search" action, let the user know in your conversational 
       return;
     }
 
-    localStorage.setItem('radial-planner-last-heartbeat', String(Date.now()));
+    try {
+      localStorage.setItem('radial-planner-last-heartbeat', String(Date.now()));
+    } catch (e) {
+      console.warn('localStorage write failed:', e);
+    }
     console.log('[Heartbeat] Running proactive background planner check...');
 
     try {
@@ -872,8 +895,11 @@ Do NOT speak or warn unless it is highly useful. Let them plan in peace.`;
       };
 
       debugActions = JSON.stringify(parsed, null, 2);
-      console.log('[Companion] Received API Payload:', parsed);
-      localStorage.setItem('radial-planner-chat-debug-v1', debugActions);
+      try {
+        localStorage.setItem('radial-planner-chat-debug-v1', debugActions);
+      } catch (e) {
+        console.warn('localStorage write failed:', e);
+      }
 
       messages = [...messages, assistantMsg];
       saveChat();
@@ -1457,7 +1483,7 @@ Do NOT speak or warn unless it is highly useful. Let them plan in peace.`;
     position: fixed;
     inset: 0;
     z-index: 20;
-    background: var(--surface);
+    background: var(--ambient-gradient, var(--app-bg));
     display: flex;
     flex-direction: column;
     padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
