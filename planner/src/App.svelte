@@ -16,11 +16,18 @@
   import { cascadeMode, appointmentMode, symptomActions } from './lib/daystate';
   import { theme, toggleTheme, envLabel, customThemeStore } from './lib/theme';
   import { startEnvTheme, stopEnvTheme, envThemeState, debugThemeOverride } from './lib/envTheme';
+  import { startGlucose, stopGlucose } from './lib/glucose';
   import { onMount, onDestroy } from 'svelte';
   import { get } from 'svelte/store';
 
-  onMount(() => startEnvTheme());
-  onDestroy(() => stopEnvTheme());
+  onMount(() => {
+    startEnvTheme();
+    startGlucose();
+  });
+  onDestroy(() => {
+    stopEnvTheme();
+    stopGlucose();
+  });
 
   function handleDropdownChange(e: Event) {
     const val = (e.target as HTMLSelectElement).value;

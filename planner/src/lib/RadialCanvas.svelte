@@ -35,6 +35,16 @@
   import { selectedBlockStore, blockActions, cascadeMode, appointmentMode, selectedSymptomStore, symptomActions } from './daystate';
   import { computeMove, computeResizeStart, computeResizeCore, angDiffHours } from './cascade';
   import { palette, theme, moonPhaseIcon, envLabel } from './theme';
+  import {
+    todayGlucose,
+    currentGlucose,
+    beamConfig,
+    mgdlToMmol,
+    formatGlucose,
+    glucoseForDay,
+    TREND_ARROWS,
+    type GlucosePoint,
+  } from './glucose';
 
   // Themed palette for the ring's structural marks (the signal inverts on
   // light, per §2). Vibe block fills are untouched — they're the user's data.
@@ -60,6 +70,92 @@
     const b = polar(C, C, HUB_RADIUS, nowTickAngle);
     return { x1: a.x, y1: a.y, x2: b.x, y2: b.y };
   })();
+
+  // ----- CGM backdrop landscape: glucose as terrain UNDER the day. Value maps
+  // to radius (higher sugar = taller terrain), time to angle like everything
+  // else. In-range is pure luminosity; only out-of-range excursions borrow the
+  // theme's signal colour. -----
+  const GLU_MIN_MMOL = 2;
+  const GLU_MAX_MMOL = 16;
+  const GLU_R0 = HUB_RADIUS + 6; // terrain floor, just clear of the hub
+  const GLU_R1 = RIM_RADIUS - 4; // ceiling, just inside the rim
+  const GLU_GAP_MS = 15 * 60 * 1000; // >15 min without data = break the line
+
+  let glucosePoints: GlucosePoint[] = [];
+  $: if (viewingToday) glucosePoints = $todayGlucose;
+  $: if (!viewingToday) loadPastGlucose($currentKey);
+  function loadPastGlucose(key: string) {
+    glucoseForDay(key).then((pts) => {
+      // guard against the day changing again while the query ran
+      if (!viewingToday && key === $currentKey) glucosePoints = pts;
+    });
+  }
+
+  function gluRadius(mgdl: number): number {
+    const mmol = Math.min(GLU_MAX_MMOL, Math.max(GLU_MIN_MMOL, mgdlToMmol(mgdl)));
+    return GLU_R0 + ((mmol - GLU_MIN_MMOL) / (GLU_MAX_MMOL - GLU_MIN_MMOL)) * (GLU_R1 - GLU_R0);
+  }
+  function gluAngle(ts: number): number {
+    const d = new Date(ts);
+    return hoursToAngle(d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600);
+  }
+  function polyline(pts: { a: number; r: number }[]): string {
+    return pts
+      .map((p, i) => {
+        const pt = polar(C, C, p.r, p.a);
+        return `${i ? 'L' : 'M'} ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`;
+      })
+      .join(' ');
+  }
+  function buildGlucosePaths(
+    points: GlucosePoint[],
+    lowMmol: number,
+    highMmol: number,
+  ): { areas: string[]; lines: string[]; hot: string[] } {
+    const out = { areas: [] as string[], lines: [] as string[], hot: [] as string[] };
+    if (points.length < 2) return out;
+    const segs: GlucosePoint[][] = [];
+    let cur: GlucosePoint[] = [points[0]];
+    for (let i = 1; i < points.length; i++) {
+      if (points[i].ts - points[i - 1].ts > GLU_GAP_MS) {
+        if (cur.length > 1) segs.push(cur);
+        cur = [];
+      }
+      cur.push(points[i]);
+    }
+    if (cur.length > 1) segs.push(cur);
+
+    for (const seg of segs) {
+      const pts = seg.map((p) => ({
+        a: gluAngle(p.ts),
+        r: gluRadius(p.mgdl),
+        mmol: mgdlToMmol(p.mgdl),
+      }));
+      const line = polyline(pts);
+      out.lines.push(line);
+      // close the area down to the terrain floor and back along its arc
+      const endBase = polar(C, C, GLU_R0, pts[pts.length - 1].a);
+      const startBase = polar(C, C, GLU_R0, pts[0].a);
+      const largeArc = pts[pts.length - 1].a - pts[0].a > 180 ? 1 : 0;
+      out.areas.push(
+        `${line} L ${endBase.x.toFixed(2)} ${endBase.y.toFixed(2)} ` +
+          `A ${GLU_R0} ${GLU_R0} 0 ${largeArc} 0 ${startBase.x.toFixed(2)} ${startBase.y.toFixed(2)} Z`,
+      );
+      // out-of-range runs get the signal stroke
+      let run: { a: number; r: number }[] = [];
+      for (const p of pts) {
+        if (p.mmol < lowMmol || p.mmol > highMmol) {
+          run.push(p);
+        } else {
+          if (run.length > 1) out.hot.push(polyline(run));
+          run = [];
+        }
+      }
+      if (run.length > 1) out.hot.push(polyline(run));
+    }
+    return out;
+  }
+  $: glucosePaths = buildGlucosePaths(glucosePoints, $beamConfig.lowMmol, $beamConfig.highMmol);
 
   const dateFmt = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
   $: hubDate = dateFmt.format(viewingToday ? now : parseKeyLocal($currentKey));
@@ -755,6 +851,19 @@
   <!-- backdrop disc -->
   <circle cx={C} cy={C} r={RIM_RADIUS} fill={pal.ringDisc} stroke={pal.ringStroke} stroke-width="1" />
 
+  <!-- CGM landscape (glucose-as-terrain): a faint luminous curve under the
+       whole day. Hue stays reserved for vibes — only out-of-range excursions
+       borrow the signal colour. -->
+  {#each glucosePaths.areas as d}
+    <path {d} fill="#ffffff" opacity="0.05" />
+  {/each}
+  {#each glucosePaths.lines as d}
+    <path {d} fill="none" stroke="#ffffff" stroke-width="1.1" opacity="0.3" stroke-linejoin="round" />
+  {/each}
+  {#each glucosePaths.hot as d}
+    <path {d} fill="none" stroke={pal.signal} stroke-width="1.6" opacity="0.75" stroke-linejoin="round" filter="url(#glow)" />
+  {/each}
+
   <!-- consumed "now" sweep (§14): the day-so-far as a FROSTED-GLASS pane, not a
        deeper grey. A milky white veil + frost speckle = luminosity/material,
        never a hue or a heavier  <!-- now wedge -->
@@ -926,6 +1035,22 @@
     <text x={C} y={C + 28} text-anchor="middle" font-size="8" fill={pal.textDim} font-family="var(--font-primary)" letter-spacing="0.5">{$envLabel}</text>
   {:else}
     <text x={C} y={C + 28} text-anchor="middle" font-size="7" fill={pal.textDim} font-family="var(--font-primary)" letter-spacing="0.5">past day</text>
+  {/if}
+
+  <!-- live CGM reading: value + trend under the env label. Stale readings dim;
+       out-of-range readings take the signal colour. -->
+  {#if viewingToday && $currentGlucose}
+    {@const stale = $currentGlucose.minutesOld > 15}
+    <text
+      x={C}
+      y={C + 40}
+      text-anchor="middle"
+      font-size="9.5"
+      font-family="var(--font-primary)"
+      font-weight="600"
+      fill={$currentGlucose.isHigh || $currentGlucose.isLow ? pal.signal : pal.textPrimary}
+      opacity={stale ? 0.4 : 0.9}
+    >{formatGlucose($currentGlucose.mgdl, $beamConfig.unit)} {TREND_ARROWS[$currentGlucose.trend] ?? ''}</text>
   {/if}
 </svg>
 

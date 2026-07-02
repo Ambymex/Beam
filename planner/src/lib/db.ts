@@ -15,6 +15,8 @@ export class RadialPlannerDB extends Dexie {
 
   customVibes!: Table<CustomVibe, string>;
   customCategories!: Table<CustomCategory, string>;
+  // CGM readings from the Beam bridge: one row per measurement, keyed by epoch-ms.
+  glucose!: Table<{ ts: number; mgdl: number }, number>;
   scratchpad!: Table<{ id: string; content: string; updatedAt: Date }, string>;
   notifications!: Table<{
     id: string;
@@ -44,6 +46,14 @@ export class RadialPlannerDB extends Dexie {
       customCategories: 'id',
       scratchpad: 'id',
       notifications: 'id, date, sent',
+    });
+    this.version(4).stores({
+      days: 'date',
+      customVibes: 'id, categoryId',
+      customCategories: 'id',
+      scratchpad: 'id',
+      notifications: 'id, date, sent',
+      glucose: 'ts',
     });
   }
 }

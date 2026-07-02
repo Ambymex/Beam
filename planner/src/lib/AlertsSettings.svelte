@@ -17,6 +17,7 @@
   import { syncConfigured, syncToServer, lastSyncError } from './sync';
   import { gcalSyncActive, connectGCal, disconnectGCal } from './gcal';
   import { exportBackup, importBackup } from './backup';
+  import { getBeamConfig, saveBeamConfig, testBeam, formatGlucose, TREND_ARROWS } from './glucose';
 
   const dispatch = createEventDispatcher<{ close: void }>();
   const standalone = isStandalone();
@@ -43,6 +44,38 @@
   }
   async function test() {
     testFired = await sendTestNotification();
+  }
+
+  // ----- Beam CGM bridge config -----
+  const beamCfg = getBeamConfig();
+  let beamUrl = beamCfg.url;
+  let beamToken = beamCfg.token;
+  let beamUnit: 'mmol' | 'mgdl' = beamCfg.unit;
+  let beamLow = beamCfg.lowMmol;
+  let beamHigh = beamCfg.highMmol;
+  let beamStatus = '';
+
+  function saveBeam() {
+    saveBeamConfig({
+      url: beamUrl,
+      token: beamToken,
+      unit: beamUnit,
+      lowMmol: beamLow,
+      highMmol: beamHigh,
+    });
+    beamStatus = beamUrl && beamToken ? 'Saved ✓ — polling started' : 'Saved (disabled: url/token empty)';
+  }
+
+  async function handleTestBeam() {
+    beamStatus = 'Testing…';
+    saveBeamConfig({ url: beamUrl, token: beamToken, unit: beamUnit, lowMmol: beamLow, highMmol: beamHigh });
+    try {
+      const r = await testBeam();
+      const unitLabel = beamUnit === 'mmol' ? 'mmol/L' : 'mg/dL';
+      beamStatus = `Connected ✓ — ${formatGlucose(r.mgdl, beamUnit)} ${unitLabel} ${TREND_ARROWS[r.trend] ?? ''} (${r.minutesOld} min ago)`;
+    } catch (e: any) {
+      beamStatus = `Connection failed: ${e?.message ?? e}`;
+    }
   }
 
   let textareaEl: HTMLTextAreaElement;
@@ -196,6 +229,58 @@
         <button class="secondary gcal-btn" on:click={disconnectGCal}>
           Disconnect Google Calendar
         </button>
+      {/if}
+    </div>
+
+    <!-- Beam CGM section -->
+    <hr class="divider" />
+
+    <div class="gcal-section">
+      <h3>Glucose (Beam CGM)</h3>
+      <p class="desc">
+        Live blood glucose from your Libre sensor via the Beam bridge. Readings
+        accumulate locally to paint the day's curve behind the ring.
+      </p>
+
+      <label class="desc" for="beam-url" style="display:block; margin-bottom:2px;">Beam URL</label>
+      <input
+        id="beam-url"
+        type="url"
+        bind:value={beamUrl}
+        placeholder="https://beam-glucose.fly.dev"
+        style="width:100%; box-sizing:border-box; background: var(--surface-2); color: var(--text); border: 1px solid var(--border-2); border-radius: 6px; padding: 8px; font-size: 13px; margin-bottom: 8px;"
+      />
+      <label class="desc" for="beam-token" style="display:block; margin-bottom:2px;">API token</label>
+      <input
+        id="beam-token"
+        type="password"
+        bind:value={beamToken}
+        placeholder="the API_TOKEN Fly secret"
+        style="width:100%; box-sizing:border-box; background: var(--surface-2); color: var(--text); border: 1px solid var(--border-2); border-radius: 6px; padding: 8px; font-size: 13px; margin-bottom: 8px;"
+      />
+
+      <div class="row">
+        <span class="lbl">Units</span>
+        <span>
+          <label style="margin-right:10px; font-size:13px;"><input type="radio" bind:group={beamUnit} value="mmol" /> mmol/L</label>
+          <label style="font-size:13px;"><input type="radio" bind:group={beamUnit} value="mgdl" /> mg/dL</label>
+        </span>
+      </div>
+      <div class="row">
+        <span class="lbl">Target range (mmol/L)</span>
+        <span>
+          <input type="number" step="0.1" min="2" max="8" bind:value={beamLow} style="width:52px; background: var(--surface-2); color: var(--text); border: 1px solid var(--border-2); border-radius: 6px; padding: 4px 6px;" aria-label="Low threshold" />
+          –
+          <input type="number" step="0.1" min="6" max="20" bind:value={beamHigh} style="width:52px; background: var(--surface-2); color: var(--text); border: 1px solid var(--border-2); border-radius: 6px; padding: 4px 6px;" aria-label="High threshold" />
+        </span>
+      </div>
+
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <button class="primary" style="flex:1;" on:click={saveBeam}>Save</button>
+        <button class="secondary" style="flex:1;" on:click={handleTestBeam}>Test connection</button>
+      </div>
+      {#if beamStatus}
+        <p class="ok" style="word-break: break-word;">{beamStatus}</p>
       {/if}
     </div>
 

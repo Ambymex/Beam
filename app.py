@@ -2,6 +2,7 @@ import os
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 
 from librelinkup import LibreLinkUp
 
@@ -19,6 +20,16 @@ TREND = {
 }
 
 app = FastAPI(title="Beam", description="Libre 2 to Gemini bridge")
+
+# The radial planner PWA reads glucose straight from the browser; the bearer
+# token (not the origin) is the actual gate, so a wildcard origin is fine here.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET"],
+    allow_headers=["Authorization"],
+)
+
 client = LibreLinkUp(EMAIL, PASSWORD)
 
 

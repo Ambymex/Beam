@@ -6,6 +6,7 @@
 
   import { onMount, createEventDispatcher } from 'svelte';
   import { days, currentKey, todayKey } from './days';
+  import { glucoseContextSummary } from './glucose';
   import { VIBES } from './vibes';
   import { customVibes } from './customVibes';
   import { selectedBlockStore } from './daystate';
@@ -308,6 +309,10 @@ ${diaryDesc}
 HISTORICAL DIARY REFLECTIONS (Last 7 days. Use this to spot patterns or check past entries):
 ${pastDiaries || 'No past reflections logged yet.'}
 
+${glucoseContextSummary() ? `---
+LIVE BLOOD GLUCOSE (from the user's Libre CGM via the Beam bridge — read-only context; useful when discussing energy, food, symptoms, or planning meals):
+${glucoseContextSummary()}
+` : ''}
 ---
 CATEGORIES DICTIONARY (you can use category IDs like "cat:housework" for vibeId to match whole types of work):
 ${allCats.map(c => `- [Category ID: ${c.id}] Name: "${c.label}"`).join('\n')}
