@@ -11,7 +11,7 @@ DEFAULT_BASE = "https://api.libreview.io"
 # bump `version` to whatever the current LibreLinkUp iOS release reports.
 HEADERS = {
     "product": "llu.ios",
-    "version": "4.7.0",
+    "version": "4.16.0",
     "accept": "application/json",
     "content-type": "application/json",
     "accept-encoding": "gzip",
@@ -73,7 +73,13 @@ class LibreLinkUp:
                     async with self._lock:
                         await self._login()
                     continue
-                r.raise_for_status()
+                if r.status_code >= 400:
+                    # Surface Abbott's response body — a bare status code hides
+                    # the difference between version-gating, bot-blocking, and
+                    # a revoked follower.
+                    raise LibreLinkUpError(
+                        f"LibreLinkUp {r.status_code} on {path}: {r.text[:300]}"
+                    )
                 return r.json()
 
     async def connections(self) -> list[dict]:

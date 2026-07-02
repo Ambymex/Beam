@@ -1,10 +1,12 @@
 import os
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, Header, HTTPException, Query
+import httpx
+from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
-from librelinkup import LibreLinkUp
+from librelinkup import LibreLinkUp, LibreLinkUpError
 
 EMAIL = os.environ["LLU_EMAIL"]
 PASSWORD = os.environ["LLU_PASSWORD"]
@@ -31,6 +33,19 @@ app.add_middleware(
 )
 
 client = LibreLinkUp(EMAIL, PASSWORD)
+
+
+# Upstream (Abbott) failures must come back as JSON 502s, not naked 500s:
+# unhandled exceptions skip the CORS middleware, and a CORS-less error is
+# masked by browsers as a generic "Load failed" — undebuggable from the client.
+@app.exception_handler(LibreLinkUpError)
+async def librelinkup_error(request: Request, exc: LibreLinkUpError):
+    return JSONResponse(status_code=502, content={"detail": str(exc)})
+
+
+@app.exception_handler(httpx.HTTPError)
+async def upstream_http_error(request: Request, exc: httpx.HTTPError):
+    return JSONResponse(status_code=502, content={"detail": f"upstream error: {exc}"})
 
 
 def require_token(authorization: str | None) -> None:

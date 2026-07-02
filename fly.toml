@@ -1,4 +1,4 @@
-app = "beam-glucose"
+app = "beam-glucose-ash"
 primary_region = "iad"
 
 [build]
