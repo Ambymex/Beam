@@ -55,7 +55,7 @@
   }
 </script>
 
-<main class:meteor-shower={$envThemeState.isMeteorShower} class:storm-mode={$envThemeState.isStorm} class:aurora-mode={$envThemeState.isAurora} class:stars-mode={$envThemeState.solarPhase === 'pre_dawn' || $envThemeState.solarPhase === 'twilight' || $envThemeState.solarPhase === 'night'}>
+<main class:meteor-shower={$envThemeState.isMeteorShower} class:storm-mode={$envThemeState.isStorm} class:aurora-mode={$envThemeState.isAurora} class:stars-mode={$envThemeState.isStars}>
   <header class="bar glass-panel">
     <button class="chip" on:click={onAddSymptom} aria-label="Log symptom now">Symptom</button>
     <button class="chip" on:click={() => (showGallery = true)} aria-label="Open day gallery">Days</button>

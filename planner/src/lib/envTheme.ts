@@ -15,6 +15,7 @@ export interface EnvThemeState {
   isStorm: boolean;
   isMeteorShower: boolean;
   isAurora: boolean;
+  isStars: boolean;
 }
 
 const DEFAULT_STATE: EnvThemeState = {
@@ -28,6 +29,7 @@ const DEFAULT_STATE: EnvThemeState = {
   isStorm: false,
   isMeteorShower: false,
   isAurora: false,
+  isStars: false,
 };
 
 export const envThemeState = writable<EnvThemeState>(DEFAULT_STATE);
@@ -210,6 +212,8 @@ export function updateTheme() {
     vars['--ambient-gradient'] = `linear-gradient(135deg, ${vars['--gradient-start']} 0%, ${vars['--gradient-end']} 100%)`;
   }
   
+  const isStars = activePal === 'pre_dawn' || activePal === 'twilight' || activePal === 'night_new' || activePal === 'night_full';
+  
   envThemeState.set({
     themeName,
     solarPhase,
@@ -220,7 +224,8 @@ export function updateTheme() {
     cssVars: vars,
     isStorm,
     isMeteorShower,
-    isAurora
+    isAurora,
+    isStars
   });
 }
 
