@@ -241,7 +241,7 @@
 {:else}
   <!-- Add block bar -->
   <div class="editor add-bar">
-    <span class="dot" style="background:{$armedVibe?.hex ?? '#6a6a78'}"></span>
+    <span class="dot" style="background: {$armedVibe ? $armedVibe.hex : 'transparent'}; border: 1.5px solid {$armedVibe ? $armedVibe.hex : 'var(--border)'};"></span>
     <button class="act now-btn" on:click={addNow} title="Start task now using armed vibe">
       Start now
     </button>
@@ -293,7 +293,7 @@
     height: 14px;
     border-radius: 50%;
     flex: 0 0 auto;
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25);
+    box-sizing: border-box;
   }
   .label {
     flex: 1 1 auto;
@@ -456,10 +456,34 @@
     user-select: none;
   }
   .appt-check input[type='checkbox'] {
+    -webkit-appearance: none;
+    appearance: none;
     cursor: pointer;
     width: 15px;
     height: 15px;
-    accent-color: var(--signal);
+    border: 1.5px solid var(--border);
+    border-radius: 4px;
+    background: transparent;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    outline: none;
+    transition: border-color 0.12s, background-color 0.12s;
+  }
+  .appt-check input[type='checkbox']:checked {
+    border-color: var(--signal);
+    background-color: var(--signal);
+  }
+  .appt-check input[type='checkbox']:checked::after {
+    content: '';
+    position: absolute;
+    width: 4px;
+    height: 8px;
+    border: solid var(--signal-contrast, #ffffff);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+    top: 1px;
   }
 
   /* Color dot button and swatches grid */
