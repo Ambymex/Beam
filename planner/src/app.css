@@ -74,41 +74,35 @@ body {
   -webkit-backdrop-filter: blur(10px);
 }
 
-/* Meteor Shower Animation */
-@keyframes shooting-star {
-  0% { transform: translateX(0) translateY(0) rotate(45deg); opacity: 1; }
-  100% { transform: translateX(-500px) translateY(500px) rotate(45deg); opacity: 0; }
+/* Main Layout relative context for absolute canopies */
+main {
+  position: relative;
 }
 
-.meteor-shower::before {
-  content: '';
+/* Animation Canopies */
+.stars-canopy,
+.meteor-canopy,
+.aurora-canopy {
   position: absolute;
-  top: -50px;
-  right: -50px;
-  width: 2px;
-  height: 50px;
-  background: linear-gradient(to bottom, rgba(255,255,255,0), #fff);
-  animation: shooting-star 3s linear infinite;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+/* Stars Canopy (twinkling star clusters) */
+.stars-canopy {
   opacity: 0;
-  z-index: 0;
-  pointer-events: none;
+  transition: opacity 2s ease-in-out;
 }
-
-/* Aurora animation */
-@keyframes aurora-wave {
-  0% { transform: translateY(0) scale(1) rotate(0deg); opacity: 0.3; }
-  50% { transform: translateY(-30px) scale(1.1) rotate(5deg); opacity: 0.6; }
-  100% { transform: translateY(0) scale(1) rotate(0deg); opacity: 0.3; }
+.stars-canopy.active {
+  opacity: 1;
 }
-
-.aurora-mode::before {
+.stars-canopy::before,
+.stars-canopy::after {
   content: '';
   position: absolute;
-  top: -10%; left: -10%; width: 120%; height: 50%;
-  background: radial-gradient(ellipse at top, rgba(0,255,204,0.15) 0%, rgba(0,38,30,0) 70%);
-  animation: aurora-wave 12s ease-in-out infinite;
-  pointer-events: none;
-  z-index: 0;
+  inset: 0;
 }
 
 /* Twinkling Stars Animation */
@@ -121,19 +115,7 @@ body {
   50% { opacity: 0.25; }
 }
 
-.stars-mode {
-  position: relative;
-}
-
-.stars-mode::before, .stars-mode::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.stars-mode::before {
+.stars-canopy::before {
   background-image: 
     radial-gradient(1px 1px at 25px 35px, #ffffff, transparent),
     radial-gradient(1.5px 1.5px at 150px 80px, rgba(255,255,255,0.95), transparent),
@@ -156,7 +138,7 @@ body {
   animation: twinkle 5s infinite ease-in-out;
 }
 
-.stars-mode::after {
+.stars-canopy::after {
   background-image: 
     radial-gradient(1.5px 1.5px at 75px 145px, rgba(255,255,255,0.9), transparent),
     radial-gradient(1px 1px at 230px 50px, #ffffff, transparent),
@@ -176,4 +158,50 @@ body {
     radial-gradient(1px 1px at 1810px 150px, #ffffff, transparent);
   background-size: 480px 480px;
   animation: twinkle-delayed 7s infinite ease-in-out;
+}
+
+/* Meteor Shower Animation */
+@keyframes shooting-star {
+  0% { transform: translateX(0) translateY(0) rotate(45deg); opacity: 1; }
+  100% { transform: translateX(-500px) translateY(500px) rotate(45deg); opacity: 0; }
+}
+
+.meteor-canopy {
+  opacity: 0;
+  transition: opacity 1s ease-in-out;
+}
+.meteor-canopy.active {
+  opacity: 1;
+}
+.meteor-canopy::before {
+  content: '';
+  position: absolute;
+  top: -50px;
+  right: -50px;
+  width: 2px;
+  height: 50px;
+  background: linear-gradient(to bottom, rgba(255,255,255,0), #ffffff);
+  animation: shooting-star 3s linear infinite;
+}
+
+/* Aurora animation */
+@keyframes aurora-wave {
+  0% { transform: translateY(0) scale(1) rotate(0deg); opacity: 0.3; }
+  50% { transform: translateY(-30px) scale(1.1) rotate(5deg); opacity: 0.6; }
+  100% { transform: translateY(0) scale(1) rotate(0deg); opacity: 0.3; }
+}
+
+.aurora-canopy {
+  opacity: 0;
+  transition: opacity 2.5s ease-in-out;
+}
+.aurora-canopy.active {
+  opacity: 1;
+}
+.aurora-canopy::before {
+  content: '';
+  position: absolute;
+  top: -10%; left: -10%; width: 120%; height: 50%;
+  background: radial-gradient(ellipse at top, rgba(0,255,204,0.15) 0%, rgba(0,38,30,0) 70%);
+  animation: aurora-wave 12s ease-in-out infinite;
 }

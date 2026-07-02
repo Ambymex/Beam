@@ -212,7 +212,13 @@ export function updateTheme() {
     vars['--ambient-gradient'] = `linear-gradient(135deg, ${vars['--gradient-start']} 0%, ${vars['--gradient-end']} 100%)`;
   }
   
-  const isStars = activePal === 'pre_dawn' || activePal === 'twilight' || activePal === 'night_new' || activePal === 'night_full';
+  const isStars = activePal === 'pre_dawn' || 
+                  activePal === 'twilight' || 
+                  activePal === 'night_new' || 
+                  activePal === 'night_full' || 
+                  activePal === 'solar_eclipse' || 
+                  activePal === 'lunar_eclipse' || 
+                  activePal === 'aurora';
   
   envThemeState.set({
     themeName,
