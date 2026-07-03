@@ -4,7 +4,7 @@
   // drag can't: cycle length (varies) and "today = day 1". A live preview dial
   // sits on top so every change is felt positionally, never as a bare number.
   import { createEventDispatcher } from 'svelte';
-  import { cycle, setLength, startToday, nudgePosition, MIN_LENGTH, MAX_LENGTH } from './cycle';
+  import { cycle, setLength, startToday, nudgePosition, dialDebug, MIN_LENGTH, MAX_LENGTH } from './cycle';
   import CycleDial from './CycleDial.svelte';
 
   const dispatch = createEventDispatcher<{ close: void }>();
@@ -21,6 +21,8 @@
       <CycleDial size={200} interactive={true} />
     </div>
     <p class="hint">Drag the marker to set where you are.</p>
+    <!-- TEMP: on-device trace of the dial's pointer pipeline (iOS drag bug) -->
+    <p class="hint debug">{$dialDebug}</p>
 
     <div class="row">
       <span class="lbl">Cycle length</span>
@@ -86,6 +88,13 @@
     margin: 0;
     font-size: 12px;
     color: var(--text-faint);
+  }
+  .hint.debug {
+    font-family: monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    word-break: break-word;
+    text-align: center;
   }
   .row {
     width: 100%;

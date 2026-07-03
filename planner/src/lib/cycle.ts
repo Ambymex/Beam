@@ -45,6 +45,11 @@ function load(): CycleState {
 
 export const cycle = writable<CycleState>(load());
 
+// TEMP DIAGNOSTIC (remove once the iOS dial-drag bug is confirmed fixed):
+// live trace of the dial's pointer pipeline, rendered in CycleEditor so the
+// failure point is visible on-device without a console.
+export const dialDebug = writable<string>('debug: waiting for touch…');
+
 cycle.subscribe((value) => {
   if (typeof localStorage === 'undefined') return;
   try {

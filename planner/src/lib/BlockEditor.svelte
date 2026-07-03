@@ -181,7 +181,7 @@
 {#if sb}
   <div class="editor">
     <button class="dot-btn" on:click={() => showVibeGrid = !showVibeGrid} aria-label="Change block color" title="Change block color">
-      <span class="dot" style="background:{vibe?.hex ?? '#6a6a78'}"></span>
+      <span class="dot" style="background:{vibe?.hex ?? 'rgb(from var(--glass-bg, #6a6a78) r g b / 0.8)'}"></span>
     </button>
     <input
       class="label"
@@ -203,7 +203,7 @@
       <button 
         class="swatch" 
         class:active={!sb.vibeId}
-        style="background: #6a6a78;" 
+        style="background: rgb(from var(--glass-bg, #6a6a78) r g b / 0.8);"
         title="No vibe"
         on:click={() => { changeVibe(null); setTimeout(() => { showVibeGrid = false; }, 150); }}
         aria-label="Remove vibe color"

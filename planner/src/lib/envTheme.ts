@@ -9,6 +9,7 @@ export interface EnvThemeState {
   solarPhase: string;
   lunarPhase: string;
   lunarPhaseName: string;
+  lunarCycle: number;
   weatherOverride: string | null;
   celestialEvent: string | null;
   cssVars: Record<string, string>;
@@ -23,6 +24,7 @@ const DEFAULT_STATE: EnvThemeState = {
   solarPhase: 'day',
   lunarPhase: 'new',
   lunarPhaseName: 'New Moon',
+  lunarCycle: 0,
   weatherOverride: null,
   celestialEvent: null,
   cssVars: {},
@@ -122,15 +124,15 @@ function getLunarPhase(d: Date) {
   const diff = d.getTime() - ref;
   let cycles = diff / cycle;
   cycles -= Math.floor(cycles); // 0.0 to 1.0
-  
-  if (cycles < 0.03) return { id: 'new', name: 'New Moon', icon: '🌑' };
-  if (cycles < 0.22) return { id: 'waxing_crescent', name: 'Waxing Crescent', icon: '🌒' };
-  if (cycles < 0.28) return { id: 'first_quarter', name: 'First Quarter', icon: '🌓' };
-  if (cycles < 0.47) return { id: 'waxing_gibbous', name: 'Waxing Gibbous', icon: '🌔' };
-  if (cycles < 0.53) return { id: 'full', name: 'Full Moon', icon: '🌕' };
-  if (cycles < 0.72) return { id: 'waning_gibbous', name: 'Waning Gibbous', icon: '🌖' };
-  if (cycles < 0.78) return { id: 'last_quarter', name: 'Last Quarter', icon: '🌗' };
-  return { id: 'waning_crescent', name: 'Waning Crescent', icon: '🌘' };
+
+  if (cycles < 0.03) return { id: 'new', name: 'New Moon', icon: '🌑', cycle: cycles };
+  if (cycles < 0.22) return { id: 'waxing_crescent', name: 'Waxing Crescent', icon: '🌒', cycle: cycles };
+  if (cycles < 0.28) return { id: 'first_quarter', name: 'First Quarter', icon: '🌓', cycle: cycles };
+  if (cycles < 0.47) return { id: 'waxing_gibbous', name: 'Waxing Gibbous', icon: '🌔', cycle: cycles };
+  if (cycles < 0.53) return { id: 'full', name: 'Full Moon', icon: '🌕', cycle: cycles };
+  if (cycles < 0.72) return { id: 'waning_gibbous', name: 'Waning Gibbous', icon: '🌖', cycle: cycles };
+  if (cycles < 0.78) return { id: 'last_quarter', name: 'Last Quarter', icon: '🌗', cycle: cycles };
+  return { id: 'waning_crescent', name: 'Waning Crescent', icon: '🌘', cycle: cycles };
 }
 
 // Generate CSS Vars mapping
@@ -225,6 +227,7 @@ export function updateTheme() {
     solarPhase,
     lunarPhase: lunar.id,
     lunarPhaseName: lunar.name,
+    lunarCycle: lunar.cycle,
     weatherOverride: isStorm ? 'storm' : (wCache?.isHeatwave ? 'heatwave' : null),
     celestialEvent: celestial ? celestial.name : null,
     cssVars: vars,

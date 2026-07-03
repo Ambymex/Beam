@@ -6,7 +6,7 @@
   //
   // Self-contained 100×100 viewBox SVG so it can sit in the hub or stand alone
   // (e.g. tests / the length editor). Emits nothing; reads/writes the cycle store.
-  import { cycle, positionAngle, angleToPosition, setPosition } from './cycle';
+  import { cycle, positionAngle, angleToPosition, setPosition, dialDebug } from './cycle';
   import { palette } from './theme';
 
   $: pal = $palette;
@@ -64,31 +64,64 @@
   const grooves = Array.from({ length: 13 }, (_, i) => 12 + i * 5.5);
 
   function angleAt(ev: PointerEvent): number {
-    const ctm = svgEl.getScreenCTM();
-    if (!ctm) return 0;
-    const p = new DOMPoint(ev.clientX, ev.clientY).matrixTransform(ctm.inverse());
-    let a = (Math.atan2(p.x - c, -(p.y - c)) * 180) / Math.PI;
+    // Angle is scale-invariant, so we only need the dial's CENTRE in client
+    // coords — getBoundingClientRect works everywhere. (This used to go
+    // through getScreenCTM(), which returns null/degenerate matrices on some
+    // WebKit builds; its 0° fallback computed "day 1" for every touch.)
+    const r = svgEl.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    let a = (Math.atan2(ev.clientX - cx, -(ev.clientY - cy)) * 180) / Math.PI;
     if (a < 0) a += 360;
     return a;
   }
 
   let dragging = false;
+  let moveCount = 0;
+  function trace(stage: string, ev: PointerEvent, day?: number) {
+    dialDebug.set(
+      `debug: ${stage} ${ev.pointerType || '?'} a=${Math.round(angleAt(ev))}° ` +
+        `${day !== undefined ? `→ day ${day} ` : ''}moves=${moveCount} store=${$cycle.position}`,
+    );
+  }
   function down(ev: PointerEvent) {
     if (!interactive) return;
     ev.stopPropagation();
     dragging = true;
-    svgEl.setPointerCapture(ev.pointerId);
-    setPosition(angleToPosition(angleAt(ev), length));
+    moveCount = 0;
+    // Position FIRST: setPointerCapture can throw on SVG elements in some
+    // WebKit versions, and it used to run before setPosition — one throw and
+    // the drag silently did nothing. Capture is only a nicety (it keeps the
+    // drag alive when the finger wanders off the dial), so failures are fine.
+    const day = angleToPosition(angleAt(ev), length);
+    setPosition(day);
+    trace('down', ev, day);
+    try {
+      svgEl.setPointerCapture(ev.pointerId);
+    } catch {
+      /* drag still works while the pointer stays over the dial */
+    }
   }
   function move(ev: PointerEvent) {
     if (!dragging) return;
     ev.stopPropagation();
-    setPosition(angleToPosition(angleAt(ev), length));
+    moveCount++;
+    const day = angleToPosition(angleAt(ev), length);
+    setPosition(day);
+    trace('move', ev, day);
   }
   function up(ev: PointerEvent) {
     if (!dragging) return;
     ev.stopPropagation();
     dragging = false;
+    trace(ev.type === 'pointercancel' ? 'CANCELLED' : 'up', ev);
+  }
+  // iOS scroll-hijack guard: some WebKit builds ignore touch-action:none on
+  // SVG and reclaim a mostly-vertical drag as a page scroll, firing
+  // pointercancel mid-gesture. Non-passive preventDefault on the raw touch
+  // events keeps the drag ours.
+  function eatTouch(ev: TouchEvent) {
+    if (interactive) ev.preventDefault();
   }
 </script>
 
@@ -104,6 +137,8 @@
   on:pointermove={move}
   on:pointerup={up}
   on:pointercancel={up}
+  on:touchstart|nonpassive={eatTouch}
+  on:touchmove|nonpassive={eatTouch}
   role={interactive ? 'slider' : 'img'}
   aria-label="Cycle position"
   aria-valuemin={1}

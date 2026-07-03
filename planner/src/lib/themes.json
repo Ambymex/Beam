@@ -188,7 +188,7 @@
     "--swatch-edge": "rgba(255, 255, 255, 0.08)"
   },
   "aurora": {
-    "--gradient-start": "#050a0a",
+    "--gradient-start": "#3b0958",
     "--gradient-end": "#03080d",
     "--app-bg": "#050a0a",
     "--surface": "rgba(255, 255, 255, 0.04)",

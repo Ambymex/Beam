@@ -28,8 +28,10 @@ export interface Symptom {
   note?: string;                  // optional free-text ("took antihistamine")
 }
 
-// The symptom ring's neutral fill — grey, never a sacred vibe hue.
-export const SYMPTOM_FILL = '#8a8a96';
+// The symptom ring's fill borrows the active theme's glass HUE (stripped of
+// the glass token's own alpha, so severity→opacity stays legible) — still
+// never a sacred vibe hue, but it follows the theme, including custom ones.
+export const SYMPTOM_FILL = 'rgb(from var(--glass-bg, #8a8a96) r g b / 1)';
 
 // Each symptom occupies this many hours of arc width on the ring, centred on
 // its timeHours. Wide enough to tap on mobile, narrow enough to see patterns.

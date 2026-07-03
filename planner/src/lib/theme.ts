@@ -181,15 +181,8 @@ const VAR_PALETTE: Palette = {
 
 export const palette = derived(theme, () => VAR_PALETTE);
 
-// Export moon phase icon for the hub
-export const moonPhaseIcon = derived(envThemeState, ($env) => {
-  // simple map from id to emoji (the env engine could provide this too)
-  const map: Record<string, string> = {
-    'new': '🌑', 'waxing_crescent': '🌒', 'first_quarter': '🌓', 'waxing_gibbous': '🌔',
-    'full': '🌕', 'waning_gibbous': '🌖', 'last_quarter': '🌗', 'waning_crescent': '🌘'
-  };
-  return map[$env.lunarPhase] ?? '🌑';
-});
+// Numeric lunar cycle (0–1) for SVG moon rendering in the hub
+export const moonCycle = derived(envThemeState, ($env) => $env.lunarCycle);
 
 // Export a label for the hub
 export const envLabel = derived(envThemeState, ($env) => {

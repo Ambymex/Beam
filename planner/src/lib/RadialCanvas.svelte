@@ -34,7 +34,7 @@
   import { todayKey } from './days';
   import { selectedBlockStore, blockActions, cascadeMode, appointmentMode, selectedSymptomStore, symptomActions } from './daystate';
   import { computeMove, computeResizeStart, computeResizeCore, angDiffHours } from './cascade';
-  import { palette, theme, moonPhaseIcon, envLabel } from './theme';
+  import { palette, theme, moonCycle, envLabel } from './theme';
   import {
     todayGlucose,
     currentGlucose,
@@ -69,6 +69,44 @@
     const a = polar(C, C, RIM_RADIUS, nowTickAngle);
     const b = polar(C, C, HUB_RADIUS, nowTickAngle);
     return { x1: a.x, y1: a.y, x2: b.x, y2: b.y };
+  })();
+
+  // ----- SVG moon phase: white disc masked so the shadow is transparent -----
+  const MOON_R = 9;
+  $: moonPath = (() => {
+    const c = $moonCycle;
+    const illum = 0.5 - 0.5 * Math.cos(2 * Math.PI * c);
+    const r = MOON_R;
+
+    if (illum < 0.01) return '';
+    if (illum > 0.99) return `M 0 ${-r} A ${r} ${r} 0 0 1 0 ${r} A ${r} ${r} 0 0 1 0 ${-r} Z`;
+
+    const tx = r * Math.abs(Math.cos(2 * Math.PI * c));
+    const gibbous = illum > 0.5;
+
+    if (c < 0.5) {
+      // Waxing: lit on right — outer edge is right semicircle (clockwise)
+      let d = `M 0 ${-r} A ${r} ${r} 0 0 1 ${r} 0 A ${r} ${r} 0 0 1 0 ${r}`;
+      if (gibbous) {
+        // Terminator past centre, on left side (clockwise back to top)
+        d += ` A ${tx} ${r} 0 0 1 ${-tx} 0 A ${tx} ${r} 0 0 1 0 ${-r}`;
+      } else {
+        // Terminator on right side (counterclockwise back to top)
+        d += ` A ${tx} ${r} 0 0 0 ${tx} 0 A ${tx} ${r} 0 0 0 0 ${-r}`;
+      }
+      return d + ' Z';
+    } else {
+      // Waning: lit on left — outer edge is left semicircle (counterclockwise)
+      let d = `M 0 ${-r} A ${r} ${r} 0 0 0 ${-r} 0 A ${r} ${r} 0 0 0 0 ${r}`;
+      if (gibbous) {
+        // Terminator past centre, on right side (counterclockwise back to top)
+        d += ` A ${tx} ${r} 0 0 0 ${tx} 0 A ${tx} ${r} 0 0 0 0 ${-r}`;
+      } else {
+        // Terminator on left side (clockwise back to top)
+        d += ` A ${tx} ${r} 0 0 1 ${-tx} 0 A ${tx} ${r} 0 0 1 0 ${-r}`;
+      }
+      return d + ' Z';
+    }
   })();
 
   // ----- CGM backdrop landscape: glucose as terrain UNDER the day. Value maps
@@ -333,13 +371,18 @@
 
   function onPointerDown(ev: PointerEvent) {
     const tapNow = Date.now();
-    if (tapNow - lastTapTime < 280) {
+    // Double-tap-to-reset must only consider SOLO taps: a second finger landing
+    // arrives milliseconds after the first, and treating it as a "double tap"
+    // reset the view on every pinch attempt — killing pinch-zoom entirely.
+    if (activePointers.size === 0 && tapNow - lastTapTime < 280) {
       resetView();
       lastTapTime = 0;
       ev.preventDefault();
       return;
     }
-    lastTapTime = tapNow;
+    // A second finger also shouldn't SEED the double-tap timer, or the first
+    // solo tap after a pinch would falsely read as its "second" tap.
+    lastTapTime = activePointers.size === 0 ? tapNow : 0;
 
     // A second finger turns the gesture into a pinch-zoom; bail out of any
     // single-finger interaction.
@@ -828,6 +871,15 @@
         <feMergeNode in="SourceGraphic" />
       </feMerge>
     </filter>
+    <filter id="moonGlow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
+      <feFlood flood-color="var(--signal-glow, rgba(255,255,255,0.4))" result="color" />
+      <feComposite in="color" in2="blur" operator="in" result="glow" />
+      <feMerge>
+        <feMergeNode in="glow" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
     <radialGradient id="hubFade" cx="50%" cy="50%" r="50%">
       <stop offset="0%" stop-color={pal.hubFrom} />
       <stop offset="100%" stop-color={pal.hubTo} />
@@ -1029,7 +1081,11 @@
   <circle cx={C} cy={C} r={HUB_RADIUS} fill="url(#hubFade)" stroke={pal.hubStroke} stroke-width="1" />
   <text x={C} y={C - 15} text-anchor="middle" font-size="12" fill={pal.textPrimary} font-family="var(--font-display)" font-weight="600">{hubDate}</text>
   
-  <text x={C} y={C + 5} text-anchor="middle" font-size="20" dominant-baseline="central">{$moonPhaseIcon}</text>
+  {#if moonPath}
+    <g transform="translate({C},{C + 5})" filter="url(#moonGlow)">
+      <path d={moonPath} fill="white" opacity="0.7" />
+    </g>
+  {/if}
   
   {#if viewingToday}
     <text x={C} y={C + 28} text-anchor="middle" font-size="8" fill={pal.textDim} font-family="var(--font-primary)" letter-spacing="0.5">{$envLabel}</text>

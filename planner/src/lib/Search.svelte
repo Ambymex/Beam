@@ -75,7 +75,7 @@
           date: dateKey,
           block: b,
           formattedTime: formatTime(b.startHours, b.coreEndHours),
-          vibeColor: vibe ? vibe.hex : '#6a6a78',
+          vibeColor: vibe ? vibe.hex : 'rgb(from var(--glass-bg, #6a6a78) r g b / 0.6)',
           vibeText: vibe ? vibe.emotion : 'No vibe',
         });
       }

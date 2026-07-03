@@ -20,7 +20,8 @@ import { VIBES, VIBES_BY_ID, type Vibe } from './vibes';
 import { customVibes, CUSTOM_BY_ID, type CustomVibe } from './customVibes';
 import { customCategories, CUSTOM_CATS_BY_ID } from './customCategories';
 
-const NEUTRAL = '#6a6a78';
+// Fallback swatch for a category with no members yet: the theme's glass hue.
+const NEUTRAL = 'rgb(from var(--glass-bg, #6a6a78) r g b / 0.6)';
 
 export interface Category {
   id: string; // 'cat:washing'

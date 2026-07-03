@@ -184,11 +184,20 @@ main {
   animation: shooting-star 3s linear infinite;
 }
 
-/* Aurora animation */
-@keyframes aurora-wave {
-  0% { transform: translateY(0) scale(1) rotate(0deg); opacity: 0.3; }
-  50% { transform: translateY(-30px) scale(1.1) rotate(5deg); opacity: 0.6; }
-  100% { transform: translateY(0) scale(1) rotate(0deg); opacity: 0.3; }
+/* Aurora: two counter-drifting curtains of light hanging from the top of the
+   sky. Columns come from repeating gradients, softness from a static blur,
+   and all motion is transform/opacity only (GPU-cheap on mobile). The layers
+   run on different periods (26s vs 41s) so they slide in and out of phase and
+   the shimmer never visibly repeats. */
+@keyframes aurora-sway {
+  0%   { transform: translateX(-5%) skewX(-9deg) scaleY(1);    opacity: 0.55; }
+  50%  { transform: translateX(2%)  skewX(-1deg) scaleY(1.14); opacity: 1; }
+  100% { transform: translateX(6%)  skewX(7deg)  scaleY(1.02); opacity: 0.7; }
+}
+@keyframes aurora-sway-counter {
+  0%   { transform: translateX(5%)  skewX(8deg)  scaleY(1.1);  opacity: 0.5; }
+  50%  { transform: translateX(-1%) skewX(2deg)  scaleY(1);    opacity: 0.9; }
+  100% { transform: translateX(-6%) skewX(-6deg) scaleY(1.12); opacity: 0.6; }
 }
 
 .aurora-canopy {
@@ -198,12 +207,49 @@ main {
 .aurora-canopy.active {
   opacity: 1;
 }
+/* Main curtain: teal→green columns (the theme's signal family). */
 .aurora-canopy::before {
   content: '';
   position: absolute;
-  top: -10%; left: -10%; width: 120%; height: 50%;
-  background: radial-gradient(ellipse at top, rgba(0,255,204,0.15) 0%, rgba(0,38,30,0) 70%);
-  animation: aurora-wave 12s ease-in-out infinite;
+  inset: -15% -30% 25% -30%;
+  background:
+    repeating-linear-gradient(
+      97deg,
+      transparent 0px,
+      transparent 30px,
+      rgba(0, 255, 204, 0.07) 48px,
+      rgba(0, 255, 204, 0.2) 62px,
+      rgba(77, 255, 136, 0.12) 78px,
+      transparent 102px,
+      transparent 134px
+    ),
+    linear-gradient(180deg, rgba(0, 255, 204, 0.12), transparent 65%);
+  filter: blur(14px);
+  mask-image: linear-gradient(to bottom, black 10%, rgba(0, 0, 0, 0.7) 48%, transparent 80%);
+  -webkit-mask-image: linear-gradient(to bottom, black 10%, rgba(0, 0, 0, 0.7) 48%, transparent 80%);
+  transform-origin: 50% 0%;
+  animation: aurora-sway 26s ease-in-out infinite alternate;
+}
+/* Counter-curtain: violet→pink, echoing the purple sky, drifting the other way. */
+.aurora-canopy::after {
+  content: '';
+  position: absolute;
+  inset: -20% -30% 35% -30%;
+  background: repeating-linear-gradient(
+    82deg,
+    transparent 0px,
+    transparent 44px,
+    rgba(168, 120, 255, 0.12) 62px,
+    rgba(255, 110, 199, 0.08) 76px,
+    rgba(0, 255, 204, 0.09) 92px,
+    transparent 116px,
+    transparent 158px
+  );
+  filter: blur(19px);
+  mask-image: linear-gradient(to bottom, black 5%, rgba(0, 0, 0, 0.6) 42%, transparent 72%);
+  -webkit-mask-image: linear-gradient(to bottom, black 5%, rgba(0, 0, 0, 0.6) 42%, transparent 72%);
+  transform-origin: 50% 0%;
+  animation: aurora-sway-counter 41s ease-in-out infinite alternate;
 }
 
 /* Storm Canopy (rain puddle ripples) */

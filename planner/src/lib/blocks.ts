@@ -37,7 +37,9 @@ export interface Block {
 
 export const SIZE = 400;
 export const C = SIZE / 2; // centre of the 400×400 viewBox
-export const NEUTRAL = '#6a6a78'; // placeholder fill when no vibe is set
+// Placeholder fill when no vibe is set: the active theme's glass hue at a
+// frosted alpha (relative colour strips the glass token's own low alpha).
+export const NEUTRAL = 'rgb(from var(--glass-bg, #6a6a78) r g b / 0.6)';
 export const HARD_EDGE_EPS = 0.03; // < ~2 min of taper reads as a hard edge
 // Travel wings render in their own hue (§8). This is the user's existing
 // "travelling to another location" vibe — spec-aligned and in her colour language.
