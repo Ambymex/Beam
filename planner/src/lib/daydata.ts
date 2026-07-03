@@ -1,7 +1,7 @@
 // Day data model + the silent-migration rule (§13). Pure and svelte-free so it
 // can be unit-tested; the Svelte stores and persistence live in days.ts.
 
-import type { Block } from './blocks';
+import { repairBlock, type Block } from './blocks';
 import type { Symptom } from './symptoms';
 
 export interface DayData {
@@ -57,7 +57,7 @@ export function migrateUndone(days: DaysMap, todayKey: string): DaysMap {
       if (b.done || b.kind === 'appointment' || b.laneId === 'emotion') {
         stay.push(b);
       } else {
-        today.blocks.push({ ...b, id: nextId++, migratedFrom: b.migratedFrom ?? key });
+        today.blocks.push(repairBlock({ ...b, id: nextId++, migratedFrom: b.migratedFrom ?? key }));
       }
     }
     day.blocks = stay;
@@ -65,5 +65,12 @@ export function migrateUndone(days: DaysMap, todayKey: string): DaysMap {
 
   today.nextId = nextId;
   out[todayKey] = today;
+
+  // Heal geometry invariants everywhere while we're here (this runs once per
+  // app start and is saved back) — un-normalized hours from older versions or
+  // LLM edits otherwise haunt the ring as unclickable >360° loops.
+  for (const day of Object.values(out)) {
+    day.blocks = day.blocks.map(repairBlock);
+  }
   return out;
 }

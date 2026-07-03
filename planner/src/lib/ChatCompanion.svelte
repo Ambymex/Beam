@@ -11,7 +11,7 @@
   import { VIBES } from './vibes';
   import { customVibes } from './customVibes';
   import { selectedBlockStore } from './daystate';
-  import type { Block } from './blocks';
+  import { repairBlock, MAX_TRAVEL_HOURS, type Block } from './blocks';
   import { scratchpadContent, saveScratchpad } from './scratchpad';
   import { BASE_CATEGORIES, resolveVibe } from './categories';
   import { customCategories } from './customCategories';
@@ -1003,6 +1003,15 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
     return isNaN(num) ? 0 : num;
   }
 
+  // Travel wings arrive from the model in hours, but "30" almost always means
+  // minutes — treat implausible hour counts as minutes, then clamp.
+  function sanitizeTravelHours(v: any): number | undefined {
+    if (v === undefined) return undefined;
+    let n = parseLLMTime(v);
+    if (n > MAX_TRAVEL_HOURS && n <= 240) n = n / 60;
+    return Math.min(MAX_TRAVEL_HOURS, Math.max(0, n));
+  }
+
   function sanitizeVibeId(input: any): string | null {
     if (!input) return null;
     let str = String(input).trim();
@@ -1188,11 +1197,13 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
             done: false,
             label: b.label ?? '',
             kind: b.kind,
-            travelBeforeHours: b.travelBeforeHours !== undefined ? parseLLMTime(b.travelBeforeHours) : undefined,
-            travelAfterHours: b.travelAfterHours !== undefined ? parseLLMTime(b.travelAfterHours) : undefined
+            travelBeforeHours: sanitizeTravelHours(b.travelBeforeHours),
+            travelAfterHours: sanitizeTravelHours(b.travelAfterHours)
           };
-          blocks.push(newBlock);
-        } 
+          // repairBlock enforces the geometry invariants (span ≤ 24h, taper ≤
+          // core+6h) no matter what numbers the model produced.
+          blocks.push(repairBlock(newBlock));
+        }
         
         else if (act.type === 'update_block' && act.labelToMatch && act.block) {
           const queryClean = act.labelToMatch.toLowerCase().trim();
@@ -1209,8 +1220,8 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
             if (act.block.vibeId !== undefined) updatedProps.vibeId = sanitizeVibeId(act.block.vibeId);
             if (act.block.label !== undefined) updatedProps.label = act.block.label;
             if (act.block.kind !== undefined) updatedProps.kind = act.block.kind;
-            if (act.block.travelBeforeHours !== undefined) updatedProps.travelBeforeHours = parseLLMTime(act.block.travelBeforeHours);
-            if (act.block.travelAfterHours !== undefined) updatedProps.travelAfterHours = parseLLMTime(act.block.travelAfterHours);
+            if (act.block.travelBeforeHours !== undefined) updatedProps.travelBeforeHours = sanitizeTravelHours(act.block.travelBeforeHours);
+            if (act.block.travelAfterHours !== undefined) updatedProps.travelAfterHours = sanitizeTravelHours(act.block.travelAfterHours);
 
             const newStart = updatedProps.startHours !== undefined ? updatedProps.startHours : existing.startHours;
             let newCoreEnd = updatedProps.coreEndHours !== undefined ? updatedProps.coreEndHours : existing.coreEndHours;
@@ -1220,14 +1231,14 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
             const newTaperEnd = updatedProps.taperEndHours !== undefined ? updatedProps.taperEndHours : 
               (updatedProps.coreEndHours !== undefined ? newCoreEnd + (existing.taperEndHours - existing.coreEndHours) : existing.taperEndHours);
 
-            blocks[matchedIdx] = {
+            blocks[matchedIdx] = repairBlock({
               ...existing,
               ...updatedProps,
               coreEndHours: newCoreEnd,
               taperEndHours: newTaperEnd
-            };
+            });
           }
-        } 
+        }
         
         else if (act.type === 'delete_block' && act.labelToMatch) {
           const queryClean = act.labelToMatch.toLowerCase().trim();

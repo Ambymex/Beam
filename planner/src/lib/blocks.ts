@@ -45,10 +45,46 @@ export const TRAVEL_HEX = '#fc844f';
 export const DEFAULT_TRAVEL_HOURS = 0.5; // a gentle default wing you can drag
 export const MAX_TRAVEL_HOURS = 4;
 
+export const MAX_TAPER_HOURS = 6; // a "maybe it runs over" only stretches so far
+
 export const laneFor = (b: Block) => LANES.find((l) => l.id === b.laneId)!;
 export const taperLen = (b: Block) => b.taperEndHours - b.coreEndHours;
 export const isHardEdge = (b: Block) => taperLen(b) < HARD_EDGE_EPS;
 export const isAppointment = (b: Block) => b.kind === 'appointment';
+
+// ----- geometry invariants -----
+// Persisted or LLM-supplied hours can violate the model (end < start after an
+// un-normalized update, tapers pointing a full day out, travel wings sent in
+// minutes). Rendering trusts nothing: every helper normalizes through here, so
+// bad data draws as its most plausible meaning instead of a >360° loop — and
+// stays tappable, because hit-testing uses the SAME normalized span.
+export function normalizedSpan(b: Block): { start: number; coreEnd: number; taperEnd: number } {
+  let start = Number.isFinite(b.startHours) ? b.startHours : 0;
+  start = ((start % 24) + 24) % 24;
+  let coreEnd = Number.isFinite(b.coreEndHours) ? b.coreEndHours : start;
+  while (coreEnd < start) coreEnd += 24; // "ends at 8" on a 23:00 block = 8am next day
+  coreEnd = Math.min(coreEnd, start + 24); // a block can't exceed the ring
+  let taperEnd = Number.isFinite(b.taperEndHours) ? b.taperEndHours : coreEnd;
+  taperEnd = Math.max(coreEnd, Math.min(taperEnd, coreEnd + MAX_TAPER_HOURS, start + 24));
+  return { start, coreEnd, taperEnd };
+}
+
+const clampTravel = (v: number | undefined) =>
+  v === undefined ? undefined : Math.min(MAX_TRAVEL_HOURS, Math.max(0, Number.isFinite(v) ? v : 0));
+
+// A repaired copy with the invariants baked into the stored fields — used when
+// loading a day and when accepting blocks from the LLM.
+export function repairBlock(b: Block): Block {
+  const span = normalizedSpan(b);
+  return {
+    ...b,
+    startHours: span.start,
+    coreEndHours: span.coreEnd,
+    taperEndHours: span.taperEnd,
+    travelBeforeHours: clampTravel(b.travelBeforeHours),
+    travelAfterHours: clampTravel(b.travelAfterHours),
+  };
+}
 
 export function blockFill(b: Block): string {
   // vibeId may be a member id OR a category id (cat:*) — resolveVibe handles both.
@@ -59,13 +95,14 @@ export function blockFill(b: Block): string {
 // Solid, confident core.
 export function corePath(b: Block): string {
   const lane = laneFor(b);
+  const { start, coreEnd } = normalizedSpan(b);
   return annularSector(
     C,
     C,
     lane.rInner,
     lane.rOuter,
-    hoursToAngle(b.startHours),
-    hoursToAngle(b.coreEndHours),
+    hoursToAngle(start),
+    hoursToAngle(start) + ((coreEnd - start) / 24) * 360,
   );
 }
 
@@ -73,9 +110,10 @@ export function corePath(b: Block): string {
 // natively this way). Opacity eases toward nothing, like a coloured pencil
 // lifting off the page.
 export function taperSegments(b: Block): { d: string; opacity: number }[] {
-  const span = taperLen(b);
+  const { coreEnd, taperEnd } = normalizedSpan(b);
+  const span = taperEnd - coreEnd;
   if (span < HARD_EDGE_EPS) return [];
-  const a0 = hoursToAngle(b.coreEndHours);
+  const a0 = hoursToAngle(coreEnd);
   const aSpan = (span / 24) * 360;
   const lane = laneFor(b);
   const n = Math.max(6, Math.round(span * 14)); // a step roughly every ~4 min
@@ -95,15 +133,15 @@ export function taperSegments(b: Block): { d: string; opacity: number }[] {
 export function handlePos(b: Block): { x: number; y: number } {
   const lane = laneFor(b);
   const rMid = (lane.rInner + lane.rOuter) / 2;
-  return polar(C, C, rMid, hoursToAngle(b.taperEndHours));
+  return polar(C, C, rMid, hoursToAngle(normalizedSpan(b).taperEnd));
 }
 
 // Is a point (radius + hours-of-day) inside this block's full angular span?
 export function blockContains(b: Block, r: number, hours: number): boolean {
   const lane = laneFor(b);
   if (r < lane.rInner || r > lane.rOuter) return false;
-  const s = b.startHours;
-  const e = b.taperEndHours;
+  // Same normalized span the renderer draws — what you see is what you can tap.
+  const { start: s, taperEnd: e } = normalizedSpan(b);
   return (hours >= s && hours <= e) || (hours + 24 >= s && hours + 24 <= e);
 }
 
@@ -151,22 +189,24 @@ function wingSegments(
 // Prepend wing: drawn from the leave-time outward to the appointment start, so
 // opacity RISES toward the appointment (solid where you must arrive).
 export function prependWingSegments(b: Block): Seg[] {
-  const len = b.travelBeforeHours ?? 0;
+  const len = Math.min(MAX_TRAVEL_HOURS, b.travelBeforeHours ?? 0);
   if (len < HARD_EDGE_EPS) return [];
-  return wingSegments(b, b.startHours - len, b.startHours, (t) => 0.15 + 0.7 * Math.pow(t, 1.3));
+  const { start } = normalizedSpan(b);
+  return wingSegments(b, start - len, start, (t) => 0.15 + 0.7 * Math.pow(t, 1.3));
 }
 
 // Append wing: drawn from the appointment end outward, opacity FALLS toward
 // "whenever I get home."
 export function appendWingSegments(b: Block): Seg[] {
-  const len = b.travelAfterHours ?? 0;
+  const len = Math.min(MAX_TRAVEL_HOURS, b.travelAfterHours ?? 0);
   if (len < HARD_EDGE_EPS) return [];
-  return wingSegments(b, b.coreEndHours, b.coreEndHours + len, (t) => 0.85 * Math.pow(1 - t, 1.3));
+  const { coreEnd } = normalizedSpan(b);
+  return wingSegments(b, coreEnd, coreEnd + len, (t) => 0.85 * Math.pow(1 - t, 1.3));
 }
 
 // Where the "leave now" departure edge sits (start of the prepend wing) — the
 // load-bearing notification anchor (§7/§8): the ping fires here, not at the
 // appointment time.
 export function departureHours(b: Block): number {
-  return b.startHours - (b.travelBeforeHours ?? 0);
+  return normalizedSpan(b).start - Math.min(MAX_TRAVEL_HOURS, b.travelBeforeHours ?? 0);
 }
