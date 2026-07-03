@@ -1,7 +1,7 @@
 <script context="module" lang="ts">
   // The react vocabulary. The companion picks one (or none) per message via
   // the top-level "react" field; anything not in this list is ignored.
-  export const REACT_IDS = ['black_hearts'];
+  export const REACT_IDS = ['black_hearts', 'sparks'];
 </script>
 
 <script lang="ts">
@@ -39,30 +39,87 @@
     return 32;
   }
 
+  // Sparks: pride/excitement LIFTING — the counter-gesture to hearts landing.
+  // Deliberately quieter: fewer, smaller, rising from the bottom and
+  // dissolving by mid-flight, with a soft candle-like flicker.
+  interface Spark {
+    id: number;
+    x: number;
+    size: number; // 5 / 8 / 12, rare 16
+    star: boolean; // 4-point star vs round mote
+    delay: number;
+    dur: number;
+    rise: number; // vh climbed before dissolving
+    swayAmp: number;
+    swayDur: number;
+    swayPhase: number;
+    rotEnd: number;
+    op: number;
+    twinkleDur: number;
+  }
+
+  let sparks: Spark[] = [];
+  let sparkTimer: ReturnType<typeof setTimeout>;
+
+  function pickSparkSize(): number {
+    const r = Math.random();
+    if (r < 0.5) return 5;
+    if (r < 0.82) return 8;
+    if (r < 0.96) return 12;
+    return 16;
+  }
+
   export function fire(type: string) {
-    if (type !== 'black_hearts') return;
-    const count = 40 + Math.floor(Math.random() * 21); // 40–60 hearts
-    const burst: Heart[] = [];
-    for (let i = 0; i < count; i++) {
-      const dur = 2.6 + Math.random() * 1.2; // 2.6–3.8s fall
-      const rate = -30 + Math.random() * 60; // -30…+30 °/s
-      const swayDur = 1.4 + Math.random() * 1.4;
-      burst.push({
-        id: burstId++,
-        x: Math.random() * 100,
-        size: pickSize(),
-        delay: Math.random() * 1.5, // burst over 1.5s
-        dur,
-        swayAmp: 8 + Math.random() * 22,
-        swayDur,
-        swayPhase: Math.random() * swayDur,
-        rotEnd: rate * dur,
-        op: 0.7 + Math.random() * 0.3,
-      });
+    if (type === 'black_hearts') {
+      const count = 40 + Math.floor(Math.random() * 21); // 40–60 hearts
+      const burst: Heart[] = [];
+      for (let i = 0; i < count; i++) {
+        const dur = 2.6 + Math.random() * 1.2; // 2.6–3.8s fall
+        const rate = -30 + Math.random() * 60; // -30…+30 °/s
+        const swayDur = 1.4 + Math.random() * 1.4;
+        burst.push({
+          id: burstId++,
+          x: Math.random() * 100,
+          size: pickSize(),
+          delay: Math.random() * 1.5, // burst over 1.5s
+          dur,
+          swayAmp: 8 + Math.random() * 22,
+          swayDur,
+          swayPhase: Math.random() * swayDur,
+          rotEnd: rate * dur,
+          op: 0.7 + Math.random() * 0.3,
+        });
+      }
+      hearts = burst;
+      clearTimeout(clearTimer);
+      clearTimer = setTimeout(() => (hearts = []), (1.5 + 3.8) * 1000 + 300);
+    } else if (type === 'sparks') {
+      const count = 24 + Math.floor(Math.random() * 13); // 24–36 sparks
+      const burst: Spark[] = [];
+      for (let i = 0; i < count; i++) {
+        const dur = 2.4 + Math.random() * 1.0; // 2.4–3.4s rise
+        const size = pickSparkSize();
+        const swayDur = 1.1 + Math.random() * 1.1;
+        burst.push({
+          id: burstId++,
+          x: Math.random() * 100,
+          size,
+          star: size >= 8, // the smallest tier stays as round motes
+          delay: Math.random() * 1.2,
+          dur,
+          rise: 45 + Math.random() * 30, // 45–75vh — most dissolve mid-screen
+          swayAmp: 5 + Math.random() * 12,
+          swayDur,
+          swayPhase: Math.random() * swayDur,
+          rotEnd: (-40 + Math.random() * 80) * dur,
+          op: 0.55 + Math.random() * 0.45,
+          twinkleDur: 0.5 + Math.random() * 0.7,
+        });
+      }
+      sparks = burst;
+      clearTimeout(sparkTimer);
+      sparkTimer = setTimeout(() => (sparks = []), (1.2 + 3.4) * 1000 + 300);
     }
-    hearts = burst;
-    clearTimeout(clearTimer);
-    clearTimer = setTimeout(() => (hearts = []), (1.5 + 3.8) * 1000 + 300);
   }
 </script>
 
@@ -80,6 +137,25 @@
             fill="#0a0a0a"
             d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
           />
+        </svg>
+      </span>
+    </span>
+  {/each}
+
+  {#each sparks as s (s.id)}
+    <span
+      class="rise"
+      style="left:{s.x}%; --size:{s.size}px; --dur:{s.dur}s; --delay:{s.delay}s; --op:{s.op}; --rise:{s.rise}vh; --sway:{s.swayAmp}px; --swaydur:{s.swayDur}s; --swayphase:{s.swayPhase}s; --rot:{s.rotEnd}deg; --twinkle:{s.twinkleDur}s;"
+    >
+      <span class="sway">
+        <svg class="spark" viewBox="0 0 24 24" width={s.size} height={s.size}>
+          {#if s.star}
+            <!-- 4-point star: champagne body, warm-white core -->
+            <path fill="#ffd98a" d="M12 0 L14.6 9.4 L24 12 L14.6 14.6 L12 24 L9.4 14.6 L0 12 L9.4 9.4 Z" />
+            <circle cx="12" cy="12" r="3" fill="#fff3d6" />
+          {:else}
+            <circle cx="12" cy="12" r="7" fill="#ffd98a" />
+          {/if}
         </svg>
       </span>
     </span>
@@ -130,6 +206,49 @@
      per the spec. Light themes render the spec verbatim. */
   :global([data-theme='dark']) .heart {
     filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.55)) drop-shadow(0 0 6px rgba(255, 255, 255, 0.35));
+  }
+
+  /* ----- sparks: rising, flickering, dissolving ----- */
+  .rise {
+    position: absolute;
+    bottom: calc(-1 * var(--size) - 8px);
+    animation:
+      spark-rise var(--dur) ease-out var(--delay) both,
+      spark-fade var(--dur) linear var(--delay) both;
+  }
+  /* ease-out: sparks leave quick and slow as they climb, like embers losing heat */
+  @keyframes spark-rise {
+    from { transform: translateY(0); }
+    to { transform: translateY(calc(-1 * var(--rise))); }
+  }
+  @keyframes spark-fade {
+    0% { opacity: 0; }
+    8% { opacity: var(--op); }
+    62% { opacity: var(--op); }
+    100% { opacity: 0; }
+  }
+  .spark {
+    display: block;
+    animation:
+      react-spin var(--dur) linear var(--delay) both,
+      spark-twinkle var(--twinkle) ease-in-out var(--delay) infinite alternate;
+  }
+  /* candle-flicker on top of the fade: never fully out, just breathing */
+  @keyframes spark-twinkle {
+    from { opacity: 1; }
+    to { opacity: 0.45; }
+  }
+  /* the glow IS the point of a spark — soft on dark skies, and a deeper amber
+     body on light themes so champagne doesn't wash out against pale glass */
+  :global([data-theme='dark']) .spark {
+    filter: drop-shadow(0 0 3px rgba(255, 217, 138, 0.7));
+  }
+  :global([data-theme='light']) .spark path,
+  :global([data-theme='light']) .spark circle {
+    fill: #d99a26;
+  }
+  :global([data-theme='light']) .spark {
+    filter: drop-shadow(0 0 2px rgba(160, 110, 20, 0.35));
   }
   @keyframes react-spin {
     from { transform: rotate(0deg); }

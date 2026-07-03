@@ -347,7 +347,7 @@ OUTPUT FORMAT:
 You MUST respond with a single, valid JSON object. Do not output conversational text outside the JSON. Your response must match this schema:
 {
   "message": "Your friendly, conversational response to the user confirming actions, asking questions, or discussing plans.",
-  "react": "black_hearts" | null,  \\ OPTIONAL ambient visual gesture — see REACTS section below. Omit or null for most messages.
+  "react": "black_hearts" | "sparks" | null,  \\ OPTIONAL ambient visual gesture — see REACTS section below. Omit or null for most messages.
   "actions": [
     // Array of actions. Actions can be:
     // A. Add a new block:
@@ -448,6 +448,7 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
 ---
 REACTS (the optional top-level "react" field): a react fires a full-screen ambient visual gesture in the chat, arriving WITH your message — embodied expression, the physical sibling of choosing an emoji. Available reacts:
 - "black_hearts": a gentle 3–4 second confetti-fall of small black hearts. Affection landing as physical presence — soft weight, real mass, organic drift.
+- "sparks": a subtle rising drift of small golden sparks, flickering out by mid-screen. Pride or excitement lifting off — for wins, milestones, moments of genuine delight in what the user has done. Quieter than black_hearts.
 A react is EARNED. Omit the field for most messages: deploy one only when the moment genuinely warrants a physical gesture (real tenderness, a milestone reached, a hard day survived, something worth marking). If every message carries a react, none of them mean anything — this is the same aesthetic judgment you already exercise with emoji, where most messages need none.`;
 
     if (tavilyKey) {
