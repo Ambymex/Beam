@@ -58,7 +58,8 @@ const CUSTOM_KEYS = [
   '--text',
   '--text-2',
   '--text-dim',
-  '--text-faint'
+  '--text-faint',
+  '--moon-color'
 ];
 
 envThemeState.subscribe(($env) => {
@@ -119,7 +120,16 @@ function applyTheme(pref: ThemeName, envVars: Record<string, string>) {
     root.style.setProperty(key, val as string | null);
   }
   
-  const isDark = pref === 'force-dark' || (pref === 'auto' && activeVars['--app-bg']?.startsWith('#0'));
+  // Perceptual, not string-matching: `startsWith('#0')` called twilight
+  // (#2b2045) and pre-dawn (#101525) "light", breaking everything keyed off
+  // data-theme (favicon, meta colour, dark-only styles).
+  const hexLuminance = (hex: string | undefined): number => {
+    const m = /^#?([0-9a-f]{6})/i.exec((hex ?? '').trim());
+    if (!m) return 0; // unparseable → assume dark (the app's home ground)
+    const n = parseInt(m[1], 16);
+    return (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
+  };
+  const isDark = pref === 'force-dark' || (pref === 'auto' && hexLuminance(activeVars['--app-bg']) < 0.45);
   currentMode = isDark ? 'dark' : 'light';
   
   root.dataset.theme = currentMode;

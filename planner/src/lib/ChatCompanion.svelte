@@ -8,6 +8,7 @@
   import { days, currentKey, todayKey } from './days';
   import { glucoseContextSummary } from './glucose';
   import { novelDiaryContent } from './diaryDedupe';
+  import CompanionReacts, { REACT_IDS } from './CompanionReacts.svelte';
   import { VIBES } from './vibes';
   import { customVibes } from './customVibes';
   import { selectedBlockStore } from './daystate';
@@ -21,11 +22,23 @@
 
   const dispatch = createEventDispatcher<{ close: void }>();
 
+  // The react overlay instance + whitelist gate: only reacts we actually have
+  // animations for ever fire, however creative the model output gets.
+  let reactLayer: CompanionReacts | null = null;
+  function resolveReact(parsed: any): string | undefined {
+    return typeof parsed?.react === 'string' && REACT_IDS.includes(parsed.react)
+      ? parsed.react
+      : undefined;
+  }
+
   interface ChatMessage {
     id: string;
     role: 'user' | 'assistant';
     content: string;
     timestamp: string;
+    // An ambient visual gesture fired alongside the message (see
+    // CompanionReacts.svelte). Stored for the record; only fired on arrival.
+    react?: string;
     actions?: Array<{
       type: 'add_block' | 'update_block' | 'delete_block' | 'read_scratchpad' | 'update_scratchpad' | 'update_diary' | 'add_symptom' | 'update_symptom' | 'delete_symptom' | 'show_notification' | 'schedule_notification' | 'web_search';
       targetDate?: string;
@@ -334,6 +347,7 @@ OUTPUT FORMAT:
 You MUST respond with a single, valid JSON object. Do not output conversational text outside the JSON. Your response must match this schema:
 {
   "message": "Your friendly, conversational response to the user confirming actions, asking questions, or discussing plans.",
+  "react": "black_hearts" | null,  \\ OPTIONAL ambient visual gesture — see REACTS section below. Omit or null for most messages.
   "actions": [
     // Array of actions. Actions can be:
     // A. Add a new block:
@@ -430,6 +444,12 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
   ]
 }
 `;
+    systemPrompt += `
+---
+REACTS (the optional top-level "react" field): a react fires a full-screen ambient visual gesture in the chat, arriving WITH your message — embodied expression, the physical sibling of choosing an emoji. Available reacts:
+- "black_hearts": a gentle 3–4 second confetti-fall of small black hearts. Affection landing as physical presence — soft weight, real mass, organic drift.
+A react is EARNED. Omit the field for most messages: deploy one only when the moment genuinely warrants a physical gesture (real tenderness, a milestone reached, a hard day survived, something worth marking). If every message carries a react, none of them mean anything — this is the same aesthetic judgment you already exercise with emoji, where most messages need none.`;
+
     if (tavilyKey) {
       systemPrompt += `\nAdditional Search action capability:
 - Since a Web Search API Key is configured, you can search the web for current or factual information (e.g. weather, MCAS scientific findings, news, external definitions). To do this, include this action in your list:
@@ -689,16 +709,19 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
         }
       }
 
+      const bgReact = resolveReact(parsed);
       const assistantMsg: ChatMessage = {
         id: 'msg_' + Math.random().toString(36).slice(2) + Date.now(),
         role: 'assistant',
         content: parsed.message || "Here are the search results.",
         timestamp: new Date().toISOString(),
-        actions: parsed.actions || []
+        actions: parsed.actions || [],
+        react: bgReact
       };
 
       messages = [...messages, assistantMsg];
       saveChat();
+      if (bgReact) reactLayer?.fire(bgReact);
 
       if (parsed.actions && parsed.actions.length > 0) {
         executeActions(parsed.actions);
@@ -942,12 +965,14 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
       }
       
       // Construct companion response message
+      const chatReact = resolveReact(parsed);
       const assistantMsg: ChatMessage = {
         id: 'msg_' + Math.random().toString(36).slice(2) + Date.now(),
         role: 'assistant',
         content: parsed.message || "I've processed your request.",
         timestamp: new Date().toISOString(),
-        actions: parsed.actions || []
+        actions: parsed.actions || [],
+        react: chatReact
       };
 
       debugActions = JSON.stringify(parsed, null, 2);
@@ -959,6 +984,7 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
 
       messages = [...messages, assistantMsg];
       saveChat();
+      if (chatReact) reactLayer?.fire(chatReact);
 
       // Upsert the exchange to the Pinecone Vector Vault in the background
       if (enableVault && pineconeKey && pineconeHost) {
@@ -1551,6 +1577,8 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
       Send
     </button>
   </form>
+
+  <CompanionReacts bind:this={reactLayer} />
 </div>
 
 <style>

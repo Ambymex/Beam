@@ -1083,7 +1083,7 @@
   
   {#if moonPath}
     <g transform="translate({C},{C + 5})" filter="url(#moonGlow)">
-      <path d={moonPath} fill="white" opacity="0.7" />
+      <path d={moonPath} fill="var(--moon-color, white)" opacity="0.7" />
     </g>
   {/if}
   

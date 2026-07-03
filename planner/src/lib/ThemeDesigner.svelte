@@ -20,6 +20,8 @@
   let signalGlowOpacity = 0.2;
   let signalContrast = '#ffffff';
 
+  let moonHex = '#ffffff';
+
   let borderOpacity = 0.12;
   let border2Opacity = 0.06;
   let hairlineOpacity = 0.03;
@@ -33,11 +35,11 @@
 
   let savedSwatches: string[] = ['#101525', '#1a2235', '#a24df0', '#ffffff', '#94a3b8'];
   let selectedSwatch: string | null = null;
-  let lastFocusedField: 'gradientStart' | 'gradientEnd' | 'glassHex' | 'surfaceHex' | 'surface2Hex' | 'signalHex' | 'signalContrast' | 'textHex' | 'textDimHex' | 'textFaintHex' = 'gradientStart';
+  let lastFocusedField: 'gradientStart' | 'gradientEnd' | 'glassHex' | 'surfaceHex' | 'surface2Hex' | 'signalHex' | 'signalContrast' | 'moonHex' | 'textHex' | 'textDimHex' | 'textFaintHex' = 'gradientStart';
 
   // Custom color picker state
   let showColorPicker = false;
-  let activePickerField: 'gradientStart' | 'gradientEnd' | 'glassHex' | 'surfaceHex' | 'surface2Hex' | 'signalHex' | 'signalContrast' | 'textHex' | 'textDimHex' | 'textFaintHex' | null = null;
+  let activePickerField: 'gradientStart' | 'gradientEnd' | 'glassHex' | 'surfaceHex' | 'surface2Hex' | 'signalHex' | 'signalContrast' | 'moonHex' | 'textHex' | 'textDimHex' | 'textFaintHex' | null = null;
   let pickerH = 0;
   let pickerS = 100;
   let pickerL = 50;
@@ -178,6 +180,8 @@
     textHex = colorToHex(style.getPropertyValue('--text').trim() || textHex);
     textDimHex = colorToHex(style.getPropertyValue('--text-dim').trim() || textDimHex);
     textFaintHex = colorToHex(style.getPropertyValue('--text-faint').trim() || textFaintHex);
+
+    moonHex = colorToHex(style.getPropertyValue('--moon-color').trim() || '#ffffff');
   }
 
   function applyConfig(vars: Record<string, string>) {
@@ -221,6 +225,7 @@
     if (vars['--text']) textHex = colorToHex(vars['--text']);
     if (vars['--text-dim']) textDimHex = colorToHex(vars['--text-dim']);
     if (vars['--text-faint']) textFaintHex = colorToHex(vars['--text-faint']);
+    if (vars['--moon-color']) moonHex = colorToHex(vars['--moon-color']);
   }
 
   function saveCustomTheme() {
@@ -247,6 +252,7 @@
       '--text-2': interpolateHex(textHex, textDimHex, 0.4),
       '--text-dim': textDimHex,
       '--text-faint': textFaintHex,
+      '--moon-color': moonHex,
     });
   }
 
@@ -274,6 +280,7 @@
         '--text-2': interpolateHex(textHex, textDimHex, 0.4),
         '--text-dim': textDimHex,
         '--text-faint': textFaintHex,
+        '--moon-color': moonHex,
       }
     };
     exportText = JSON.stringify(config, null, 2);
@@ -373,7 +380,7 @@
     return `#${r}${g}${b}`;
   }
 
-  function openColorPicker(field: 'gradientStart' | 'gradientEnd' | 'glassHex' | 'surfaceHex' | 'surface2Hex' | 'signalHex' | 'signalContrast' | 'textHex' | 'textDimHex' | 'textFaintHex') {
+  function openColorPicker(field: 'gradientStart' | 'gradientEnd' | 'glassHex' | 'surfaceHex' | 'surface2Hex' | 'signalHex' | 'signalContrast' | 'moonHex' | 'textHex' | 'textDimHex' | 'textFaintHex') {
     activePickerField = field;
     
     let color = '#ffffff';
@@ -384,6 +391,7 @@
     else if (field === 'surface2Hex') color = surface2Hex;
     else if (field === 'signalHex') color = signalHex;
     else if (field === 'signalContrast') color = signalContrast;
+    else if (field === 'moonHex') color = moonHex;
     else if (field === 'textHex') color = textHex;
     else if (field === 'textDimHex') color = textDimHex;
     else if (field === 'textFaintHex') color = textFaintHex;
@@ -413,16 +421,17 @@
     else if (activePickerField === 'surface2Hex') surface2Hex = pickerHex;
     else if (activePickerField === 'signalHex') signalHex = pickerHex;
     else if (activePickerField === 'signalContrast') signalContrast = pickerHex;
+    else if (activePickerField === 'moonHex') moonHex = pickerHex;
     else if (activePickerField === 'textHex') textHex = pickerHex;
     else if (activePickerField === 'textDimHex') textDimHex = pickerHex;
     else if (activePickerField === 'textFaintHex') textFaintHex = pickerHex;
-    
+
     if (savedSwatches.includes(pickerHex)) {
       selectedSwatch = pickerHex;
     } else {
       selectedSwatch = null;
     }
-    
+
     saveCustomTheme();
   }
 
@@ -442,16 +451,17 @@
     else if (activePickerField === 'surface2Hex') surface2Hex = pickerHex;
     else if (activePickerField === 'signalHex') signalHex = pickerHex;
     else if (activePickerField === 'signalContrast') signalContrast = pickerHex;
+    else if (activePickerField === 'moonHex') moonHex = pickerHex;
     else if (activePickerField === 'textHex') textHex = pickerHex;
     else if (activePickerField === 'textDimHex') textDimHex = pickerHex;
     else if (activePickerField === 'textFaintHex') textFaintHex = pickerHex;
-    
+
     if (savedSwatches.includes(pickerHex)) {
       selectedSwatch = pickerHex;
     } else {
       selectedSwatch = null;
     }
-    
+
     saveCustomTheme();
   }
 
@@ -470,6 +480,7 @@
     else if (activePickerField === 'surface2Hex') surface2Hex = color;
     else if (activePickerField === 'signalHex') signalHex = color;
     else if (activePickerField === 'signalContrast') signalContrast = color;
+    else if (activePickerField === 'moonHex') moonHex = color;
     else if (activePickerField === 'textHex') textHex = color;
     else if (activePickerField === 'textDimHex') textDimHex = color;
     else if (activePickerField === 'textFaintHex') textFaintHex = color;
@@ -563,6 +574,11 @@
     <div class="field">
       <label for="signalGlow">Signal Glow ({Math.round(signalGlowOpacity * 100)}%):</label>
       <input id="signalGlow" type="range" min="0" max="0.5" step="0.05" bind:value={signalGlowOpacity} on:input={saveCustomTheme} />
+    </div>
+
+    <div class="field">
+      <span>Moon Color</span>
+      <button class="color-indicator-btn" style="background: {moonHex};" on:click={() => openColorPicker('moonHex')} aria-label="Moon color"></button>
     </div>
 
     <div class="field">
