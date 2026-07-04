@@ -16,7 +16,7 @@
   import { unreadComms } from './lib/comms';
   import { currentKey, todayKey } from './lib/days';
   import { cascadeMode, appointmentMode, symptomActions } from './lib/daystate';
-  import { theme, toggleTheme, envLabel, customThemeStore } from './lib/theme';
+  import { theme, toggleTheme, envLabel, customThemeStore, starsVisible } from './lib/theme';
   import { startEnvTheme, stopEnvTheme, envThemeState, debugThemeOverride } from './lib/envTheme';
   import { startGlucose, stopGlucose } from './lib/glucose';
   import { startMsgSync, stopMsgSync } from './lib/msgSync';
@@ -79,13 +79,8 @@
   let showComms = false;
   $: viewingToday = $currentKey === todayKey();
 
-  // Stars: a custom theme owns its own toggle ('--stars-active', set by the
-  // Theme Designer); otherwise the env engine decides (night/twilight/etc.).
-  // Resolved here rather than in envTheme.ts so envTheme never has to import
-  // theme.ts (whose module-eval order is a known landmine).
-  $: starsActive = $customThemeStore
-    ? $customThemeStore['--stars-active'] === '1'
-    : $envThemeState.isStars;
+  // Stars logic lives in theme.ts (starsVisible) so the chat overlay's sky
+  // stays in lockstep with this one.
 
   function onAddSymptom() {
     const now = new Date();
@@ -95,7 +90,7 @@
 </script>
 
 <main class:storm-mode={$envThemeState.isStorm}>
-  <div class="stars-canopy" class:active={starsActive}></div>
+  <div class="stars-canopy" class:active={$starsVisible}></div>
   <div class="meteor-canopy" class:active={$envThemeState.isMeteorShower}></div>
   <div class="aurora-canopy" class:active={$envThemeState.isAurora}></div>
   <div class="storm-canopy" class:active={$envThemeState.isStorm}>
@@ -104,6 +99,11 @@
     <div class="ripple r3"></div>
     <div class="ripple r4"></div>
     <div class="ripple r5"></div>
+  </div>
+  <div class="petals-canopy" class:active={$envThemeState.isPetals}>
+    {#each Array(12) as _}
+      <span class="petal"></span>
+    {/each}
   </div>
 
   <header class="bar glass-panel">
@@ -148,6 +148,7 @@
       <option value="pre_dawn">Pre-Dawn</option>
       <option value="sunrise">Sunrise</option>
       <option value="day">Day</option>
+      <option value="sweet">Sweet</option>
       <option value="sunset">Sunset</option>
       <option value="twilight">Twilight</option>
       <option value="night_new">Night (New Moon)</option>

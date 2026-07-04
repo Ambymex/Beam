@@ -17,6 +17,9 @@ export interface EnvThemeState {
   isMeteorShower: boolean;
   isAurora: boolean;
   isStars: boolean;
+  // 'sweet' is choice-only: no solar/lunar/weather trigger ever selects it,
+  // it exists purely as a dropdown pick — petals fall when it's chosen.
+  isPetals: boolean;
 }
 
 const DEFAULT_STATE: EnvThemeState = {
@@ -32,6 +35,7 @@ const DEFAULT_STATE: EnvThemeState = {
   isMeteorShower: false,
   isAurora: false,
   isStars: false,
+  isPetals: false,
 };
 
 export const envThemeState = writable<EnvThemeState>(DEFAULT_STATE);
@@ -234,7 +238,8 @@ export function updateTheme() {
     isStorm,
     isMeteorShower,
     isAurora,
-    isStars
+    isStars,
+    isPetals: activePal === 'sweet'
   });
 }
 

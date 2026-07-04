@@ -20,6 +20,8 @@
   import { fetchContext, injectMemory } from './vault';
   import { checkPendingNotifications, scheduleNotification } from './notifications';
   import { logComm } from './comms';
+  import { starsVisible } from './theme';
+  import { envThemeState } from './envTheme';
   import {
     registerChatAdapter,
     scheduleMsgSync,
@@ -1528,6 +1530,26 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
 </script>
 
 <div class="overlay" class:tremor class:hidden={!visible} role="dialog" aria-label="Companion chat">
+  <!-- The same sky as the ring: canopy classes come from app.css (global) and
+       anchor to this fixed overlay. Content sits above via z-index (see
+       styles); the react layer already floats over everything at z-60. -->
+  <div class="chat-sky" aria-hidden="true">
+    <div class="stars-canopy" class:active={$starsVisible}></div>
+    <div class="meteor-canopy" class:active={$envThemeState.isMeteorShower}></div>
+    <div class="aurora-canopy" class:active={$envThemeState.isAurora}></div>
+    <div class="storm-canopy" class:active={$envThemeState.isStorm}>
+      <div class="ripple r1"></div>
+      <div class="ripple r2"></div>
+      <div class="ripple r3"></div>
+      <div class="ripple r4"></div>
+      <div class="ripple r5"></div>
+    </div>
+    <div class="petals-canopy" class:active={$envThemeState.isPetals}>
+      {#each Array(12) as _}
+        <span class="petal"></span>
+      {/each}
+    </div>
+  </div>
   <header>
     <span>Planner Companion</span>
     <div class="head-btns">
@@ -1796,6 +1818,22 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
      and vanishes from the accessibility tree while the script stays alive */
   .overlay.hidden {
     display: none;
+  }
+  /* the chat gets the same sky as the ring; canopies paint at z-0, so every
+     content layer needs an explicit seat above them */
+  .chat-sky {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+  }
+  header,
+  .settings-drawer,
+  .chat-history,
+  .input-form {
+    position: relative;
+    z-index: 1;
   }
   .overlay.tremor {
     animation: chat-tremor 0.45s linear both;

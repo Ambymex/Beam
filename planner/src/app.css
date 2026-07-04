@@ -82,7 +82,8 @@ main {
 /* Animation Canopies */
 .stars-canopy,
 .meteor-canopy,
-.aurora-canopy {
+.aurora-canopy,
+.petals-canopy {
   position: absolute;
   inset: 0;
   pointer-events: none;
@@ -280,6 +281,50 @@ main {
     border-width: 0.5px;
   }
 }
+
+/* Petals Canopy (sweet theme: falling cherry blossom) */
+.petals-canopy {
+  opacity: 0;
+  transition: opacity 2s ease-in-out;
+}
+.petals-canopy.active {
+  opacity: 1;
+}
+.petal {
+  position: absolute;
+  top: -5vh;
+  width: 13px;
+  height: 13px;
+  /* one round corner, one pinched: the classic blossom-petal silhouette */
+  border-radius: 150% 0 150% 0;
+  background: linear-gradient(135deg, #ffc6db, #ff9dc4);
+  box-shadow: 0 0 6px rgba(255, 157, 196, 0.35);
+  animation: petal-fall linear infinite;
+}
+/* one continuous 360° so the loop restart is invisible; the x-drift returns
+   to 0 for the same reason — a petal that leaves at the floor reappears at
+   the canopy top like the next petal off the tree */
+@keyframes petal-fall {
+  0%   { transform: translate3d(0, -6vh, 0) rotate(0deg); }
+  25%  { transform: translate3d(3vw, 22vh, 0) rotate(92deg); }
+  50%  { transform: translate3d(-2vw, 50vh, 0) rotate(184deg); }
+  75%  { transform: translate3d(2.5vw, 79vh, 0) rotate(272deg); }
+  100% { transform: translate3d(0, 108vh, 0) rotate(360deg); }
+}
+/* organic spread: position, pace, phase (negative = mid-fall on arrival),
+   size and depth vary per petal */
+.petal:nth-child(1)  { left: 5%;  animation-duration: 11s;   animation-delay: -3s;    opacity: 0.85; }
+.petal:nth-child(2)  { left: 14%; animation-duration: 14s;   animation-delay: -9s;    opacity: 0.6;  width: 10px; height: 10px; }
+.petal:nth-child(3)  { left: 24%; animation-duration: 9.5s;  animation-delay: -1s;    opacity: 0.9; }
+.petal:nth-child(4)  { left: 33%; animation-duration: 12.5s; animation-delay: -6s;    opacity: 0.7;  width: 16px; height: 16px; }
+.petal:nth-child(5)  { left: 42%; animation-duration: 15s;   animation-delay: -12s;   opacity: 0.55; width: 9px;  height: 9px; }
+.petal:nth-child(6)  { left: 51%; animation-duration: 10s;   animation-delay: -4.5s;  opacity: 0.9; }
+.petal:nth-child(7)  { left: 59%; animation-duration: 13s;   animation-delay: -8s;    opacity: 0.75; width: 15px; height: 15px; }
+.petal:nth-child(8)  { left: 67%; animation-duration: 11.5s; animation-delay: -2s;    opacity: 0.8; }
+.petal:nth-child(9)  { left: 75%; animation-duration: 14.5s; animation-delay: -10.5s; opacity: 0.6;  width: 10px; height: 10px; }
+.petal:nth-child(10) { left: 83%; animation-duration: 9s;    animation-delay: -5.5s;  opacity: 0.95; }
+.petal:nth-child(11) { left: 90%; animation-duration: 12s;   animation-delay: -7s;    opacity: 0.7;  width: 14px; height: 14px; }
+.petal:nth-child(12) { left: 96%; animation-duration: 16s;   animation-delay: -13s;   opacity: 0.5;  width: 9px;  height: 9px; }
 
 .storm-canopy {
   position: absolute;

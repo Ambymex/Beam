@@ -198,6 +198,14 @@ export const palette = derived(theme, () => VAR_PALETTE);
 // Numeric lunar cycle (0–1) for SVG moon rendering in the hub
 export const moonCycle = derived(envThemeState, ($env) => $env.lunarCycle);
 
+// Whether the stars canopy should show: a custom theme owns its own toggle
+// ('--stars-active', set by the Theme Designer); otherwise the env engine
+// decides. Shared by every surface that draws a sky (main + chat overlay).
+export const starsVisible = derived(
+  [envThemeState, customThemeStore],
+  ([$env, $custom]) => ($custom ? $custom['--stars-active'] === '1' : $env.isStars)
+);
+
 // Export a label for the hub
 export const envLabel = derived(envThemeState, ($env) => {
   return $env.themeName;
