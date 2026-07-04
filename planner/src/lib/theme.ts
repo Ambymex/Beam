@@ -59,7 +59,11 @@ const CUSTOM_KEYS = [
   '--text-2',
   '--text-dim',
   '--text-faint',
-  '--moon-color'
+  '--moon-color',
+  '--star-color',
+  // Not a paint colour: '1'/'0' flag the custom theme stores so its stars
+  // toggle survives the same save/export/import round-trip as the vars.
+  '--stars-active'
 ];
 
 envThemeState.subscribe(($env) => {

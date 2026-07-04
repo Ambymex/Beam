@@ -22,6 +22,9 @@
 
   let moonHex = '#ffffff';
 
+  let starHex = '#ffffff';
+  let starsOn = false;
+
   let borderOpacity = 0.12;
   let border2Opacity = 0.06;
   let hairlineOpacity = 0.03;
@@ -35,11 +38,11 @@
 
   let savedSwatches: string[] = ['#101525', '#1a2235', '#a24df0', '#ffffff', '#94a3b8'];
   let selectedSwatch: string | null = null;
-  let lastFocusedField: 'gradientStart' | 'gradientEnd' | 'glassHex' | 'surfaceHex' | 'surface2Hex' | 'signalHex' | 'signalContrast' | 'moonHex' | 'textHex' | 'textDimHex' | 'textFaintHex' = 'gradientStart';
+  let lastFocusedField: 'gradientStart' | 'gradientEnd' | 'glassHex' | 'surfaceHex' | 'surface2Hex' | 'signalHex' | 'signalContrast' | 'moonHex' | 'starHex' | 'textHex' | 'textDimHex' | 'textFaintHex' = 'gradientStart';
 
   // Custom color picker state
   let showColorPicker = false;
-  let activePickerField: 'gradientStart' | 'gradientEnd' | 'glassHex' | 'surfaceHex' | 'surface2Hex' | 'signalHex' | 'signalContrast' | 'moonHex' | 'textHex' | 'textDimHex' | 'textFaintHex' | null = null;
+  let activePickerField: 'gradientStart' | 'gradientEnd' | 'glassHex' | 'surfaceHex' | 'surface2Hex' | 'signalHex' | 'signalContrast' | 'moonHex' | 'starHex' | 'textHex' | 'textDimHex' | 'textFaintHex' | null = null;
   let pickerH = 0;
   let pickerS = 100;
   let pickerL = 50;
@@ -182,6 +185,11 @@
     textFaintHex = colorToHex(style.getPropertyValue('--text-faint').trim() || textFaintHex);
 
     moonHex = colorToHex(style.getPropertyValue('--moon-color').trim() || '#ffffff');
+    starHex = colorToHex(style.getPropertyValue('--star-color').trim() || '#ffffff');
+    // No flag painted (env theme active) → mirror what the env engine shows
+    // right now, so "start from the current look" includes the stars.
+    const starsVal = style.getPropertyValue('--stars-active').trim();
+    starsOn = starsVal ? starsVal === '1' : $envThemeState.isStars;
   }
 
   function applyConfig(vars: Record<string, string>) {
@@ -226,6 +234,8 @@
     if (vars['--text-dim']) textDimHex = colorToHex(vars['--text-dim']);
     if (vars['--text-faint']) textFaintHex = colorToHex(vars['--text-faint']);
     if (vars['--moon-color']) moonHex = colorToHex(vars['--moon-color']);
+    if (vars['--star-color']) starHex = colorToHex(vars['--star-color']);
+    if (vars['--stars-active'] !== undefined) starsOn = vars['--stars-active'] === '1';
   }
 
   function saveCustomTheme() {
@@ -253,6 +263,8 @@
       '--text-dim': textDimHex,
       '--text-faint': textFaintHex,
       '--moon-color': moonHex,
+      '--star-color': starHex,
+      '--stars-active': starsOn ? '1' : '0',
     });
   }
 
@@ -281,6 +293,8 @@
         '--text-dim': textDimHex,
         '--text-faint': textFaintHex,
         '--moon-color': moonHex,
+        '--star-color': starHex,
+        '--stars-active': starsOn ? '1' : '0',
       }
     };
     exportText = JSON.stringify(config, null, 2);
@@ -380,7 +394,7 @@
     return `#${r}${g}${b}`;
   }
 
-  function openColorPicker(field: 'gradientStart' | 'gradientEnd' | 'glassHex' | 'surfaceHex' | 'surface2Hex' | 'signalHex' | 'signalContrast' | 'moonHex' | 'textHex' | 'textDimHex' | 'textFaintHex') {
+  function openColorPicker(field: 'gradientStart' | 'gradientEnd' | 'glassHex' | 'surfaceHex' | 'surface2Hex' | 'signalHex' | 'signalContrast' | 'moonHex' | 'starHex' | 'textHex' | 'textDimHex' | 'textFaintHex') {
     activePickerField = field;
     
     let color = '#ffffff';
@@ -392,6 +406,7 @@
     else if (field === 'signalHex') color = signalHex;
     else if (field === 'signalContrast') color = signalContrast;
     else if (field === 'moonHex') color = moonHex;
+    else if (field === 'starHex') color = starHex;
     else if (field === 'textHex') color = textHex;
     else if (field === 'textDimHex') color = textDimHex;
     else if (field === 'textFaintHex') color = textFaintHex;
@@ -422,6 +437,7 @@
     else if (activePickerField === 'signalHex') signalHex = pickerHex;
     else if (activePickerField === 'signalContrast') signalContrast = pickerHex;
     else if (activePickerField === 'moonHex') moonHex = pickerHex;
+    else if (activePickerField === 'starHex') starHex = pickerHex;
     else if (activePickerField === 'textHex') textHex = pickerHex;
     else if (activePickerField === 'textDimHex') textDimHex = pickerHex;
     else if (activePickerField === 'textFaintHex') textFaintHex = pickerHex;
@@ -452,6 +468,7 @@
     else if (activePickerField === 'signalHex') signalHex = pickerHex;
     else if (activePickerField === 'signalContrast') signalContrast = pickerHex;
     else if (activePickerField === 'moonHex') moonHex = pickerHex;
+    else if (activePickerField === 'starHex') starHex = pickerHex;
     else if (activePickerField === 'textHex') textHex = pickerHex;
     else if (activePickerField === 'textDimHex') textDimHex = pickerHex;
     else if (activePickerField === 'textFaintHex') textFaintHex = pickerHex;
@@ -481,6 +498,7 @@
     else if (activePickerField === 'signalHex') signalHex = color;
     else if (activePickerField === 'signalContrast') signalContrast = color;
     else if (activePickerField === 'moonHex') moonHex = color;
+    else if (activePickerField === 'starHex') starHex = color;
     else if (activePickerField === 'textHex') textHex = color;
     else if (activePickerField === 'textDimHex') textDimHex = color;
     else if (activePickerField === 'textFaintHex') textFaintHex = color;
@@ -579,6 +597,16 @@
     <div class="field">
       <span>Moon Color</span>
       <button class="color-indicator-btn" style="background: {moonHex};" on:click={() => openColorPicker('moonHex')} aria-label="Moon color"></button>
+    </div>
+
+    <div class="field">
+      <label for="starsActive">Stars:</label>
+      <input id="starsActive" type="checkbox" bind:checked={starsOn} on:change={saveCustomTheme} />
+    </div>
+
+    <div class="field">
+      <span>Star Color</span>
+      <button class="color-indicator-btn" style="background: {starHex};" on:click={() => openColorPicker('starHex')} aria-label="Star color"></button>
     </div>
 
     <div class="field">

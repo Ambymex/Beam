@@ -74,6 +74,14 @@
   let showComms = false;
   $: viewingToday = $currentKey === todayKey();
 
+  // Stars: a custom theme owns its own toggle ('--stars-active', set by the
+  // Theme Designer); otherwise the env engine decides (night/twilight/etc.).
+  // Resolved here rather than in envTheme.ts so envTheme never has to import
+  // theme.ts (whose module-eval order is a known landmine).
+  $: starsActive = $customThemeStore
+    ? $customThemeStore['--stars-active'] === '1'
+    : $envThemeState.isStars;
+
   function onAddSymptom() {
     const now = new Date();
     const timeHours = now.getHours() + now.getMinutes() / 60;
@@ -82,7 +90,7 @@
 </script>
 
 <main class:storm-mode={$envThemeState.isStorm}>
-  <div class="stars-canopy" class:active={$envThemeState.isStars}></div>
+  <div class="stars-canopy" class:active={starsActive}></div>
   <div class="meteor-canopy" class:active={$envThemeState.isMeteorShower}></div>
   <div class="aurora-canopy" class:active={$envThemeState.isAurora}></div>
   <div class="storm-canopy" class:active={$envThemeState.isStorm}>
