@@ -35,6 +35,7 @@ export class RadialPlannerDB extends Dexie {
     body: string;
     kind: string; // 'companion-alert' | 'scheduled-alert'
     read: number; // 0 = unread, 1 = read
+    synced?: number; // 0/absent = not yet in the cloud vault, 1 = uploaded (msgSync.ts)
   }, string>;
 
   constructor() {
@@ -73,6 +74,15 @@ export class RadialPlannerDB extends Dexie {
       notifications: 'id, date, sent',
       glucose: 'ts',
       comms: 'id, ts, read',
+    });
+    this.version(6).stores({
+      days: 'date',
+      customVibes: 'id, categoryId',
+      customCategories: 'id',
+      scratchpad: 'id',
+      notifications: 'id, date, sent',
+      glucose: 'ts',
+      comms: 'id, ts, read, synced',
     });
   }
 }

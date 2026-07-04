@@ -19,12 +19,16 @@
   import { theme, toggleTheme, envLabel, customThemeStore } from './lib/theme';
   import { startEnvTheme, stopEnvTheme, envThemeState, debugThemeOverride } from './lib/envTheme';
   import { startGlucose, stopGlucose } from './lib/glucose';
+  import { startMsgSync, stopMsgSync } from './lib/msgSync';
   import { onMount, onDestroy } from 'svelte';
   import { get } from 'svelte/store';
 
   onMount(() => {
     startEnvTheme();
     startGlucose();
+    // ChatCompanion (a child, mounted before this runs) registers its chat
+    // adapter in its own onMount, so the first sync already sees the chat.
+    startMsgSync();
 
     // Notification tap → comms channel. Two arrival paths (see sw.js): a
     // fresh window carries ?comms=1 in the URL; an already-open window gets a
@@ -45,6 +49,7 @@
   onDestroy(() => {
     stopEnvTheme();
     stopGlucose();
+    stopMsgSync();
   });
 
   function handleDropdownChange(e: Event) {

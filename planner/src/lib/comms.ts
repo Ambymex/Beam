@@ -14,6 +14,7 @@ export interface CommMessage {
   body: string;
   kind: string; // 'companion-alert' | 'scheduled-alert'
   read: number; // 0 = unread, 1 = read
+  synced?: number; // 0/absent = not yet uploaded to the cloud vault (msgSync.ts)
 }
 
 // Unread count for the header chip badge. Seeded from the db once it opens;
@@ -38,11 +39,50 @@ export async function logComm(title: string, body: string, kind: string): Promis
       body,
       kind,
       read: 0,
+      synced: 0,
     });
     unreadComms.update((n) => n + 1);
   } catch (err) {
     console.error('[Comms] Failed to archive message:', err);
   }
+}
+
+// ----- cloud vault plumbing (called by msgSync.ts; no imports back the other
+// way, so the module graph stays acyclic) -----
+
+// JS filter, not the synced index: rows written before the field existed have
+// no index entry but still need their first upload.
+export async function getUnsyncedComms(): Promise<CommMessage[]> {
+  const all = await db.comms.toArray();
+  return all.filter((c) => !c.synced);
+}
+
+export async function markCommsSynced(ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  await db.comms.where('id').anyOf(ids).modify({ synced: 1 });
+}
+
+// Messages another app dropped in the vault: land as unread, already synced
+// (they came FROM the cloud — pushing them back would be an echo).
+export async function insertRemoteComms(
+  rows: Array<{ id: string; title: string | null; body: string; kind: string | null; ts: string }>
+): Promise<void> {
+  let added = 0;
+  for (const r of rows) {
+    const exists = await db.comms.get(r.id);
+    if (exists) continue;
+    await db.comms.put({
+      id: r.id,
+      ts: Date.parse(r.ts) || Date.now(),
+      title: r.title || 'Message',
+      body: r.body || '',
+      kind: r.kind || 'companion-alert',
+      read: 0,
+      synced: 1,
+    });
+    added++;
+  }
+  if (added) unreadComms.update((n) => n + added);
 }
 
 export async function loadComms(limit = 200): Promise<CommMessage[]> {

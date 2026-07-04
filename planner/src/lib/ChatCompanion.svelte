@@ -20,6 +20,16 @@
   import { fetchContext, injectMemory } from './vault';
   import { checkPendingNotifications, scheduleNotification } from './notifications';
   import { logComm } from './comms';
+  import {
+    registerChatAdapter,
+    scheduleMsgSync,
+    setSyncKey,
+    getSyncKey,
+    generateSyncKey,
+    msgSyncStatus,
+    msgSyncConfigured,
+    type ChatSyncMessage
+  } from './msgSync';
 
   const dispatch = createEventDispatcher<{ close: void }>();
 
@@ -59,6 +69,10 @@
     role: 'user' | 'assistant';
     content: string;
     timestamp: string;
+    // Cloud vault state (msgSync.ts): synced = already uploaded; source names
+    // the app that wrote it when it wasn't this one.
+    synced?: boolean;
+    source?: string;
     // An ambient visual gesture fired alongside the message (see
     // CompanionReacts.svelte). Stored for the record; only fired on arrival.
     react?: string;
@@ -129,6 +143,17 @@
 
   // Tavily Search API Settings
   let tavilyKey = safeGetItem('radial-planner-tavily-key');
+
+  // Cross-app message vault (msgSync.ts) — the key IS the identity, so it
+  // saves immediately on change rather than waiting for Save Settings.
+  let syncKeyLocal = getSyncKey();
+  function onSyncKeyChange() {
+    setSyncKey(syncKeyLocal);
+  }
+  function onGenerateSyncKey() {
+    syncKeyLocal = generateSyncKey();
+    setSyncKey(syncKeyLocal);
+  }
 
   function triggerFileSelect() {
     if (fileInput) fileInput.click();
@@ -222,12 +247,44 @@
       await triggerHeartbeatCheck();
     })();
 
+    // Plug this chat into the cross-app vault (msgSync.ts). The component is
+    // always mounted, so the adapter is always live.
+    registerChatAdapter({
+      getUnsynced: (): ChatSyncMessage[] =>
+        messages
+          .filter((m) => !m.synced && !m.id.startsWith('welcome_') && m.content)
+          .map((m) => ({ id: m.id, role: m.role, content: m.content, timestamp: m.timestamp })),
+      markSynced: (ids: string[]) => {
+        const done = new Set(ids);
+        messages = messages.map((m) => (done.has(m.id) ? { ...m, synced: true } : m));
+        saveChat(true);
+      },
+      mergeRemote: (remote: ChatSyncMessage[]) => {
+        const known = new Set(messages.map((m) => m.id));
+        const fresh: ChatMessage[] = remote
+          .filter((r) => !known.has(r.id) && r.content)
+          .map((r) => ({
+            id: r.id,
+            role: r.role,
+            content: r.content,
+            timestamp: r.timestamp,
+            synced: true, // it came FROM the cloud; pushing it back would echo
+            // own rows returning on a fresh-install pull look native
+            source: r.source && r.source !== 'planner' ? r.source : undefined,
+          }));
+        if (!fresh.length) return;
+        // ISO timestamps sort lexically; interleave by when things were said
+        messages = [...messages, ...fresh].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+        saveChat(true);
+      },
+    });
+
     return () => {
       if (checkInterval) clearInterval(checkInterval);
     };
   });
 
-  function saveChat() {
+  function saveChat(quiet = false) {
     // Keep sliding window of last 100 messages
     if (messages.length > 100) {
       messages = messages.slice(messages.length - 100);
@@ -238,6 +295,9 @@
       console.warn('localStorage write failed:', e);
     }
     scrollToBottom();
+    // quiet = bookkeeping writes from the sync itself (marking synced, merging
+    // pulled rows) — re-triggering a sync for those would just echo.
+    if (!quiet) scheduleMsgSync();
   }
 
   function scrollToBottom() {
@@ -1499,14 +1559,39 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
 
       <div class="field">
         <label for="tavily-key">Tavily Search API Key:</label>
-        <input 
+        <input
           id="tavily-key"
-          type="password" 
-          placeholder="tvly-..." 
-          bind:value={tavilyKey} 
+          type="password"
+          placeholder="tvly-..."
+          bind:value={tavilyKey}
           on:change={saveSettings}
         />
         <span class="tip">Enables the companion to search the web autonomously.</span>
+      </div>
+      <div class="field">
+        <label for="sync-key">Cross-App Sync Key:</label>
+        <div style="display: flex; gap: 6px;">
+          <input
+            id="sync-key"
+            type="password"
+            placeholder="sync_..."
+            bind:value={syncKeyLocal}
+            on:change={onSyncKeyChange}
+            style="flex: 1;"
+          />
+          <button
+            type="button"
+            style="padding: 4px 10px; font-size: 11px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); cursor: pointer; white-space: nowrap;"
+            on:click={onGenerateSyncKey}
+          >
+            Generate
+          </button>
+        </div>
+        <span class="tip">
+          Mirrors this chat + comms to the cloud vault and pulls in messages from other apps
+          using the same key. Treat it like a password — anyone holding it is you.
+          {#if !msgSyncConfigured}(Supabase env not configured in this build — sync is off.){:else if $msgSyncStatus}{$msgSyncStatus}{/if}
+        </span>
       </div>
       <div class="field">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
@@ -1535,6 +1620,9 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
         </div>
         <div class="bubble-wrap">
           <div class="bubble" style="position: relative; padding-right: 36px;">
+            {#if msg.source}
+              <div class="src-tag">via {msg.source}</div>
+            {/if}
             {@html formatMessageContent(msg.content)}
             <button 
               type="button" 
@@ -1732,6 +1820,14 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
   .message-wrap.user .bubble {
     background: var(--surface-3);
     color: var(--text);
+  }
+  /* a message that arrived via the vault from another app */
+  .src-tag {
+    font-size: 10px;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 4px;
   }
   .actions-notif {
     display: flex;
