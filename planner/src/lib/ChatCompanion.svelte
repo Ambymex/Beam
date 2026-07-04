@@ -23,6 +23,14 @@
 
   const dispatch = createEventDispatcher<{ close: void }>();
 
+  // The component stays mounted from app boot and merely hides when "closed"
+  // (App.svelte drives this) — the heartbeat interval and scheduled-alert
+  // checker in onMount must keep running with the chat UI out of sight.
+  export let visible = true;
+  // While display:none the scroll box has no height, so any scroll done in the
+  // background lands on nothing — redo it the moment the chat is shown.
+  $: if (visible) scrollToBottom();
+
   // The react overlay instance + whitelist gate: only reacts we actually have
   // animations for ever fire, however creative the model output gets.
   let reactLayer: CompanionReacts | null = null;
@@ -1427,7 +1435,7 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
   }
 </script>
 
-<div class="overlay" class:tremor role="dialog" aria-label="Companion chat">
+<div class="overlay" class:tremor class:hidden={!visible} role="dialog" aria-label="Companion chat">
   <header>
     <span>Planner Companion</span>
     <div class="head-btns">
@@ -1610,6 +1618,11 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
     display: flex;
     flex-direction: column;
     padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  }
+  /* display:none (not visibility) so the hidden chat costs nothing to render
+     and vanishes from the accessibility tree while the script stays alive */
+  .overlay.hidden {
+    display: none;
   }
   .overlay.tremor {
     animation: chat-tremor 0.45s linear both;

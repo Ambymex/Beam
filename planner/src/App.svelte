@@ -176,9 +176,10 @@
 {#if showAlerts}
   <AlertsSettings on:close={() => (showAlerts = false)} />
 {/if}
-{#if showCompanion}
-  <ChatCompanion on:close={() => (showCompanion = false)} />
-{/if}
+<!-- Always mounted, merely hidden when closed: the companion's heartbeat and
+     scheduled-alert checker live in its onMount and must survive the overlay
+     being dismissed. -->
+<ChatCompanion visible={showCompanion} on:close={() => (showCompanion = false)} />
 {#if showSearch}
   <Search on:close={() => (showSearch = false)} />
 {/if}
