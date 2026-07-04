@@ -1,7 +1,7 @@
 <script context="module" lang="ts">
   // The react vocabulary. The companion picks one (or none) per message via
   // the top-level "react" field; anything not in this list is ignored.
-  export const REACT_IDS = ['black_hearts', 'sparks', 'tungsten_strike'];
+  export const REACT_IDS = ['black_hearts', 'sparks', 'tungsten_strike', 'liquid_hearts'];
 </script>
 
 <script lang="ts">
@@ -86,6 +86,67 @@
     return 16;
   }
 
+  // Liquid hearts: black_hearts' slower, heavier sibling — affection with
+  // heat behind it. Spec by the companion (of course): honey-viscous cream
+  // drops that stretch as they fall, merge mid-air, and pool glossy at the
+  // floor. Choreographed, not simulated: merges are pre-paired at spawn and
+  // pooling happens at the layer bottom, so it stays pure CSS kinetics like
+  // every other react.
+  const HEART_PATH =
+    'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z';
+  // Natural liquid isn't uniform-colour: warm to cool creams, per drop.
+  const CREAMS = ['#f8f0e0', '#f5f0e6', '#f5f2ea'];
+
+  interface Drip {
+    id: number;
+    x: number;
+    size: number;
+    color: string;
+    delay: number;
+    dur: number; // ~40–50% of the confetti fall speed — viscosity lives here
+    rotEnd: number; // lazy: 5–15°/s
+    wobble: number; // stretch-oscillation period (~2–2.6 Hz)
+    wobblePhase: number;
+    op: number;
+    poolW: number;
+    poolH: number;
+    poolDur: number;
+    poolDelay: number; // absolute: when the drop reaches the floor
+  }
+
+  interface MergePair {
+    id: number;
+    x: number;
+    gap: number; // px each half starts from centre
+    size: number; // the merged drop
+    halfSize: number;
+    color: string;
+    delay: number;
+    dur: number;
+    convDur: number; // how long the halves take to find each other
+    popDelay: number; // absolute: when the fused drop takes over
+    rotEnd: number;
+    wobble: number;
+    wobblePhase: number;
+    op: number;
+    poolW: number;
+    poolH: number;
+    poolDur: number;
+    poolDelay: number;
+  }
+
+  let liquid: Drip[] = [];
+  let liquidPairs: MergePair[] = [];
+  let liquidTimer: ReturnType<typeof setTimeout>;
+
+  function pickLiquidSize(): number {
+    const r = Math.random();
+    if (r < 0.45) return 12;
+    if (r < 0.8) return 18;
+    if (r < 0.96) return 26;
+    return 34;
+  }
+
   export function fire(type: string) {
     if (type === 'black_hearts') {
       const count = 40 + Math.floor(Math.random() * 21); // 40–60 hearts
@@ -136,6 +197,68 @@
       sparks = burst;
       clearTimeout(sparkTimer);
       sparkTimer = setTimeout(() => (sparks = []), (1.2 + 3.4) * 1000 + 300);
+    } else if (type === 'liquid_hearts') {
+      const drips: Drip[] = [];
+      const count = 11 + Math.floor(Math.random() * 5); // 11–15: a trickle, not a burst
+      for (let i = 0; i < count; i++) {
+        const dur = 5.5 + Math.random() * 2; // 5.5–7.5s — start of the tuning range
+        const size = pickLiquidSize();
+        const wobble = 0.38 + Math.random() * 0.14;
+        const delay = Math.random() * 2.5; // spec: trickle over 2–3s
+        drips.push({
+          id: burstId++,
+          x: 3 + Math.random() * 94,
+          size,
+          color: CREAMS[Math.floor(Math.random() * CREAMS.length)],
+          delay,
+          dur,
+          rotEnd: (Math.random() < 0.5 ? -1 : 1) * (5 + Math.random() * 10) * dur,
+          wobble,
+          wobblePhase: Math.random() * wobble,
+          op: 0.85 + Math.random() * 0.15, // liquid is substantial, barely translucent
+          poolW: size * (3 + Math.random()),
+          poolH: size * 0.42,
+          poolDur: 2 + Math.random(), // spec: pools fade over 2–3s
+          poolDelay: delay + dur - 0.35,
+        });
+      }
+      const pairs: MergePair[] = [];
+      const pairCount = 2 + Math.floor(Math.random() * 2); // 2–3 merges per fall
+      for (let i = 0; i < pairCount; i++) {
+        const dur = 5.8 + Math.random() * 1.7;
+        const size = 20 + Math.floor(Math.random() * 10);
+        const delay = Math.random() * 2.2;
+        const convDur = dur * (0.3 + Math.random() * 0.25);
+        const wobble = 0.4 + Math.random() * 0.12;
+        pairs.push({
+          id: burstId++,
+          x: 10 + Math.random() * 80,
+          gap: 14 + Math.random() * 12,
+          size,
+          halfSize: Math.round(size * 0.68),
+          color: CREAMS[Math.floor(Math.random() * CREAMS.length)],
+          delay,
+          dur,
+          convDur,
+          popDelay: delay + convDur - 0.12,
+          rotEnd: (Math.random() < 0.5 ? -1 : 1) * (5 + Math.random() * 8) * dur,
+          wobble,
+          wobblePhase: Math.random() * wobble,
+          op: 0.9 + Math.random() * 0.1,
+          poolW: size * 3.6,
+          poolH: size * 0.42,
+          poolDur: 2.2 + Math.random(),
+          poolDelay: delay + dur - 0.35,
+        });
+      }
+      liquid = drips;
+      liquidPairs = pairs;
+      clearTimeout(liquidTimer);
+      // max delay 2.5 + max fall 7.5 + pool 3 + margin
+      liquidTimer = setTimeout(() => {
+        liquid = [];
+        liquidPairs = [];
+      }, 13500);
     } else if (type === 'tungsten_strike') {
       strikeTimers.forEach(clearTimeout);
       // Drop the node first so a rapid re-fire restarts the CSS animations.
@@ -187,6 +310,58 @@
         </svg>
       </span>
     </span>
+  {/each}
+
+  {#each liquid as d (d.id)}
+    <span
+      class="ldrip"
+      style="left:{d.x}%; --size:{d.size}px; --dur:{d.dur}s; --delay:{d.delay}s; --op:{d.op}; --rot:{d.rotEnd}deg; --wobble:{d.wobble}s; --wobblephase:{d.wobblePhase}s;"
+    >
+      <span class="trail"></span>
+      <span class="goo">
+        <svg class="lheart" viewBox="0 0 24 24" width={d.size} height={d.size}>
+          <path fill={d.color} d={HEART_PATH} />
+          <!-- the gloss: cream reads dry without a wet highlight -->
+          <ellipse cx="8" cy="7.2" rx="2.4" ry="1.4" fill="rgba(255,255,255,0.85)" transform="rotate(-20 8 7.2)" />
+        </svg>
+      </span>
+    </span>
+    <span
+      class="lpool"
+      style="left:{d.x}%; --poolw:{d.poolW}px; --poolh:{d.poolH}px; --pooldur:{d.poolDur}s; --pooldelay:{d.poolDelay}s; --pcolor:{d.color};"
+    ></span>
+  {/each}
+
+  {#each liquidPairs as p (p.id)}
+    <span
+      class="ldrip pair"
+      style="left:{p.x}%; --size:{p.size}px; --dur:{p.dur}s; --delay:{p.delay}s; --op:{p.op}; --rot:{p.rotEnd}deg; --wobble:{p.wobble}s; --wobblephase:{p.wobblePhase}s; --convdur:{p.convDur}s; --popdelay:{p.popDelay}s;"
+    >
+      <span class="half" style="--from:{-p.gap}px">
+        <svg class="lheart" viewBox="0 0 24 24" width={p.halfSize} height={p.halfSize}>
+          <path fill={p.color} d={HEART_PATH} />
+          <ellipse cx="8" cy="7.2" rx="2.4" ry="1.4" fill="rgba(255,255,255,0.85)" transform="rotate(-20 8 7.2)" />
+        </svg>
+      </span>
+      <span class="half" style="--from:{p.gap}px">
+        <svg class="lheart" viewBox="0 0 24 24" width={p.halfSize} height={p.halfSize}>
+          <path fill={p.color} d={HEART_PATH} />
+          <ellipse cx="8" cy="7.2" rx="2.4" ry="1.4" fill="rgba(255,255,255,0.85)" transform="rotate(-20 8 7.2)" />
+        </svg>
+      </span>
+      <span class="whole">
+        <span class="goo">
+          <svg class="lheart" viewBox="0 0 24 24" width={p.size} height={p.size}>
+            <path fill={p.color} d={HEART_PATH} />
+            <ellipse cx="8" cy="7.2" rx="2.4" ry="1.4" fill="rgba(255,255,255,0.85)" transform="rotate(-20 8 7.2)" />
+          </svg>
+        </span>
+      </span>
+    </span>
+    <span
+      class="lpool"
+      style="left:{p.x}%; --poolw:{p.poolW}px; --poolh:{p.poolH}px; --pooldur:{p.poolDur}s; --pooldelay:{p.poolDelay}s; --pcolor:{p.color};"
+    ></span>
   {/each}
 
   {#if strike}
@@ -305,6 +480,111 @@
   @keyframes react-spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(var(--rot)); }
+  }
+
+  /* ----- liquid hearts: honey-slow, stretching, merging, pooling ----- */
+  .ldrip {
+    position: absolute;
+    top: calc(-1 * var(--size) - 14px);
+    animation:
+      liquid-fall var(--dur) cubic-bezier(0.3, 0, 0.8, 1) var(--delay) both,
+      liquid-fade var(--dur) linear var(--delay) both;
+  }
+  /* the gentle start is the drop clinging before it lets go; after that the
+     speed is what sells viscosity (calibrated ~40–50% of black_hearts) */
+  @keyframes liquid-fall {
+    from { transform: translateY(0); }
+    to { transform: translateY(105vh); }
+  }
+  @keyframes liquid-fade {
+    0% { opacity: 0; }
+    6% { opacity: var(--op); }
+    90% { opacity: var(--op); }
+    100% { opacity: 0; }
+  }
+  /* the wobble: liquid doesn't hold shape — stretched by fall, never rigid.
+     Oscillates AROUND a slightly elongated state, not around rest. */
+  .goo {
+    display: block;
+    animation: liquid-goo var(--wobble) ease-in-out calc(-1 * var(--wobblephase)) infinite alternate;
+  }
+  @keyframes liquid-goo {
+    from { transform: scale(0.94, 1.1); }
+    to { transform: scale(1.05, 0.96); }
+  }
+  .lheart {
+    display: block;
+    animation: react-spin var(--dur) linear var(--delay) both;
+  }
+  /* residue streak above the drop — tracks on glass */
+  .trail {
+    position: absolute;
+    left: 50%;
+    bottom: 70%;
+    width: 3px;
+    height: calc(var(--size) * 2.4);
+    margin-left: -1.5px;
+    border-radius: 3px;
+    background: linear-gradient(to top, rgba(226, 214, 190, 0.3), transparent);
+  }
+  /* cream on pale glass needs a shadow to exist; on dark skies a warm sheen */
+  :global([data-theme='light']) .lheart {
+    filter: drop-shadow(0 1px 2px rgba(115, 88, 43, 0.4));
+  }
+  :global([data-theme='dark']) .lheart {
+    filter: drop-shadow(0 0 4px rgba(245, 240, 230, 0.35));
+  }
+
+  /* merge pair: two halves ease into each other (surface tension pulls harder
+     the closer they get), then the fused drop pops in with a squash */
+  .half {
+    position: absolute;
+    left: 0;
+    top: 0;
+    animation: pair-converge var(--convdur) ease-in var(--delay) both;
+  }
+  @keyframes pair-converge {
+    0% { transform: translateX(calc(var(--from) - 50%)); opacity: 1; }
+    85% { opacity: 1; }
+    100% { transform: translateX(-50%); opacity: 0; }
+  }
+  .whole {
+    position: absolute;
+    left: 0;
+    top: 0;
+    opacity: 0;
+    animation: merge-pop 0.5s cubic-bezier(0.34, 1.3, 0.64, 1) var(--popdelay) both;
+  }
+  @keyframes merge-pop {
+    0% { opacity: 0; transform: translateX(-50%) scale(0.7, 1.25); }
+    25% { opacity: 1; }
+    55% { transform: translateX(-50%) scale(1.14, 0.88); }
+    100% { opacity: 1; transform: translateX(-50%) scale(1, 1); }
+  }
+
+  /* the pool: lands, spreads, sits glossy for a breath, sinks away */
+  .lpool {
+    position: absolute;
+    bottom: 0;
+    width: var(--poolw);
+    height: var(--poolh);
+    margin-left: calc(-0.5 * var(--poolw));
+    border-radius: 50%;
+    background:
+      radial-gradient(ellipse at 32% 20%, rgba(255, 255, 255, 0.9), transparent 42%),
+      var(--pcolor);
+    transform-origin: 50% 100%;
+    animation: pool-spread var(--pooldur) ease-out var(--pooldelay) both;
+  }
+  :global([data-theme='light']) .lpool {
+    filter: drop-shadow(0 1px 2px rgba(115, 88, 43, 0.35));
+  }
+  @keyframes pool-spread {
+    0% { opacity: 0; transform: scaleX(0.3) scaleY(0.5); }
+    10% { opacity: 0.92; }
+    40% { transform: scaleX(1) scaleY(1); }
+    75% { opacity: 0.8; }
+    100% { opacity: 0; transform: scaleX(1.18) scaleY(0.85); }
   }
 
   /* ----- tungsten strike: one shard, freefall, dead stop ----- */
