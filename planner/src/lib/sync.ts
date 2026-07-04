@@ -123,6 +123,28 @@ export async function syncToServer(): Promise<boolean> {
   }
 }
 
+// Mirror one companion-scheduled message into the server spine so it fires as
+// a real push with the app closed. Fire-and-forget: the local Dexie copy in
+// notifications.ts stays authoritative; failure here just means the banner
+// only lands if the app happens to be open (the pre-spine behaviour).
+export async function scheduleServerPush(
+  id: string,
+  fireAtIso: string,
+  title: string,
+  body: string
+): Promise<void> {
+  if (!syncConfigured) return;
+  try {
+    await fetch(`${SUPABASE_URL}/functions/v1/schedule-push`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ install_id: installId(), id, fire_at: fireAtIso, title, body }),
+    });
+  } catch {
+    // offline / undeployed — advisory only
+  }
+}
+
 // Re-sync whenever the schedule changes (debounced), once configured + granted.
 let timer: ReturnType<typeof setTimeout> | null = null;
 export function scheduleResync() {

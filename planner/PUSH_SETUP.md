@@ -53,7 +53,13 @@ supabase secrets set \
 supabase functions deploy replace-events
 supabase functions deploy send-due
 supabase functions deploy active-colour
+supabase functions deploy schedule-push
 ```
+
+> `schedule-push` mirrors companion-scheduled messages into `scheduled_pushes`
+> (kind `companion-alert`) so they fire with the app closed. `replace-events`
+> deliberately leaves that kind alone when replacing transition events, and
+> `send-due` gives it a per-message tag + a `/?comms=1` tap-through.
 
 (`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are injected into functions
 automatically.)

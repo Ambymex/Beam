@@ -1,9 +1,13 @@
 import { db } from './db';
 import { todayKey } from './days';
 import { logComm } from './comms';
+import { scheduleServerPush } from './sync';
 
 /**
- * Schedules a new notification in the database.
+ * Schedules a new notification in the database, and mirrors it into the
+ * server push spine so it can fire as a real web push when the app is closed.
+ * The local Dexie row remains the source of truth (it feeds the Comms
+ * archive); the server row is the delivery vehicle.
  */
 export async function scheduleNotification(
   date: string,
@@ -20,6 +24,10 @@ export async function scheduleNotification(
     body,
     sent: 0
   });
+  // date + decimal local hours → absolute instant for the server cron
+  const [y, m, d] = date.split('-').map(Number);
+  const fireAt = new Date(y, m - 1, d, 0, Math.round(timeHours * 60));
+  void scheduleServerPush(id, fireAt.toISOString(), title, body);
   console.log(`[Scheduler] Notification scheduled: "${title}" at ${timeHours}h on ${date}.`);
   return id;
 }
@@ -64,11 +72,22 @@ export async function checkPendingNotifications(): Promise<void> {
       // banner: the banner truncates and can be denied, the archive can't.
       await logComm(item.title, item.body, 'scheduled-alert');
 
-      if (isNotificationGranted) {
+      // Long past due = the app was closed at fire time, so the server spine
+      // already delivered the banner (or was never going to). A stale local
+      // banner ("leave at 6!" at 8pm) is worse than none — archive only.
+      const minutesLate =
+        item.date < today
+          ? Infinity
+          : (currentHours - item.timeHours) * 60;
+      const freshEnough = minutesLate <= 5;
+
+      if (isNotificationGranted && freshEnough) {
         const payload = {
           title: item.title,
           body: item.body,
-          tag: item.id,
+          // same tag the server push uses, so if both deliver within the
+          // window the OS collapses them into one banner
+          tag: `companion:${item.id}`,
           kind: 'scheduled-alert',
           url: '/?comms=1'
         };
@@ -78,7 +97,7 @@ export async function checkPendingNotifications(): Promise<void> {
         } else {
           await reg.showNotification(item.title, { body: item.body, icon: '/icon.svg' });
         }
-      } else {
+      } else if (!isNotificationGranted) {
         console.warn(`[Scheduler] Alert "${item.title}" is due, but notification permission is not granted.`);
       }
 

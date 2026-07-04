@@ -24,7 +24,7 @@ Deno.serve(async () => {
   // grab a batch of ripe events with their subscription, oldest first
   const { data: due, error } = await supabase
     .from('scheduled_pushes')
-    .select('id, install_id, kind, title, body, vibe_id, push_subscriptions(endpoint, p256dh, auth)')
+    .select('id, install_id, event_key, kind, title, body, vibe_id, push_subscriptions(endpoint, p256dh, auth)')
     .eq('sent', false)
     .lte('fire_at', now)
     .order('fire_at', { ascending: true })
@@ -41,13 +41,18 @@ Deno.serve(async () => {
       await supabase.from('scheduled_pushes').update({ sent: true }).eq('id', row.id);
       continue;
     }
+    // Transitions collapse by kind (two "dryer's free" = one banner) and open
+    // the ring; companion messages are each their own banner (tag = event_key,
+    // matching the client's local-fire tag so open-app overlap collapses too)
+    // and tap through to the Comms channel where the full text lives.
+    const isCompanion = row.kind === 'companion-alert';
     const payload = JSON.stringify({
       title: row.title,
       body: row.body,
       kind: row.kind,
       vibeId: row.vibe_id,
-      url: '/',
-      tag: `${row.kind}`,
+      url: isCompanion ? '/?comms=1' : '/',
+      tag: isCompanion ? `${row.event_key}` : `${row.kind}`,
     });
     try {
       const res = await sendWebPush(sub, payload, keys);

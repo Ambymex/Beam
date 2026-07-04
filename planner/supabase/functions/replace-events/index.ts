@@ -38,12 +38,16 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
 
-    // drop this install's future, unsent rows, then insert the fresh set
+    // drop this install's future, unsent TRANSITION rows, then insert the
+    // fresh set. Companion-scheduled messages (kind 'companion-alert', via
+    // schedule-push) are NOT ours to replace — a ring edit must never delete
+    // something he promised to say at 6pm.
     await supabase
       .from('scheduled_pushes')
       .delete()
       .eq('install_id', install_id)
       .eq('sent', false)
+      .neq('kind', 'companion-alert')
       .gte('fire_at', new Date().toISOString());
 
     const rows = (events ?? []).map((e) => ({
