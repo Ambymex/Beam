@@ -64,14 +64,20 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// Tapping a notification focuses an existing window or opens one.
+// Tapping a notification focuses an existing window or opens one. An existing
+// window is an SPA that must not be reloaded, so the target url travels by
+// postMessage and the page routes itself (App.svelte listens); a fresh window
+// gets the url directly and reads it from the query string on boot.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const url = (event.notification.data && event.notification.data.url) || '/';
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
       for (const client of list) {
-        if ('focus' in client) return client.focus();
+        if ('focus' in client) {
+          client.postMessage({ type: 'notification-click', url });
+          return client.focus();
+        }
       }
       return self.clients.openWindow(url);
     }),

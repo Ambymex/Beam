@@ -26,6 +26,16 @@ export class RadialPlannerDB extends Dexie {
     body: string;
     sent: number; // 0 = pending, 1 = sent
   }, string>;
+  // Comms channel: the full text of every companion notification, archived at
+  // send time — the OS banner truncates, this never does (see comms.ts).
+  comms!: Table<{
+    id: string;
+    ts: number; // epoch ms
+    title: string;
+    body: string;
+    kind: string; // 'companion-alert' | 'scheduled-alert'
+    read: number; // 0 = unread, 1 = read
+  }, string>;
 
   constructor() {
     super('RadialPlannerDB');
@@ -54,6 +64,15 @@ export class RadialPlannerDB extends Dexie {
       scratchpad: 'id',
       notifications: 'id, date, sent',
       glucose: 'ts',
+    });
+    this.version(5).stores({
+      days: 'date',
+      customVibes: 'id, categoryId',
+      customCategories: 'id',
+      scratchpad: 'id',
+      notifications: 'id, date, sent',
+      glucose: 'ts',
+      comms: 'id, ts, read',
     });
   }
 }

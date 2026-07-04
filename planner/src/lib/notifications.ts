@@ -1,5 +1,6 @@
 import { db } from './db';
 import { todayKey } from './days';
+import { logComm } from './comms';
 
 /**
  * Schedules a new notification in the database.
@@ -59,13 +60,17 @@ export async function checkPendingNotifications(): Promise<void> {
     const isNotificationGranted = typeof Notification !== 'undefined' && Notification.permission === 'granted';
 
     for (const item of due) {
+      // Archive the full text in the comms channel BEFORE attempting the
+      // banner: the banner truncates and can be denied, the archive can't.
+      await logComm(item.title, item.body, 'scheduled-alert');
+
       if (isNotificationGranted) {
         const payload = {
           title: item.title,
           body: item.body,
           tag: item.id,
           kind: 'scheduled-alert',
-          url: '/'
+          url: '/?comms=1'
         };
 
         if (reg.active) {

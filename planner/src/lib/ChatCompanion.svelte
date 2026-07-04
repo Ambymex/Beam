@@ -19,6 +19,7 @@
   import type { Symptom } from './symptoms';
   import { fetchContext, injectMemory } from './vault';
   import { checkPendingNotifications, scheduleNotification } from './notifications';
+  import { logComm } from './comms';
 
   const dispatch = createEventDispatcher<{ close: void }>();
 
@@ -441,7 +442,7 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
       "targetDate": "YYYY-MM-DD",
       "content": "ONLY the brand-new text to add. NEVER repeat, copy, or summarize existing diary content here — the app automatically appends your text to the existing diary with a timestamp. Sending old content again creates duplicates."
     },
-    // I. Fire a push notification to the user immediately:
+    // I. Fire a push notification to the user immediately. The OS banner truncates long bodies, but the full text is always archived in the app's Comms channel, so write the body as long as it needs to be:
     {
       "type": "show_notification",
       "title": "Alert Title",
@@ -1341,6 +1342,9 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
         }
 
         else if (act.type === 'show_notification' && act.title !== undefined) {
+          // Archive first (full text, unconditional), then attempt the banner
+          // — the comms channel is the copy that survives truncation/denial.
+          logComm(act.title, act.body || '', 'companion-alert').catch(() => {});
           if ('serviceWorker' in navigator && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
             navigator.serviceWorker.ready.then(reg => {
               const payload = {
@@ -1348,7 +1352,7 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
                 body: act.body || '',
                 tag: 'companion-alert-' + Date.now(),
                 kind: 'companion-alert',
-                url: '/'
+                url: '/?comms=1'
               };
               if (reg.active) {
                 reg.active.postMessage({ type: 'mock-push', payload });

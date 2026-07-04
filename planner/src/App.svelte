@@ -12,6 +12,8 @@
   import ScratchPad from './lib/ScratchPad.svelte';
   import Diary from './lib/Diary.svelte';
   import ThemeDesigner from './lib/ThemeDesigner.svelte';
+  import CommsPanel from './lib/CommsPanel.svelte';
+  import { unreadComms } from './lib/comms';
   import { currentKey, todayKey } from './lib/days';
   import { cascadeMode, appointmentMode, symptomActions } from './lib/daystate';
   import { theme, toggleTheme, envLabel, customThemeStore } from './lib/theme';
@@ -23,6 +25,22 @@
   onMount(() => {
     startEnvTheme();
     startGlucose();
+
+    // Notification tap → comms channel. Two arrival paths (see sw.js): a
+    // fresh window carries ?comms=1 in the URL; an already-open window gets a
+    // notification-click message from the service worker instead.
+    if (new URLSearchParams(location.search).get('comms') === '1') {
+      showComms = true;
+      history.replaceState(null, '', location.pathname);
+    }
+    const onSwMessage = (e: MessageEvent) => {
+      const msg = e.data || {};
+      if (msg.type === 'notification-click' && String(msg.url || '').includes('comms=1')) {
+        showComms = true;
+      }
+    };
+    navigator.serviceWorker?.addEventListener('message', onSwMessage);
+    return () => navigator.serviceWorker?.removeEventListener('message', onSwMessage);
   });
   onDestroy(() => {
     stopEnvTheme();
@@ -53,6 +71,7 @@
   let showScratchpad = false;
   let showDiary = false;
   let showDesigner = false;
+  let showComms = false;
   $: viewingToday = $currentKey === todayKey();
 
   function onAddSymptom() {
@@ -81,6 +100,9 @@
     <button class="chip" on:click={() => (showCycle = true)} aria-label="Open cycle settings">Cycle</button>
     <button class="chip" on:click={() => (showAlerts = true)} aria-label="Open alerts settings">Alerts</button>
     <button class="chip" on:click={() => (showCompanion = true)} aria-label="Open chat companion">Companion</button>
+    <button class="chip comms" on:click={() => (showComms = true)} aria-label="Open companion comms channel">
+      Comms{#if $unreadComms > 0}<span class="badge">{$unreadComms}</span>{/if}
+    </button>
     <button class="chip" on:click={() => (showSearch = true)} aria-label="Open plan search">Search</button>
     <button class="chip" on:click={() => (showDiary = true)} aria-label="Open daily diary">Diary</button>
     <button class="chip" on:click={() => (showScratchpad = true)} aria-label="Open scratch pad notes">Notes</button>
@@ -169,6 +191,9 @@
 {#if showDesigner}
   <ThemeDesigner on:close={() => (showDesigner = false)} />
 {/if}
+{#if showComms}
+  <CommsPanel on:close={() => (showComms = false)} />
+{/if}
 
 <style>
   main {
@@ -229,6 +254,22 @@
   }
   .chip.back {
     margin-left: auto;
+  }
+  .chip.comms {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  /* unread count = luminosity cue via --signal, same grammar as .push.on */
+  .badge {
+    background: var(--signal);
+    color: var(--signal-contrast);
+    box-shadow: 0 0 6px var(--signal-glow);
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 3px 6px;
   }
   /* cascade ON = luminous ring (non-colour, §2) */
   .chip.push.on {
