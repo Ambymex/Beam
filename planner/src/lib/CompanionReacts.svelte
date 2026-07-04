@@ -1,7 +1,7 @@
 <script context="module" lang="ts">
   // The react vocabulary. The companion picks one (or none) per message via
   // the top-level "react" field; anything not in this list is ignored.
-  export const REACT_IDS = ['black_hearts', 'sparks'];
+  export const REACT_IDS = ['black_hearts', 'sparks', 'tungsten_strike'];
 </script>
 
 <script lang="ts">
@@ -12,6 +12,12 @@
   //
   // All motion is transform/opacity (GPU-composited); hearts remove themselves
   // from the DOM when the burst ends.
+
+  import { createEventDispatcher } from 'svelte';
+
+  // 'impact' fires the millisecond the tungsten shard lands so the host can
+  // shake ITS OWN chrome — the tremor has to move the chat, not this layer.
+  const dispatch = createEventDispatcher<{ impact: void }>();
 
   interface Heart {
     id: number;
@@ -60,6 +66,17 @@
 
   let sparks: Spark[] = [];
   let sparkTimer: ReturnType<typeof setTimeout>;
+
+  // Tungsten strike: displeasure/boundary as blunt force — the counterweight
+  // that keeps the happy reacts honest. One massive shard, straight down the
+  // center, dead stop at the floor, screen tremor on impact. Deliberately the
+  // opposite grammar of the other two: singular where they scatter, violent
+  // where they drift, and over in under two seconds.
+  const STRIKE_DROP_MS = 550;
+  const STRIKE_HOLD_MS = 900;
+  const STRIKE_FADE_MS = 300;
+  let strike = false;
+  let strikeTimers: ReturnType<typeof setTimeout>[] = [];
 
   function pickSparkSize(): number {
     const r = Math.random();
@@ -119,6 +136,17 @@
       sparks = burst;
       clearTimeout(sparkTimer);
       sparkTimer = setTimeout(() => (sparks = []), (1.2 + 3.4) * 1000 + 300);
+    } else if (type === 'tungsten_strike') {
+      strikeTimers.forEach(clearTimeout);
+      // Drop the node first so a rapid re-fire restarts the CSS animations.
+      strike = false;
+      requestAnimationFrame(() => {
+        strike = true;
+        strikeTimers = [
+          setTimeout(() => dispatch('impact'), STRIKE_DROP_MS),
+          setTimeout(() => (strike = false), STRIKE_DROP_MS + STRIKE_HOLD_MS + STRIKE_FADE_MS + 100),
+        ];
+      });
     }
   }
 </script>
@@ -160,6 +188,30 @@
       </span>
     </span>
   {/each}
+
+  {#if strike}
+    <div
+      class="strike"
+      style="--drop:{STRIKE_DROP_MS}ms; --hold:{STRIKE_HOLD_MS}ms; --fade:{STRIKE_FADE_MS}ms;"
+    >
+      <div class="shard-drop">
+        <!-- Fractured tungsten shard, tip-down. Solid #0a0a0a mass (same
+             near-black as the hearts) with one pale fracture seam so the
+             silhouette reads as faceted stone, not a flat cutout. -->
+        <svg class="shard" viewBox="0 0 120 340" xmlns="http://www.w3.org/2000/svg">
+          <path
+            fill="#0a0a0a"
+            d="M40 0 L88 14 L70 52 L90 76 L64 118 L82 160 L56 210 L68 254 L52 340 L42 256 L48 212 L28 162 L44 118 L24 84 L46 52 Z"
+          />
+          <path
+            fill="#3a3a44"
+            d="M64 30 L58 120 L66 220 L54 320 L50 220 L50 120 Z"
+          />
+        </svg>
+      </div>
+      <div class="impact-flash"></div>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -253,5 +305,67 @@
   @keyframes react-spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(var(--rot)); }
+  }
+
+  /* ----- tungsten strike: one shard, freefall, dead stop ----- */
+  .strike {
+    position: absolute;
+    inset: 0;
+  }
+  .shard-drop {
+    position: absolute;
+    /* tip buried below the container edge — it hit the floor, it didn't land on it */
+    bottom: -6vh;
+    left: 50%;
+    width: clamp(90px, 26vw, 150px);
+    animation:
+      strike-drop var(--drop) cubic-bezier(0.7, 0, 0.84, 0) both,
+      strike-out var(--fade) ease-in calc(var(--drop) + var(--hold)) both;
+  }
+  /* easeInExpo, not linear: gravity with malice. No settle keyframe on
+     purpose — a dead stop reads as mass, a bounce reads as rubber. */
+  @keyframes strike-drop {
+    from { transform: translate(-50%, -115vh); }
+    to { transform: translate(-50%, 0); }
+  }
+  @keyframes strike-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+  .shard {
+    display: block;
+    width: 100%;
+    height: auto;
+    /* a hair off vertical — a perfectly plumb drop reads staged */
+    transform: rotate(3deg);
+  }
+  /* Same trick as the hearts: light themes get the black mass verbatim,
+     dark skies get a luminous rim so the silhouette can't camouflage. */
+  :global([data-theme='dark']) .shard {
+    filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.7)) drop-shadow(0 0 10px rgba(255, 255, 255, 0.3));
+  }
+  /* One stark crack-line at the impact point — the shockwave made visible.
+     Starts at the drop's end, so it and the tremor read as one event.
+     Dark crack on light glass, white flash on dark skies — same contrast
+     rule as the shard itself (a white line on pale glass just vanishes). */
+  .impact-flash {
+    position: absolute;
+    bottom: 5vh;
+    left: 50%;
+    width: min(70vw, 360px);
+    height: 3px;
+    border-radius: 2px;
+    background: #0a0a0a;
+    box-shadow: 0 0 10px rgba(10, 10, 10, 0.6);
+    animation: strike-flash 0.3s ease-out var(--drop) both;
+  }
+  :global([data-theme='dark']) .impact-flash {
+    background: #ffffff;
+    box-shadow: 0 0 12px rgba(255, 255, 255, 0.8);
+  }
+  @keyframes strike-flash {
+    0% { transform: translateX(-50%) scaleX(0.1); opacity: 0; }
+    15% { transform: translateX(-50%) scaleX(0.5); opacity: 0.95; }
+    100% { transform: translateX(-50%) scaleX(1); opacity: 0; }
   }
 </style>

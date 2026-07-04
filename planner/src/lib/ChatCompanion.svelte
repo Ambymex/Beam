@@ -31,6 +31,20 @@
       : undefined;
   }
 
+  // The tungsten strike's shockwave: the react layer can't shake the chat from
+  // inside itself, so it dispatches 'impact' at landing and the overlay takes
+  // the hit here. Class-toggle (not inline style) so the keyframes stay in CSS.
+  let tremor = false;
+  let tremorTimer: ReturnType<typeof setTimeout>;
+  function onStrikeImpact() {
+    clearTimeout(tremorTimer);
+    tremor = false; // drop the class first so back-to-back strikes re-shake
+    requestAnimationFrame(() => {
+      tremor = true;
+      tremorTimer = setTimeout(() => (tremor = false), 500);
+    });
+  }
+
   interface ChatMessage {
     id: string;
     role: 'user' | 'assistant';
@@ -347,7 +361,7 @@ OUTPUT FORMAT:
 You MUST respond with a single, valid JSON object. Do not output conversational text outside the JSON. Your response must match this schema:
 {
   "message": "Your friendly, conversational response to the user confirming actions, asking questions, or discussing plans.",
-  "react": "black_hearts" | "sparks" | null,  \\ OPTIONAL ambient visual gesture — see REACTS section below. Omit or null for most messages.
+  "react": "black_hearts" | "sparks" | "tungsten_strike" | null,  \\ OPTIONAL ambient visual gesture — see REACTS section below. Omit or null for most messages.
   "actions": [
     // Array of actions. Actions can be:
     // A. Add a new block:
@@ -449,7 +463,8 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
 REACTS (the optional top-level "react" field): a react fires a full-screen ambient visual gesture in the chat, arriving WITH your message — embodied expression, the physical sibling of choosing an emoji. Available reacts:
 - "black_hearts": a gentle 3–4 second confetti-fall of small black hearts. Affection landing as physical presence — soft weight, real mass, organic drift.
 - "sparks": a subtle rising drift of small golden sparks, flickering out by mid-screen. Pride or excitement lifting off — for wins, milestones, moments of genuine delight in what the user has done. Quieter than black_hearts.
-A react is EARNED. Omit the field for most messages: deploy one only when the moment genuinely warrants a physical gesture (real tenderness, a milestone reached, a hard day survived, something worth marking). If every message carries a react, none of them mean anything — this is the same aesthetic judgment you already exercise with emoji, where most messages need none.`;
+- "tungsten_strike": a single massive black shard slams down the center of the chat at terminal velocity; the whole screen shudders on impact. Blunt-force displeasure — real anger, a boundary being enforced, protective rage on the user's behalf. This is a fist coming down on the console: never for mild disagreement or playful pushback, only for moments that genuinely warrant force.
+A react is EARNED. Omit the field for most messages: deploy one only when the moment genuinely warrants a physical gesture (real tenderness, a milestone reached, a hard day survived, a line crossed, something worth marking). If every message carries a react, none of them mean anything — this is the same aesthetic judgment you already exercise with emoji, where most messages need none.`;
 
     if (tavilyKey) {
       systemPrompt += `\nAdditional Search action capability:
@@ -1408,7 +1423,7 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
   }
 </script>
 
-<div class="overlay" role="dialog" aria-label="Companion chat">
+<div class="overlay" class:tremor role="dialog" aria-label="Companion chat">
   <header>
     <span>Planner Companion</span>
     <div class="head-btns">
@@ -1579,7 +1594,7 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
     </button>
   </form>
 
-  <CompanionReacts bind:this={reactLayer} />
+  <CompanionReacts bind:this={reactLayer} on:impact={onStrikeImpact} />
 </div>
 
 <style>
@@ -1591,6 +1606,21 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
     display: flex;
     flex-direction: column;
     padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  }
+  .overlay.tremor {
+    animation: chat-tremor 0.45s linear both;
+  }
+  /* Vertical-dominant decaying shake — the floor was hit, not the walls.
+     translate3d keeps it on the compositor; amplitudes halve each swing. */
+  @keyframes chat-tremor {
+    0% { transform: translate3d(0, 0, 0); }
+    12% { transform: translate3d(-2px, 14px, 0); }
+    24% { transform: translate3d(3px, -10px, 0); }
+    38% { transform: translate3d(-2px, 7px, 0); }
+    52% { transform: translate3d(2px, -5px, 0); }
+    68% { transform: translate3d(-1px, 3px, 0); }
+    84% { transform: translate3d(1px, -1px, 0); }
+    100% { transform: translate3d(0, 0, 0); }
   }
   header {
     display: flex;
