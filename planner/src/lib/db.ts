@@ -25,6 +25,7 @@ export class RadialPlannerDB extends Dexie {
     title: string;
     body: string;
     sent: number; // 0 = pending, 1 = sent
+    mirrored?: number; // 1 = the server push spine owns banner delivery
   }, string>;
   // Comms channel: the full text of every companion notification, archived at
   // send time — the OS banner truncates, this never does (see comms.ts).

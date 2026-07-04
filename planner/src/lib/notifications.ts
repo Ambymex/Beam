@@ -24,10 +24,18 @@ export async function scheduleNotification(
     body,
     sent: 0
   });
-  // date + decimal local hours → absolute instant for the server cron
+  // date + decimal local hours → absolute instant for the server cron.
+  // If the mirror lands, the SERVER owns banner delivery and the local
+  // checker archives silently — one message, one banner (the app-open +
+  // app-closed overlap double-delivered otherwise, since renotify re-buzzes
+  // even on a matching tag).
   const [y, m, d] = date.split('-').map(Number);
   const fireAt = new Date(y, m - 1, d, 0, Math.round(timeHours * 60));
-  void scheduleServerPush(id, fireAt.toISOString(), title, body);
+  scheduleServerPush(id, fireAt.toISOString(), title, body)
+    .then((mirrored) => {
+      if (mirrored) return db.notifications.update(id, { mirrored: 1 });
+    })
+    .catch(() => {});
   console.log(`[Scheduler] Notification scheduled: "${title}" at ${timeHours}h on ${date}.`);
   return id;
 }
@@ -72,16 +80,18 @@ export async function checkPendingNotifications(): Promise<void> {
       // banner: the banner truncates and can be denied, the archive can't.
       await logComm(item.title, item.body, 'scheduled-alert');
 
-      // Long past due = the app was closed at fire time, so the server spine
-      // already delivered the banner (or was never going to). A stale local
-      // banner ("leave at 6!" at 8pm) is worse than none — archive only.
+      // Server-mirrored rows: the spine delivers the banner (app open or
+      // closed) — the local checker only archives. Unmirrored rows keep the
+      // local banner, but only near due time: a stale banner ("leave at 6!"
+      // at 8pm) is worse than none — archive only.
+      const serverOwnsDelivery = (item as { mirrored?: number }).mirrored === 1;
       const minutesLate =
         item.date < today
           ? Infinity
           : (currentHours - item.timeHours) * 60;
       const freshEnough = minutesLate <= 5;
 
-      if (isNotificationGranted && freshEnough) {
+      if (isNotificationGranted && freshEnough && !serverOwnsDelivery) {
         const payload = {
           title: item.title,
           body: item.body,

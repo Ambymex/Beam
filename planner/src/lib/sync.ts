@@ -132,16 +132,21 @@ export async function scheduleServerPush(
   fireAtIso: string,
   title: string,
   body: string
-): Promise<void> {
-  if (!syncConfigured) return;
+): Promise<boolean> {
+  if (!syncConfigured) return false;
   try {
-    await fetch(`${SUPABASE_URL}/functions/v1/schedule-push`, {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/schedule-push`, {
       method: 'POST',
       headers: headers(),
       body: JSON.stringify({ install_id: installId(), id, fire_at: fireAtIso, title, body }),
     });
+    if (!res.ok) return false;
+    const data = await res.json();
+    // The caller uses this to hand delivery ownership to the server — only
+    // claim success when the row definitely landed.
+    return data?.ok === true;
   } catch {
-    // offline / undeployed — advisory only
+    return false; // offline / undeployed — the local path keeps ownership
   }
 }
 
