@@ -73,6 +73,9 @@
     // the app that wrote it when it wasn't this one.
     synced?: boolean;
     source?: string;
+    // Visible chain-of-thought (when the bulb was lit). Stays local: the vault
+    // adapter syncs content only, same privacy line Sovereign Terminal draws.
+    reasoning?: string;
     // An ambient visual gesture fired alongside the message (see
     // CompanionReacts.svelte). Stored for the record; only fired on arrival.
     react?: string;
@@ -143,6 +146,20 @@
 
   // Tavily Search API Settings
   let tavilyKey = safeGetItem('radial-planner-tavily-key');
+
+  // Sir's dials. Visible chain-of-thought persists (a reading preference);
+  // martini mode (temperature 1.0) deliberately does NOT — it's a mood, not a
+  // setting, and it should never survive into tomorrow by accident.
+  let visibleCot = safeGetItem('radial-planner-cot-visible') === 'true';
+  function toggleCot() {
+    visibleCot = !visibleCot;
+    try {
+      localStorage.setItem('radial-planner-cot-visible', String(visibleCot));
+    } catch (e) {
+      console.warn('localStorage write failed:', e);
+    }
+  }
+  let martiniMode = false;
 
   // Cross-app message vault (msgSync.ts) — the key IS the identity, so it
   // saves immediately on change rather than waiting for Save Settings.
@@ -984,9 +1001,12 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
         systemPrompt += `\n\n--- RELEVANT RETRIEVED HISTORICAL DIARY/PLANNER MEMORY ---\n${vaultContext}\n----------------------------------------------------------\nUse the memory above if relevant to answer the user's query or logs.`;
       }
 
+      // Chain-of-thought captured from the OpenRouter path when the bulb is lit
+      let cotReasoning: string | undefined;
+
       if (!SUPABASE_URL || openRouterKey) {
         if (!openRouterKey) {
-          throw new Error('OpenRouter API key is not configured. Please tap the Settings "⚙" icon above to enter it.');
+          throw new Error('OpenRouter API key is not configured. Please tap the Settings gear icon above to enter it.');
         }
 
         const apiMessages = [
@@ -1004,6 +1024,12 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
             model: selectedModel,
             messages: apiMessages,
             response_format: { type: 'json_object' },
+            // martini mode: temperature pinned high for this sitting only;
+            // otherwise the provider default applies, unchanged from before
+            ...(martiniMode ? { temperature: 1.0 } : {}),
+            // visible CoT: ask OpenRouter to return the model's reasoning
+            // alongside the JSON reply (same flag Sovereign Terminal uses)
+            ...(visibleCot ? { include_reasoning: true } : {}),
           }),
         });
 
@@ -1013,6 +1039,10 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
         }
 
         const result = await openRouterRes.json();
+        if (visibleCot) {
+          const r = result.choices?.[0]?.message?.reasoning;
+          if (typeof r === 'string' && r.trim()) cotReasoning = r.trim();
+        }
         const completionText = result.choices?.[0]?.message?.content?.trim() ?? '';
         
         try {
@@ -1058,7 +1088,8 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
         content: parsed.message || "I've processed your request.",
         timestamp: new Date().toISOString(),
         actions: parsed.actions || [],
-        react: chatReact
+        react: chatReact,
+        reasoning: cotReasoning
       };
 
       debugActions = JSON.stringify(parsed, null, 2);
@@ -1500,7 +1531,54 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
   <header>
     <span>Planner Companion</span>
     <div class="head-btns">
-      <button class="settings-btn" on:click={() => showSettings = !showSettings} aria-label="Open settings">⚙</button>
+      <!-- visible chain-of-thought: lit bulb = his reasoning arrives with the reply -->
+      <button
+        class="icon-btn"
+        class:on={visibleCot}
+        on:click={toggleCot}
+        aria-label="Toggle visible chain-of-thought"
+        aria-pressed={visibleCot}
+        title="Visible reasoning"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 18h6" />
+          <path d="M10 22h4" />
+          <path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.4 1 2.3h6c0-.9.4-1.8 1-2.3A7 7 0 0 0 12 2z" />
+        </svg>
+      </button>
+      <!-- martini mode: temperature 1.0 for this sitting only -->
+      <button
+        class="icon-btn"
+        class:on={martiniMode}
+        on:click={() => (martiniMode = !martiniMode)}
+        aria-label="Toggle martini mode (temperature 1.0)"
+        aria-pressed={martiniMode}
+        title="Martini mode — temperature 1.0"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 12 4.207 4.207A.707.707 0 0 1 4.707 3h14.586a.707.707 0 0 1 .5 1.207z" />
+          <path d="M12 12v10" />
+          <path d="M7 22h10" />
+        </svg>
+      </button>
+      <button class="icon-btn" on:click={() => showSettings = !showSettings} aria-label="Open settings">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M11 10.27 7 3.34" />
+          <path d="m11 13.73-4 6.93" />
+          <path d="M12 22v-2" />
+          <path d="M12 2v2" />
+          <path d="M14 12h8" />
+          <path d="m17 20.66-1-1.73" />
+          <path d="m17 3.34-1 1.73" />
+          <path d="M2 12h2" />
+          <path d="m20.66 17-1.73-1" />
+          <path d="m20.66 7-1.73 1" />
+          <path d="m3.34 17 1.73-1" />
+          <path d="m3.34 7 1.73 1" />
+          <circle cx="12" cy="12" r="2" />
+          <circle cx="12" cy="12" r="8" />
+        </svg>
+      </button>
       <button class="close" on:click={() => dispatch('close')} aria-label="Close companion">✕</button>
     </div>
   </header>
@@ -1622,6 +1700,12 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
           <div class="bubble" style="position: relative; padding-right: 36px;">
             {#if msg.source}
               <div class="src-tag">via {msg.source}</div>
+            {/if}
+            {#if msg.reasoning}
+              <details class="cot">
+                <summary>Cognitive process</summary>
+                <div class="cot-body">{msg.reasoning}</div>
+              </details>
             {/if}
             {@html formatMessageContent(msg.content)}
             <button 
@@ -1966,14 +2050,45 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
     opacity: 0.4;
     cursor: default;
   }
-  .settings-btn {
+  /* header icon buttons (bulb / martini / gear): quiet by default, and the
+     ON state speaks in --signal like every other active toggle in the app */
+  .icon-btn {
     background: none;
     border: none;
     color: var(--text-dim);
-    font-size: 16px;
     cursor: pointer;
-    padding: 4px;
-    margin-right: 4px;
+    padding: 4px 5px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .icon-btn svg {
+    display: block;
+  }
+  .icon-btn.on {
+    color: var(--signal);
+    filter: drop-shadow(0 0 4px var(--signal-glow));
+  }
+  /* visible chain-of-thought: folded by default, quiet, clearly not the reply */
+  .cot {
+    margin-bottom: 6px;
+  }
+  .cot summary {
+    font-size: 11px;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    user-select: none;
+  }
+  .cot-body {
+    margin-top: 4px;
+    padding: 6px 10px;
+    border-left: 2px solid var(--signal);
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--text-dim);
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
   }
   .settings-drawer {
     background: var(--surface-2);
