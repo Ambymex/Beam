@@ -961,25 +961,52 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
     }
   }
 
-  async function sendMessage() {
-    const text = draft.trim();
-    if (!text || isLoading) return;
+  // Re-run the most recent exchange: drop the assistant reply and ask again
+  // from the same last user message (no new user bubble). Its text carries
+  // through sendMessage's regenerate path.
+  function regenerate() {
+    if (isLoading) return;
+    let lastUserIdx = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'user') { lastUserIdx = i; break; }
+    }
+    if (lastUserIdx === -1) return;
+    // trim the assistant tail after the last user message, then re-ask
+    messages = messages.slice(0, lastUserIdx + 1);
+    saveChat();
+    sendMessage({ regenerate: true });
+  }
 
-    draft = '';
-    // collapse the composer back to one line now the message is gone
-    if (inputEl) inputEl.style.height = 'auto';
+  async function sendMessage(opts?: { regenerate?: boolean }) {
+    const regen = opts?.regenerate === true;
+
+    let text: string;
+    if (regen) {
+      // the last user message is already the tail after regenerate() trimmed
+      const lastUser = [...messages].reverse().find(m => m.role === 'user');
+      if (!lastUser || isLoading) return;
+      text = lastUser.content;
+    } else {
+      text = draft.trim();
+      if (!text || isLoading) return;
+      draft = '';
+      // collapse the composer back to one line now the message is gone
+      if (inputEl) inputEl.style.height = 'auto';
+    }
     errorMsg = '';
     isLoading = true;
 
-    const userMsg: ChatMessage = {
-      id: 'msg_' + Math.random().toString(36).slice(2) + Date.now(),
-      role: 'user',
-      content: text,
-      timestamp: new Date().toISOString()
-    };
+    if (!regen) {
+      const userMsg: ChatMessage = {
+        id: 'msg_' + Math.random().toString(36).slice(2) + Date.now(),
+        role: 'user',
+        content: text,
+        timestamp: new Date().toISOString()
+      };
 
-    messages = [...messages, userMsg];
-    saveChat();
+      messages = [...messages, userMsg];
+      saveChat();
+    }
 
     try {
       const now = new Date();
@@ -1809,6 +1836,19 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
               {/each}
             </div>
           {/if}
+
+          <!-- Regenerate: only under the newest assistant reply, when idle -->
+          {#if msg.role === 'assistant' && msg.id === messages[messages.length - 1]?.id && !isLoading}
+            <button class="regen-btn" on:click={regenerate} aria-label="Regenerate response">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                <path d="M21 3v5h-5" />
+                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                <path d="M8 16H3v5" />
+              </svg>
+              Regenerate
+            </button>
+          {/if}
         </div>
       </div>
     {/each}
@@ -1846,7 +1886,7 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
     </div>
   {/if}
 
-  <form class="input-form" on:submit|preventDefault={sendMessage}>
+  <form class="input-form" on:submit|preventDefault={() => sendMessage()}>
     <input
       type="file"
       accept="image/*,application/pdf"
@@ -1855,7 +1895,9 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
       style="display: none;"
     />
     <button type="button" class="upload-btn" on:click={triggerFileSelect} disabled={isLoading} aria-label="Upload image or PDF">
-      📎
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m16 6-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551" />
+      </svg>
     </button>
     <textarea
       placeholder={selectedImageBase64 ? "Describe this attachment or press Ctrl+Enter to send..." : "physio at 2pm tomorrow... (Ctrl+Enter to send)"}
@@ -2042,6 +2084,28 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
   }
   .action-pill:active {
     transform: scale(0.97);
+  }
+  /* quiet, secondary — a nudge under the newest reply, not a call to action */
+  .regen-btn {
+    align-self: flex-start;
+    margin-top: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: none;
+    border: none;
+    padding: 2px 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-faint);
+    cursor: pointer;
+    transition: color 0.12s ease;
+  }
+  .regen-btn:hover {
+    color: var(--signal);
+  }
+  .regen-btn svg {
+    display: block;
   }
   .pulsing {
     animation: av-pulse 1.4s infinite alternate;

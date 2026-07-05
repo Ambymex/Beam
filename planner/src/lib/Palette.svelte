@@ -364,6 +364,10 @@
 
   .sheet-body {
     flex: 1 1 auto;
+    /* min-height:0 lets this flex child shrink inside the 78vh sheet so its
+       own overflow-y actually scrolls — without it the category list spills
+       past the sheet bottom and can't be reached (flexbox min-height trap). */
+    min-height: 0;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     padding: 10px 14px 16px;
