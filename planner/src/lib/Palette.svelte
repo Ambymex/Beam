@@ -370,10 +370,19 @@
     min-height: 0;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    /* this list owns vertical touch pans; never chain them to the page */
+    touch-action: pan-y;
+    overscroll-behavior: contain;
     padding: 10px 14px 16px;
     display: flex;
     flex-direction: column;
     gap: 8px;
+  }
+  /* rows must keep natural height and OVERFLOW the scroller — as flex items
+     they'd otherwise compress to slivers to "fit" the shrunken body, leaving
+     nothing to scroll (the invisible half of the min-height trap) */
+  .sheet-body > * {
+    flex: 0 0 auto;
   }
 
   /* create form */

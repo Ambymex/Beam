@@ -28,8 +28,11 @@ body {
   height: 100%;
   /* Ambient gradient driven by envTheme */
   background: var(--ambient-gradient, var(--app-bg));
-  /* lock horizontal panning */
-  overflow-x: hidden;
+  /* Lock BOTH axes: the app is a fixed shell (#app is 100dvh, overflow
+     hidden) and every panel scrolls internally. With only overflow-x locked,
+     iOS treated the document as vertically pannable and gave sheet-drag
+     gestures to the page — "the whole screen moves" instead of the list. */
+  overflow: hidden;
   width: 100%;
   max-width: 100%;
 }
@@ -38,7 +41,9 @@ body {
   font-family: var(--font-primary, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
   color: var(--text);
   overscroll-behavior: none;
-  touch-action: pan-y;
+  /* NOT pan-y: that explicitly invited iOS to pan the document. The shell
+     never scrolls; scrollable panels declare their own touch-action. */
+  touch-action: manipulation;
 }
 
 #app {
