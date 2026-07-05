@@ -1,7 +1,7 @@
 <script context="module" lang="ts">
   // The react vocabulary. The companion picks one (or none) per message via
   // the top-level "react" field; anything not in this list is ignored.
-  export const REACT_IDS = ['black_hearts', 'sparks', 'tungsten_strike', 'liquid_hearts'];
+  export const REACT_IDS = ['black_hearts', 'sparks', 'tungsten_strike', 'liquid_hearts', 'cherry_blossoms'];
 </script>
 
 <script lang="ts">
@@ -147,6 +147,42 @@
     return 34;
   }
 
+  // Cherry blossoms: the lightest touch in the vocabulary — soft, delicate,
+  // gently admiring. Same silhouette as the Sweet theme's ambient petals but
+  // smaller, lit-from-within, and livelier: they emerge with a little upward
+  // "puff of release" before settling into a fluttering downward drift, and
+  // ride the react layer (z-60) so they pass IN FRONT of the ambient petals
+  // (z-0) — the depth gap reads as "these are the new ones." No element anchor
+  // exists at fire time, so the spec's "emerge from the affected element" is
+  // adapted to a spread of origins that puff outward+down across the view.
+  interface Blossom {
+    id: number;
+    x: number; // spawn column, %
+    y: number; // spawn row, vh (lower-mid band: near where a new message lands)
+    size: number;
+    delay: number;
+    dur: number;
+    puff: number; // upward burst height, vh
+    driftx: number; // net horizontal travel, vw (signed, outward from origin)
+    fally: number; // downward drift after the puff, vh
+    sway: number; // flutter amplitude, px (pronounced — larger than ambient)
+    swayDur: number;
+    swayPhase: number;
+    rotEnd: number;
+    op: number;
+  }
+
+  let blossoms: Blossom[] = [];
+  let blossomTimer: ReturnType<typeof setTimeout>;
+
+  function pickBlossomSize(): number {
+    // 60–75% of the ~13px ambient petal — delicate, not aggressive
+    const r = Math.random();
+    if (r < 0.5) return 8;
+    if (r < 0.85) return 9;
+    return 11;
+  }
+
   export function fire(type: string) {
     if (type === 'black_hearts') {
       const count = 40 + Math.floor(Math.random() * 21); // 40–60 hearts
@@ -259,6 +295,36 @@
         liquid = [];
         liquidPairs = [];
       }, 13500);
+    } else if (type === 'cherry_blossoms') {
+      const count = 20 + Math.floor(Math.random() * 11); // 20–30
+      const burst: Blossom[] = [];
+      for (let i = 0; i < count; i++) {
+        const dur = 3 + Math.random() * 1; // 3–4s visible
+        const x = 8 + Math.random() * 84;
+        const swayDur = 0.9 + Math.random() * 0.7;
+        // drift outward from the origin column: left-of-centre petals lean
+        // left, right-of-centre lean right, with spread
+        const dir = x < 50 ? -1 : 1;
+        burst.push({
+          id: burstId++,
+          x,
+          y: 40 + Math.random() * 34, // 40–74vh, the message area
+          size: pickBlossomSize(),
+          delay: Math.random() * 2.5, // trickle over ~2.5s
+          dur,
+          puff: 6 + Math.random() * 6, // 6–12vh upward release
+          driftx: dir * (8 + Math.random() * 14), // 8–22vw outward
+          fally: 20 + Math.random() * 18, // 20–38vh gentle descent
+          sway: 14 + Math.random() * 16, // pronounced flutter
+          swayDur,
+          swayPhase: Math.random() * swayDur,
+          rotEnd: (Math.random() < 0.5 ? -1 : 1) * (40 + Math.random() * 80),
+          op: 0.75 + Math.random() * 0.2, // floor 0.75, ceiling ~0.95
+        });
+      }
+      blossoms = burst;
+      clearTimeout(blossomTimer);
+      blossomTimer = setTimeout(() => (blossoms = []), (2.5 + 4) * 1000 + 300);
     } else if (type === 'tungsten_strike') {
       strikeTimers.forEach(clearTimeout);
       // Drop the node first so a rapid re-fire restarts the CSS animations.
@@ -308,6 +374,17 @@
             <circle cx="12" cy="12" r="7" fill="#ffd98a" />
           {/if}
         </svg>
+      </span>
+    </span>
+  {/each}
+
+  {#each blossoms as bl (bl.id)}
+    <span
+      class="bloom"
+      style="left:{bl.x}%; top:{bl.y}vh; --size:{bl.size}px; --dur:{bl.dur}s; --delay:{bl.delay}s; --op:{bl.op}; --puff:{bl.puff}vh; --driftx:{bl.driftx}vw; --fally:{bl.fally}vh; --sway:{bl.sway}px; --swaydur:{bl.swayDur}s; --swayphase:{bl.swayPhase}s; --rot:{bl.rotEnd}deg;"
+    >
+      <span class="bloom-flutter">
+        <span class="bloom-petal"></span>
       </span>
     </span>
   {/each}
@@ -480,6 +557,51 @@
   @keyframes react-spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(var(--rot)); }
+  }
+
+  /* ----- cherry blossoms: puff of release, then a fluttering drift ----- */
+  /* three nested transforms: outer = emerge+drift path, middle = flutter,
+     inner petal = rotation. Kept separate so none fight each other. */
+  .bloom {
+    position: absolute;
+    animation:
+      bloom-drift var(--dur) cubic-bezier(0.22, 0.7, 0.3, 1) var(--delay) both,
+      bloom-fade var(--dur) linear var(--delay) both;
+  }
+  /* the puff: a quick upward-outward release (scale 0.3 → 1 as it "opens"),
+     then an eased settle into the gentle downward drift — "something soft
+     just happened here." */
+  @keyframes bloom-drift {
+    0% { transform: translate(0, 0) scale(0.3); }
+    18% { transform: translate(calc(var(--driftx) * 0.28), calc(-1 * var(--puff))) scale(1); }
+    100% { transform: translate(var(--driftx), var(--fally)) scale(1); }
+  }
+  @keyframes bloom-fade {
+    0% { opacity: 0; }
+    14% { opacity: var(--op); }
+    72% { opacity: var(--op); }
+    100% { opacity: 0; }
+  }
+  .bloom-flutter {
+    display: block;
+    /* pronounced flutter — larger amplitude than the ambient petals */
+    animation: bloom-flutter var(--swaydur) ease-in-out calc(-1 * var(--swayphase)) infinite alternate;
+  }
+  @keyframes bloom-flutter {
+    from { transform: translateX(calc(-1 * var(--sway))); }
+    to { transform: translateX(var(--sway)); }
+  }
+  .bloom-petal {
+    display: block;
+    width: var(--size);
+    height: var(--size);
+    /* same pinched-corner blossom silhouette as the Sweet theme's ambient petals */
+    border-radius: 150% 0 150% 0;
+    /* warm luminous centre → soft edge, and a lit-from-within halo so these
+       read as closer/newer than the flatter background petals */
+    background: radial-gradient(circle at 35% 30%, #ffd5e5, #fce4ee);
+    box-shadow: 0 0 5px rgba(255, 190, 220, 0.6), 0 0 11px rgba(255, 205, 228, 0.35);
+    animation: react-spin var(--dur) linear var(--delay) both;
   }
 
   /* ----- liquid hearts: honey-slow, stretching, merging, pooling ----- */
