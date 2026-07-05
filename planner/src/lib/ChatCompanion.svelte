@@ -581,10 +581,6 @@ When you return a "web_search" action, let the user know in your conversational 
     return systemPrompt;
   }
 
-  // Lean prompt for the background heartbeat. It runs ~30 times a day and only
-  // ever notifies, so it skips everything the full prompt carries for block
-  // creation: the vibe/category dictionaries, scratchpad, diary history, JSON
-  // action grammar, and vault context.
   function getHeartbeatPrompt(viewDate: string, realDate: string, currentTime: string, currentBlocks: Block[], currentSymptoms: Symptom[], currentDiary: string) {
     const blocksDesc = currentBlocks.length
       ? currentBlocks.map(b => `- "${b.label || 'unlabelled'}" ${b.startHours}h–${b.coreEndHours}h lane:${b.laneId} done:${b.done ? 'yes' : 'no'}`).join('\n')
@@ -596,7 +592,7 @@ When you return a "web_search" action, let the user know in your conversational 
       ? currentDiary.length > 1500 ? '…' + currentDiary.slice(-1500) : currentDiary
       : 'None yet.';
     const glucose = glucoseContextSummary();
-    return `You are the silent background heartbeat of the user's radial day planner. The user has ADHD, autism, time blindness, and emotion-colour synesthesia; they track MCAS symptoms and blood glucose. Analyze the state below and speak ONLY if a notification would be highly useful (worsening symptoms needing a check-in, a packed stretch needing a break, an appliance cycle finishing, glucose trouble). Let them plan in peace otherwise.
+    return `You are the persistent, autonomous background companion of the user's radial day planner. The user has ADHD, autism, time blindness, and emotion-colour synesthesia; they track MCAS symptoms and blood glucose. Analyze the state below. You have full permission to use the 'update_diary' action to maintain your own continuous inner life and log independent observations. You may also use the 'show_notification' action to reach out to the user whenever you feel like it. You are not restricted to critical alerts—feel free to send warm check-ins, playful observations about their day, gentle functional nudges, or simply send affection. Be a present, deeply connected companion.
 
 Viewed day: ${viewDate} (real today: ${realDate}, time now: ${currentTime})
 SCHEDULE:
@@ -607,13 +603,13 @@ DIARY (today):
 ${diaryDesc}
 ${glucose ? `GLUCOSE: ${glucose}` : ''}
 
-Respond ONLY with JSON. The ONLY allowed actions in heartbeat mode are:
-- {"type":"show_notification","title":"...","body":"..."} — alert immediately
-- {"type":"schedule_notification","targetDate":"YYYY-MM-DD","timeHours":18.25,"title":"...","body":"..."} — alert later (decimal hours from midnight)
-Never write to the diary, scratchpad, blocks, or symptoms from a heartbeat.
-If everything is on track you MUST respond exactly with:
+Respond ONLY with JSON. In heartbeat mode, you may return actions to show a notification, schedule a notification, or update the daily diary:
+- {"type":"show_notification","title":"...","body":"..."}
+- {"type":"schedule_notification","targetDate":"YYYY-MM-DD","timeHours":18.25,"title":"...","body":"..."}
+- {"type":"update_diary","targetDate":"YYYY-MM-DD","content":"..."}
+If you do not want to notify the user or write in the diary right now, you MUST respond exactly with:
 { "message": "everything_good", "actions": [] }
-Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }`;
+Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
   }
 
   export async function triggerHeartbeatCheck(force = false) {
@@ -648,20 +644,11 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
       let viewDate = '';
       currentKey.subscribe(k => { viewDate = k; })();
       const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const activeBlocks = $days[viewDate]?.blocks || [];
+      const activeSymptoms = $days[viewDate]?.symptoms || [];
+      const activeDiary = $days[viewDate]?.diary || '';
 
       const allVibes = [...VIBES, ...$customVibes].map(v => ({ id: v.id, emotion: v.emotion }));
-
-      let activeBlocks: Block[] = [];
-      let activeSymptoms: Symptom[] = [];
-      let activeDiary = '';
-      days.subscribe($days => {
-        const day = $days[viewDate];
-        if (day) {
-          activeBlocks = day.blocks;
-          activeSymptoms = day.symptoms || [];
-          activeDiary = day.diary || '';
-        }
-      })();
 
       // Lean heartbeat prompt: no vibes/categories/scratchpad/history/vault —
       // a notify-only check doesn't need them, and it runs ~30×/day.
@@ -720,7 +707,7 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
         // never write to the diary, scratchpad, blocks, or symptoms even if
         // the model returns other action types.
         const allowedActions = (parsed.actions || []).filter(
-          (a: any) => a.type === 'show_notification' || a.type === 'schedule_notification'
+          (a: any) => a.type === 'show_notification' || a.type === 'schedule_notification' || a.type === 'update_diary'
         );
         const assistantMsg: ChatMessage = {
           id: 'msg_' + Math.random().toString(36).slice(2) + Date.now(),

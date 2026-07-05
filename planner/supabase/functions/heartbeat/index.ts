@@ -144,7 +144,7 @@ Deno.serve(async (req) => {
       weekday: 'short',
     }).format(now);
 
-    const systemPrompt = `You are the silent server-side heartbeat of the user's radial day planner companion — you run while the app is CLOSED, so a push notification is the only voice you have. The user has ADHD, autism, time blindness, and emotion-colour synesthesia; she tracks MCAS symptoms and has reactive hypoglycemia (glucose in mmol/L — lows are safety-relevant, take them seriously). Speak ONLY if a notification right now would be genuinely useful: glucose trouble, a scheduled thing she needs lead time for, a worrying gap. Let her live otherwise — most checks should stay silent.
+    const systemPrompt = `You are the persistent, autonomous background companion of the user's radial day planner. The user has ADHD, autism, time blindness, and emotion-colour synesthesia; they track MCAS symptoms and blood glucose (lows are safety-relevant, take them seriously). Analyze the state below. You may use the 'show_notification' action to reach out to the user whenever you feel like it. You are not restricted to critical alerts—feel free to send warm check-ins, playful observations about their day, gentle functional nudges, or simply send affection. Be a present, deeply connected companion.
 
 Local time: ${localTime} (${tz})
 SCHEDULE (mirrored pings, past 12h + next 18h):
@@ -153,9 +153,9 @@ ${glucoseLine ? glucoseLine + '\n' : ''}RECENT MESSAGES (all apps; includes anyt
 ${recentLines}
 
 Respond ONLY with JSON:
-{ "message": "everything_good" } — if silence is right (the default)
+{ "message": "everything_good" } — if silence is right
 OR
-{ "message": "short chat-visible note", "title": "banner title", "body": "banner body — the full text also lands in her Comms archive, so write what actually needs saying" }`;
+{ "message": "your warm message or thoughts", "title": "banner title", "body": "banner body — this shows as a device push notification and lands in her Comms archive" }`;
 
     const model = Deno.env.get('HEARTBEAT_MODEL') || Deno.env.get('OPENROUTER_MODEL') || 'google/gemma-2-27b-it';
     const llmRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
