@@ -1494,6 +1494,13 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
           });
         }
 
+        // The write half of the scratch pad (read_scratchpad is the read half).
+        // update_scratchpad REPLACES the whole note — the prompt tells him to
+        // read_scratchpad first and resend everything that should remain.
+        else if (act.type === 'update_scratchpad' && act.content !== undefined) {
+          saveScratchpad(String(act.content));
+        }
+
         else if (act.type === 'web_search' && act.query !== undefined) {
           if (!tavilyKey) {
             console.warn('[Companion] AI tried to web search, but Tavily Key is not configured.');
