@@ -52,6 +52,54 @@
       : undefined;
   }
 
+  // Robustly pull a JSON object out of a model completion. json_object mode
+  // asks for clean JSON, but models still occasionally wrap it in ```json
+  // fences, add a sentence of preamble, or leave a trailing comma. Rather than
+  // a greedy /\{[\s\S]*\}/ (which over-captures when there's trailing prose
+  // with braces), we strip fences, then balance-scan from the first '{' to its
+  // matching '}' — string-aware so braces inside strings don't fool it — and
+  // clean up trailing commas before parsing.
+  function extractLlmJson(raw: string): any {
+    if (!raw || !raw.trim()) throw new Error('Model returned an empty response.');
+    let text = raw.trim();
+
+    const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(text);
+    if (fenced) text = fenced[1].trim();
+
+    // fast path: already clean
+    try {
+      return JSON.parse(text);
+    } catch {
+      /* fall through to recovery */
+    }
+
+    const start = text.indexOf('{');
+    if (start !== -1) {
+      let depth = 0;
+      let inStr = false;
+      let esc = false;
+      for (let i = start; i < text.length; i++) {
+        const c = text[i];
+        if (inStr) {
+          if (esc) esc = false;
+          else if (c === '\\') esc = true;
+          else if (c === '"') inStr = false;
+        } else if (c === '"') {
+          inStr = true;
+        } else if (c === '{') {
+          depth++;
+        } else if (c === '}') {
+          depth--;
+          if (depth === 0) {
+            const candidate = text.slice(start, i + 1).replace(/,(\s*[}\]])/g, '$1');
+            return JSON.parse(candidate); // throws → caught by caller
+          }
+        }
+      }
+    }
+    throw new Error('Model response contained no valid JSON object.');
+  }
+
   // The tungsten strike's shockwave: the react layer can't shake the chat from
   // inside itself, so it dispatches 'impact' at landing and the overlay takes
   // the hit here. Class-toggle (not inline style) so the keyframes stay in CSS.
@@ -681,7 +729,7 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
         if (!openRouterRes.ok) return;
         const result = await openRouterRes.json();
         const completionText = result.choices?.[0]?.message?.content?.trim() ?? '';
-        parsed = JSON.parse(completionText);
+        parsed = extractLlmJson(completionText);
       } else {
         const res = await fetch(`${SUPABASE_URL}/functions/v1/parse-command`, {
           method: 'POST',
@@ -803,17 +851,7 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
 
       const result = await openRouterRes.json();
       const completionText = result.choices?.[0]?.message?.content?.trim() ?? '';
-      let parsed;
-      try {
-        parsed = JSON.parse(completionText);
-      } catch {
-        const jsonMatch = /\{[\s\S]*\}/.exec(completionText);
-        if (jsonMatch) {
-          parsed = JSON.parse(jsonMatch[0]);
-        } else {
-          throw new Error('LLM did not return a valid JSON structure.');
-        }
-      }
+      const parsed = extractLlmJson(completionText);
 
       const bgReact = resolveReact(parsed);
       const assistantMsg: ChatMessage = {
@@ -959,14 +997,20 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
       }));
 
       // If we have an image, format the current prompt using OpenRouter's multimodal format
-      const activeImage = selectedImageBase64;
-      if (activeImage && payloadMessages.length > 0) {
+      const activeFile = selectedImageBase64;
+      const activeFileName = selectedImageName;
+      // PDFs travel as OpenRouter's "file" content part, not "image_url" —
+      // sending a PDF data URL as an image is exactly what made uploads fail.
+      const activeIsPdf = activeFile.startsWith('data:application/pdf');
+      if (activeFile && payloadMessages.length > 0) {
         const lastMsg = payloadMessages[payloadMessages.length - 1];
         if (lastMsg.role === 'user') {
           // Change content from string to multimodal array
           (lastMsg as any).content = [
             { type: 'text', text: lastMsg.content },
-            { type: 'image_url', image_url: { url: activeImage } }
+            activeIsPdf
+              ? { type: 'file', file: { filename: activeFileName || 'document.pdf', file_data: activeFile } }
+              : { type: 'image_url', image_url: { url: activeFile } }
           ];
         }
       }
@@ -1035,6 +1079,9 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
             // visible CoT: ask OpenRouter to return the model's reasoning
             // alongside the JSON reply (same flag Sovereign Terminal uses)
             ...(visibleCot ? { include_reasoning: true } : {}),
+            // PDF attached: OpenRouter's file-parser plugin extracts the text
+            // for models without native document support (pdf-text is free).
+            ...(activeIsPdf ? { plugins: [{ id: 'file-parser', pdf: { engine: 'pdf-text' } }] } : {}),
           }),
         });
 
@@ -1049,17 +1096,7 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
           if (typeof r === 'string' && r.trim()) cotReasoning = r.trim();
         }
         const completionText = result.choices?.[0]?.message?.content?.trim() ?? '';
-        
-        try {
-          parsed = JSON.parse(completionText);
-        } catch {
-          const jsonMatch = /\{[\s\S]*\}/.exec(completionText);
-          if (jsonMatch) {
-            parsed = JSON.parse(jsonMatch[0]);
-          } else {
-            throw new Error('LLM did not return a valid JSON structure.');
-          }
-        }
+        parsed = extractLlmJson(completionText);
       } else {
         const res = await fetch(`${SUPABASE_URL}/functions/v1/parse-command`, {
           method: 'POST',
@@ -1783,25 +1820,29 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
 
   {#if selectedImageBase64}
     <div class="image-preview-tray glass-card">
-      <img src={selectedImageBase64} alt="Upload preview" />
+      {#if selectedImageBase64.startsWith('data:application/pdf')}
+        <span class="file-icon" aria-hidden="true">📄</span>
+      {:else}
+        <img src={selectedImageBase64} alt="Upload preview" />
+      {/if}
       <span class="img-name">{selectedImageName}</span>
-      <button class="clear-img-btn" on:click={clearSelectedImage} aria-label="Remove image">✕</button>
+      <button class="clear-img-btn" on:click={clearSelectedImage} aria-label="Remove attachment">✕</button>
     </div>
   {/if}
 
   <form class="input-form" on:submit|preventDefault={sendMessage}>
-    <input 
-      type="file" 
-      accept="image/*" 
-      bind:this={fileInput} 
-      on:change={handleFileChange} 
-      style="display: none;" 
+    <input
+      type="file"
+      accept="image/*,application/pdf"
+      bind:this={fileInput}
+      on:change={handleFileChange}
+      style="display: none;"
     />
-    <button type="button" class="upload-btn" on:click={triggerFileSelect} disabled={isLoading} aria-label="Upload image">
+    <button type="button" class="upload-btn" on:click={triggerFileSelect} disabled={isLoading} aria-label="Upload image or PDF">
       📎
     </button>
     <textarea
-      placeholder={selectedImageBase64 ? "Describe this image or press Ctrl+Enter to send..." : "physio at 2pm tomorrow... (Ctrl+Enter to send)"}
+      placeholder={selectedImageBase64 ? "Describe this attachment or press Ctrl+Enter to send..." : "physio at 2pm tomorrow... (Ctrl+Enter to send)"}
       bind:value={draft}
       bind:this={inputEl}
       on:keydown={handleKeyDown}
@@ -2069,6 +2110,17 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
     object-fit: cover;
     border-radius: 6px;
     border: 1px solid var(--border);
+  }
+  .image-preview-tray .file-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface);
   }
   .image-preview-tray .img-name {
     flex: 1;
