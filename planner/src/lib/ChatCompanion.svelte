@@ -106,6 +106,17 @@
   let isLoading = false;
   let errorMsg = '';
   let scrollContainer: HTMLDivElement;
+  let inputEl: HTMLTextAreaElement;
+
+  // Auto-grow the composer: reset to natural height, then take the content's
+  // scrollHeight up to the CSS max-height, past which the textarea scrolls.
+  // Lets a long message be seen and scrolled before send instead of squeezing
+  // into one cramped line.
+  function autoGrow() {
+    if (!inputEl) return;
+    inputEl.style.height = 'auto';
+    inputEl.style.height = `${inputEl.scrollHeight}px`;
+  }
 
   let copiedMsgId = '';
   function copyMessageText(id: string, text: string) {
@@ -921,6 +932,8 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
     if (!text || isLoading) return;
 
     draft = '';
+    // collapse the composer back to one line now the message is gone
+    if (inputEl) inputEl.style.height = 'auto';
     errorMsg = '';
     isLoading = true;
 
@@ -1792,7 +1805,10 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
     <textarea
       placeholder={selectedImageBase64 ? "Describe this image or press Ctrl+Enter to send..." : "physio at 2pm tomorrow... (Ctrl+Enter to send)"}
       bind:value={draft}
+      bind:this={inputEl}
       on:keydown={handleKeyDown}
+      on:input={autoGrow}
+      rows="2"
       disabled={isLoading}
       aria-label="Companion message input"
     ></textarea>
@@ -2001,6 +2017,8 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
     padding: 12px 16px;
     border-top: 1px solid var(--hairline);
     background: var(--surface);
+    /* icon + send align to the bottom as the composer grows taller */
+    align-items: flex-end;
   }
   .input-form textarea {
     flex: 1 1 auto;
@@ -2011,8 +2029,9 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
     color: var(--text);
     font-size: 14px;
     padding: 8px 10px;
-    height: 38px;
-    max-height: 100px;
+    /* starts at ~2 lines (rows="2"), auto-grows to ~8, then scrolls */
+    min-height: 56px;
+    max-height: 180px;
     resize: none;
     font-family: inherit;
     line-height: 1.4;
@@ -2071,6 +2090,9 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
   }
   .input-form button {
     flex: 0 0 auto;
+    /* fixed height so the icon + Send sit level with a one-line composer and
+       stay bottom-anchored as it grows (form is align-items: flex-end) */
+    height: 40px;
     background: var(--surface-2);
     border: 1px solid var(--border);
     color: var(--text-2);
