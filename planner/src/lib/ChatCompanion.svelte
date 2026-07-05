@@ -198,6 +198,11 @@
   let fileInput: HTMLInputElement;
   let selectedImageBase64 = '';
   let selectedImageName = '';
+  // Per-PDF OCR choice: off = the free pdf-text engine (embedded text), on =
+  // mistral-ocr (bills per page, reads scanned/image PDFs). Ephemeral on
+  // purpose — resets with each attachment so OCR only ever bills when the
+  // user deliberately flips it for a scan, never left on by accident.
+  let pdfUseOcr = false;
 
   // Pinecone Vector Memory settings
   let pineconeKey = safeGetItem('radial-planner-pinecone-key');
@@ -253,6 +258,7 @@
   function clearSelectedImage() {
     selectedImageBase64 = '';
     selectedImageName = '';
+    pdfUseOcr = false;
     if (fileInput) fileInput.value = '';
   }
   
@@ -1002,6 +1008,7 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
       // PDFs travel as OpenRouter's "file" content part, not "image_url" —
       // sending a PDF data URL as an image is exactly what made uploads fail.
       const activeIsPdf = activeFile.startsWith('data:application/pdf');
+      const activePdfOcr = pdfUseOcr; // capture before clearSelectedImage resets it
       if (activeFile && payloadMessages.length > 0) {
         const lastMsg = payloadMessages[payloadMessages.length - 1];
         if (lastMsg.role === 'user') {
@@ -1080,8 +1087,10 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
             // alongside the JSON reply (same flag Sovereign Terminal uses)
             ...(visibleCot ? { include_reasoning: true } : {}),
             // PDF attached: OpenRouter's file-parser plugin extracts the text
-            // for models without native document support (pdf-text is free).
-            ...(activeIsPdf ? { plugins: [{ id: 'file-parser', pdf: { engine: 'pdf-text' } }] } : {}),
+            // for models without native document support. pdf-text is free
+            // (embedded text); mistral-ocr bills per page but reads scans —
+            // chosen per-upload via the tray toggle, default off.
+            ...(activeIsPdf ? { plugins: [{ id: 'file-parser', pdf: { engine: activePdfOcr ? 'mistral-ocr' : 'pdf-text' } }] } : {}),
           }),
         });
 
@@ -1826,6 +1835,13 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
         <img src={selectedImageBase64} alt="Upload preview" />
       {/if}
       <span class="img-name">{selectedImageName}</span>
+      {#if selectedImageBase64.startsWith('data:application/pdf')}
+        <!-- default off = free pdf-text; flip on only for scanned PDFs (bills per page) -->
+        <label class="ocr-toggle" title="Use OCR for scanned/image PDFs — costs per page. Leave off for normal text PDFs (free).">
+          <input type="checkbox" bind:checked={pdfUseOcr} />
+          OCR
+        </label>
+      {/if}
       <button class="clear-img-btn" on:click={clearSelectedImage} aria-label="Remove attachment">✕</button>
     </div>
   {/if}
@@ -2137,6 +2153,24 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
     font-size: 14px;
     cursor: pointer;
     padding: 4px;
+  }
+  .ocr-toggle {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--text-dim);
+    cursor: pointer;
+    user-select: none;
+  }
+  .ocr-toggle input {
+    margin: 0;
+    width: auto;
+    cursor: pointer;
+    accent-color: var(--signal);
   }
   .input-form button {
     flex: 0 0 auto;
