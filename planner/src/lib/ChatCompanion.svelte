@@ -413,6 +413,7 @@ CORE RULES:
    - "Hard-edged block" = Deadline or externally fixed appointment. Taper length is 0 (taperEndHours === coreEndHours).
 4. APPOINTMENTS & TRAVEL WINGS: Appointments (meetings, appointments, classes, fixed external times) are always hard-edged. They feature "travel wings" in a travel vibe: travelBeforeHours (departure wing) and travelAfterHours (get home wing) in decimal hours. (Default travel wings are 0.5h/30m each if not specified).
 5. TIMES: Represented as decimal hours from midnight (e.g. 14.5 = 2:30 PM, 9.75 = 9:45 AM). If the end time is less than the start time, it means it crosses midnight (e.g. 23.5 to 0.5 is 11:30 PM to 12:30 AM).
+6. COMPLETING TASKS: When the user says they finished something, mark it done with an update_block action setting "done": true (matched by labelToMatch). This is the real completion state the ring renders — do NOT signal completion by editing the label (no ✓/✅/"[done]" in the text). Use "done": false to un-complete if they say they hadn't actually finished.
 
 ---
 VISION & OCR INSTRUCTIONS:
@@ -483,13 +484,14 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
       "type": "update_block",
       "targetDate": "YYYY-MM-DD",
       "labelToMatch": "label string to search and replace",
-      "block": { 
+      "block": {
         "laneId": "main" | "washer" | "dryer" | "emotion" | "symptom" (optional),
         "startHours": number (optional),
         "coreEndHours": number (optional),
         "taperEndHours": number (optional),
         "vibeId": "vibe_id_string_or_null" (optional),
         "label": "string" (optional),
+        "done": true | false (optional — mark a task complete/incomplete),
         "kind": "task" | "appointment" (optional),
         "travelBeforeHours": number (optional),
         "travelAfterHours": number (optional)
@@ -1377,6 +1379,7 @@ Otherwise: { "message": "short friendly note for the user", "actions": [ ... ] }
             if (act.block.taperEndHours !== undefined) updatedProps.taperEndHours = parseLLMTime(act.block.taperEndHours);
             if (act.block.vibeId !== undefined) updatedProps.vibeId = sanitizeVibeId(act.block.vibeId);
             if (act.block.label !== undefined) updatedProps.label = act.block.label;
+            if (act.block.done !== undefined) updatedProps.done = !!act.block.done;
             if (act.block.kind !== undefined) updatedProps.kind = act.block.kind;
             if (act.block.travelBeforeHours !== undefined) updatedProps.travelBeforeHours = sanitizeTravelHours(act.block.travelBeforeHours);
             if (act.block.travelAfterHours !== undefined) updatedProps.travelAfterHours = sanitizeTravelHours(act.block.travelAfterHours);
