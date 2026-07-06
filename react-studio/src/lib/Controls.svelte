@@ -193,15 +193,20 @@
       </label>
     {/if}
     {#if config.glowMode === 'fixed'}
-      <label class="field">
-        <span>Glow colour</span>
-        <select bind:value={config.glowColor} on:change={bump}>
-          <option value="auto">Auto (from particle fill)</option>
-          <option value="#ffffff">White</option>
-          <option value="#ffd98a">Warm gold</option>
-          <option value="#ffcde4">Blossom pink</option>
-        </select>
+      <label class="field check">
+        <input
+          type="checkbox"
+          checked={config.glowColor === 'auto'}
+          on:change={(e) => { config.glowColor = e.currentTarget.checked ? 'auto' : '#ffffff'; bump(); }}
+        />
+        <span>Auto glow colour (from particle fill)</span>
       </label>
+      {#if config.glowColor !== 'auto'}
+        <label class="field">
+          <span>Glow colour</span>
+          <input type="color" bind:value={config.glowColor} on:input={bump} />
+        </label>
+      {/if}
     {/if}
     {#if config.glowMode === 'adaptive'}
       <p class="hint">Light rim on dark themes, soft dark rim on light — keeps the particle readable on any background.</p>
@@ -290,6 +295,16 @@
   }
   .field textarea { resize: vertical; }
   .field.check input { width: auto; accent-color: var(--signal); }
+  .field input[type='color'] {
+    flex: 0 0 auto;
+    width: 44px;
+    height: 28px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: none;
+    cursor: pointer;
+    padding: 2px;
+  }
   .pair { display: flex; gap: 10px; }
   .pair .field { flex: 1 1 0; flex-direction: column; align-items: stretch; gap: 4px; }
   .pair .field input[type='range'] { max-width: none; }
