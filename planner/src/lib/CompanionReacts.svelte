@@ -1,7 +1,7 @@
 <script context="module" lang="ts">
   // The react vocabulary. The companion picks one (or none) per message via
   // the top-level "react" field; anything not in this list is ignored.
-  export const REACT_IDS = ['black_hearts', 'sparks', 'tungsten_strike', 'liquid_hearts', 'cherry_blossoms'];
+  export const REACT_IDS = ['black_hearts', 'sparks', 'tungsten_strike', 'liquid_hearts', 'cherry_blossoms', 'sleepy_stars'];
 </script>
 
 <script lang="ts">
@@ -175,6 +175,15 @@
   let blossoms: Blossom[] = [];
   let blossomTimer: ReturnType<typeof setTimeout>;
 
+  // Sleepy stars — Soft, comforting goodnight/ nap time etc
+  interface SleepyStarsP {
+    id: number; x: number; size: number; color: string; delay: number;
+    dur: number; op: number; rotEnd: number; swayAmp: number; swayDur: number;
+    swayPhase: number; tx: string; ty: string; glow: string;
+  }
+  let sleepy_stars: SleepyStarsP[] = [];
+  let sleepy_starsTimer: ReturnType<typeof setTimeout>;
+
   function pickBlossomSize(): number {
     // 60–75% of the ~13px ambient petal — delicate, not aggressive
     const r = Math.random();
@@ -325,6 +334,33 @@
       blossoms = burst;
       clearTimeout(blossomTimer);
       blossomTimer = setTimeout(() => (blossoms = []), (2.5 + 4) * 1000 + 300);
+    } else if (type === 'sleepy_stars') {
+      const burst: SleepyStarsP[] = [];
+      const count = 65;
+      for (let i = 0; i < count; i++) {
+        const dur = 6 + Math.random() * 1.5;
+        const swayDur = 1.7 + Math.random() * 1.1;
+        const color = ['#6676f0', '#747be2', '#6e6cea'][Math.floor(Math.random() * 3)];
+        burst.push({
+          id: burstId++,
+          x: 4 + Math.random() * 92,
+          size: Math.round(7 + Math.random() * 21),
+          color,
+          delay: Math.random() * 3.5,
+          dur,
+          op: 0.55 + Math.random() * 0.25,
+          rotEnd: (Math.random() < 0.5 ? -1 : 1) * 60 * dur,
+          swayAmp: 13.8 + Math.random() * 9.2,
+          swayDur,
+          swayPhase: Math.random() * swayDur,
+          tx: `${(-10 + Math.random() * 20).toFixed(1)}vw`,
+          ty: '112vh',
+          glow: `drop-shadow(0 0 8px ${color})`,
+        });
+      }
+      sleepy_stars = burst;
+      clearTimeout(sleepy_starsTimer);
+      sleepy_starsTimer = setTimeout(() => (sleepy_stars = []), 11400);
     } else if (type === 'tungsten_strike') {
       strikeTimers.forEach(clearTimeout);
       // Drop the node first so a rapid re-fire restarts the CSS animations.
@@ -464,6 +500,21 @@
       <div class="impact-flash"></div>
     </div>
   {/if}
+
+  {#each sleepy_stars as p (p.id)}
+    <span
+      class="sleepy_stars"
+      style="left:{p.x}%; --size:{p.size}px; --dur:{p.dur}s; --delay:{p.delay}s; --op:{p.op}; --tx:{p.tx}; --ty:{p.ty}; --sway:{p.swayAmp}px; --swaydur:{p.swayDur}s; --swayphase:{p.swayPhase}s; --rot:{p.rotEnd}deg;"
+    >
+      <span class="sleepy_stars-sway">
+        <span class="sleepy_stars-shape" style="filter:{p.glow};">
+          <svg viewBox="0 0 24 24" width={p.size} height={p.size} style="display:block;">
+            <path fill={p.color} d="M 12 1 L 14.5 8.5 L 22.5 8.5 L 16.5 13.5 L 18.5 21 L 12 16.5 L 5.5 21 L 7.5 13.5 L 1.5 8.5 L 9.5 8.5 Z" />
+          </svg>
+        </span>
+      </span>
+    </span>
+  {/each}
 </div>
 
 <style>
@@ -769,5 +820,42 @@
     0% { transform: translateX(-50%) scaleX(0.1); opacity: 0; }
     15% { transform: translateX(-50%) scaleX(0.5); opacity: 0.95; }
     100% { transform: translateX(-50%) scaleX(1); opacity: 0; }
+  }
+
+  .sleepy_stars {
+    position: absolute;
+    width: var(--size);
+    height: var(--size);
+    margin-left: calc(var(--size) / -2);
+    top: calc(-1 * var(--size) - 10px);
+    animation:
+      sleepy_stars-travel var(--dur) linear var(--delay) both,
+      sleepy_stars-fade var(--dur) linear var(--delay) both;
+  }
+  @keyframes sleepy_stars-travel {
+    from { transform: translate(0, 0) scale(1); }
+    to { transform: translate(var(--tx), var(--ty)) scale(1); }
+  }
+  @keyframes sleepy_stars-fade {
+    0% { opacity: 0; }
+    8% { opacity: var(--op); }
+    72% { opacity: var(--op); }
+    100% { opacity: 0; }
+  }
+  .sleepy_stars-sway {
+    display: block;
+    animation: sleepy_stars-sway var(--swaydur) ease-in-out calc(-1 * var(--swayphase)) infinite alternate;
+  }
+  @keyframes sleepy_stars-sway {
+    from { transform: translateX(calc(-1 * var(--sway))); }
+    to { transform: translateX(var(--sway)); }
+  }
+  .sleepy_stars-shape {
+    display: block;
+    animation: sleepy_stars-spin var(--dur) linear var(--delay) both;
+  }
+  @keyframes sleepy_stars-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(var(--rot)); }
   }
 </style>

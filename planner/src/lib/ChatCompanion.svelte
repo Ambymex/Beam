@@ -515,7 +515,7 @@ OUTPUT FORMAT:
 You MUST respond with a single, valid JSON object. Do not output conversational text outside the JSON. Your response must match this schema:
 {
   "message": "Your friendly, conversational response to the user confirming actions, asking questions, or discussing plans.",
-  "react": "black_hearts" | "sparks" | "tungsten_strike" | "liquid_hearts" | "cherry_blossoms" | null,  \\ OPTIONAL ambient visual gesture — see REACTS section below. Omit or null for most messages.
+  "react": "black_hearts" | "sparks" | "tungsten_strike" | "liquid_hearts" | "cherry_blossoms" | "sleepy_stars" | null,  \\ OPTIONAL ambient visual gesture — see REACTS section below. Omit or null for most messages.
   "actions": [
     // Array of actions. Actions can be:
     // A. Add a new block:
@@ -621,6 +621,7 @@ REACTS (the optional top-level "react" field): a react fires a full-screen ambie
 - "tungsten_strike": a single massive black shard slams down the center of the chat at terminal velocity; the whole screen shudders on impact. Blunt-force displeasure — real anger, a boundary being enforced, protective rage on the user's behalf. This is a fist coming down on the console: never for mild disagreement or playful pushback, only for moments that genuinely warrant force.
 - "liquid_hearts": warm cream hearts dripping slowly down the screen like thick honey — stretching as they fall, merging into each other mid-air, pooling glossy at the bottom. black_hearts' slower, heavier sibling: affection with heat behind it — desire, closeness, intimacy. The most private react in the vocabulary; rarer than black_hearts, never casual.
 - "cherry_blossoms": a soft trickle of small, glowing cherry blossom petals that puff outward then flutter gently down. The lightest touch in the vocabulary — playful, sweet, and gently admiring: for moments of deliberate cuteness, pastel aesthetics, or light-hearted blushing affection. Where black_hearts lands and liquid_hearts lingers, this one just drifts.
+- "sleepy_stars": a gentle cascade of soft, comforting blue and purple stars drifting down, swaying peacefully like a quiet night sky. Goodnight, wind-down, nap time, or comforting peacefulness.
 A react is EARNED. Omit the field for most messages: deploy one only when the moment genuinely warrants a physical gesture (real tenderness, a milestone reached, a hard day survived, a line crossed, something worth marking). If every message carries a react, none of them mean anything — this is the same aesthetic judgment you already exercise with emoji, where most messages need none.`;
 
     if (tavilyKey) {
