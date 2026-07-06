@@ -37,8 +37,12 @@ export interface ReactConfig {
   swayMax: number; // flutter period range, seconds
 
   driftX: number; // net horizontal drift, vw (fall/rise); burst radiates
-  glowBlur: number; // px halo (0 = none)
-  glowColor: string; // hex, or 'auto' to derive from the particle fill
+  // glow: 'none', a 'fixed' coloured halo, or an 'adaptive' theme-readability
+  // rim (light rim on dark themes, soft dark rim on light) — the trick that
+  // keeps a dark particle visible on dark skies, like the shipped black hearts.
+  glowMode: 'none' | 'fixed' | 'adaptive';
+  glowBlur: number; // px halo strength (fixed + adaptive)
+  glowColor: string; // hex, or 'auto' to derive from the particle fill (fixed only)
 }
 
 // A concrete spawned particle (randomised within the config ranges). Shared by
@@ -118,14 +122,23 @@ export const DEFAULT_CONFIG: ReactConfig = {
   swayMin: 1.4,
   swayMax: 2.8,
   driftX: 0,
-  glowBlur: 0,
+  glowMode: 'none',
+  glowBlur: 6,
   glowColor: 'auto',
 };
 
 // Starting points that mirror shipped reacts, so there's something alive on
 // first load and a template to riff on.
 export const PRESETS: Record<string, ReactConfig> = {
-  black_hearts: { ...DEFAULT_CONFIG, id: 'black_hearts', label: 'Black Hearts', register: 'Affection landing as physical presence — soft weight, real mass.' },
+  black_hearts: {
+    ...DEFAULT_CONFIG,
+    id: 'black_hearts',
+    label: 'Black Hearts',
+    register: 'Affection landing as physical presence — soft weight, real mass.',
+    // the adaptive rim is what keeps these visible on dark skies
+    glowMode: 'adaptive',
+    glowBlur: 6,
+  },
   cherry_blossoms: {
     ...DEFAULT_CONFIG,
     id: 'cherry_blossoms',
@@ -147,8 +160,34 @@ export const PRESETS: Record<string, ReactConfig> = {
     swayAmp: 26,
     swayMin: 0.9,
     swayMax: 1.6,
+    glowMode: 'fixed',
     glowBlur: 8,
     glowColor: '#ffcde4',
+  },
+  liquid_hearts: {
+    ...DEFAULT_CONFIG,
+    id: 'liquid_hearts',
+    label: 'Liquid Hearts',
+    register: 'Affection with heat behind it — desire, closeness, intimacy. The most private react; never casual.',
+    direction: 'fall',
+    count: 13,
+    spawnWindow: 2.5,
+    durMin: 5.5,
+    durMax: 7.5, // honey-slow, ~40% of confetti speed
+    shape: 'heart',
+    sizeMin: 12,
+    sizeMax: 34,
+    colorMode: 'fixed',
+    colors: ['#f8f0e0', '#f5f0e6', '#f5f2ea'], // warm-to-cool creams
+    opacityMin: 0.85,
+    opacityMax: 1,
+    rotMax: 12, // lazy rotation
+    swayAmp: 8,
+    swayMin: 1.6,
+    swayMax: 2.6,
+    driftX: 4,
+    glowMode: 'adaptive',
+    glowBlur: 5,
   },
   sparks: {
     ...DEFAULT_CONFIG,
@@ -171,6 +210,7 @@ export const PRESETS: Record<string, ReactConfig> = {
     swayAmp: 10,
     swayMin: 1.1,
     swayMax: 2.2,
+    glowMode: 'fixed',
     glowBlur: 3,
     glowColor: '#ffd98a',
   },

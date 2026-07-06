@@ -28,8 +28,8 @@ function colorExpr(cfg: ReactConfig): string {
   return `[${arr}][Math.floor(Math.random() * ${cfg.colors.length})]`;
 }
 
+// per-particle fixed glow, evaluated in fire() (only when glowMode === 'fixed')
 function glowExpr(cfg: ReactConfig): string {
-  if (!cfg.glowBlur) return `'none'`;
   if (cfg.glowColor === 'auto') return `\`drop-shadow(0 0 ${cfg.glowBlur}px \${color})\``;
   return `'drop-shadow(0 0 ${cfg.glowBlur}px ${cfg.glowColor})'`;
 }
@@ -58,6 +58,8 @@ export function generate(cfg: ReactConfig): Generated {
   const id = cfg.id || 'my_react';
   const Cap = id.replace(/(^|_)([a-z])/g, (_, __, c) => c.toUpperCase());
   const sd = shapeDef(cfg);
+  const fixedGlow = cfg.glowMode === 'fixed';
+  const adaptiveGlow = cfg.glowMode === 'adaptive';
   const lifeMs = Math.round((cfg.spawnWindow + cfg.durMax) * 1000 + 400);
   const durRange = cfg.durMax - cfg.durMin;
   const swayRange = cfg.swayMax - cfg.swayMin;
@@ -70,7 +72,7 @@ export function generate(cfg: ReactConfig): Generated {
   interface ${Cap}P {
     id: number; x: number; size: number; color: string; delay: number;
     dur: number; op: number; rotEnd: number; swayAmp: number; swayDur: number;
-    swayPhase: number; tx: string; ty: string; glow: string;
+    swayPhase: number; tx: string; ty: string;${fixedGlow ? ' glow: string;' : ''}
   }
   let ${id}: ${Cap}P[] = [];
   let ${id}Timer: ReturnType<typeof setTimeout>;`;
@@ -97,8 +99,7 @@ export function generate(cfg: ReactConfig): Generated {
           swayDur,
           swayPhase: Math.random() * swayDur,
           tx: ${txExpr(cfg)},
-          ty: ${tyExpr(cfg)},
-          glow: ${glowExpr(cfg)},
+          ty: ${tyExpr(cfg)},${fixedGlow ? `\n          glow: ${glowExpr(cfg)},` : ''}
         });
       }
       ${id} = burst;
@@ -106,15 +107,21 @@ export function generate(cfg: ReactConfig): Generated {
       ${id}Timer = setTimeout(() => (${id} = []), ${lifeMs});
     }`;
 
-  const shapeMarkup =
+  // shape wrapper style/attrs differ by glow mode: fixed = inline filter;
+  // adaptive = a --rim var (the filter comes from the theme-keyed CSS below).
+  const shapeAttr = fixedGlow
+    ? ` style="filter:{p.glow};"`
+    : adaptiveGlow
+      ? ` style="--rim:${n(cfg.glowBlur)}px;"`
+      : '';
+  const shapeInner =
     sd.render === 'path'
-      ? `        <span class="${id}-shape" style="filter:{p.glow};">
-          <svg viewBox="${sd.viewBox}" width={p.size} height={p.size} style="display:block;">
+      ? `          <svg viewBox="${sd.viewBox}" width={p.size} height={p.size} style="display:block;">
             <path fill={p.color} d="${sd.d}" />
-          </svg>
-        </span>`
-      : `        <span class="${id}-shape" style="filter:{p.glow};">
-          <span style="display:block; width:{p.size}px; height:{p.size}px; background:{p.color}; border-radius:${sd.radius};"></span>
+          </svg>`
+      : `          <span style="display:block; width:{p.size}px; height:{p.size}px; background:{p.color}; border-radius:${sd.radius};"></span>`;
+  const shapeMarkup = `        <span class="${id}-shape"${shapeAttr}>
+${shapeInner}
         </span>`;
 
   const leftAttr = cfg.direction === 'burst' ? '' : 'left:{p.x}%; ';
@@ -171,6 +178,17 @@ ${shapeMarkup}
   @keyframes ${id}-spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(var(--rot)); }
+  }${
+    adaptiveGlow
+      ? `
+  /* adaptive readability rim: light on dark themes, soft dark on light */
+  :global([data-theme='dark']) .${id}-shape {
+    filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.6)) drop-shadow(0 0 var(--rim, 6px) rgba(255, 255, 255, 0.35));
+  }
+  :global([data-theme='light']) .${id}-shape {
+    filter: drop-shadow(0 0 var(--rim, 6px) rgba(40, 30, 30, 0.32));
+  }`
+      : ''
   }`;
 
   const prompt = `- "${id}": ${cfg.register}`;

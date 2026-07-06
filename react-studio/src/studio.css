@@ -37,6 +37,47 @@
   color: var(--text-dim);
   margin-left: 8px;
 }
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.drafts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.draft-name {
+  width: 130px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 12px;
+  padding: 6px 9px;
+  font-family: inherit;
+}
+.draft-btn,
+.draft-load {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.draft-del {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  font-size: 11px;
+  cursor: pointer;
+}
 .export-btn {
   background: var(--signal);
   color: var(--signal-contrast);

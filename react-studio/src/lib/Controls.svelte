@@ -1,6 +1,7 @@
 <script lang="ts">
   import { PRESETS, type ReactConfig } from './reactConfig';
   import { SHAPE_LABELS, type ShapeKind } from './shapes';
+  import CustomShape from './CustomShape.svelte';
 
   // Two-way bound from App; reassigning `config` (even to itself) is what tells
   // Svelte a nested field changed, so the live preview re-fires.
@@ -97,10 +98,10 @@
       </select>
     </label>
     {#if config.shape === 'custom'}
-      <label class="field col">
-        <span>Custom SVG path (viewBox 0 0 24 24)</span>
-        <textarea rows="2" bind:value={config.customPath} on:input={bump} placeholder="M12 2 L22 22 L2 22 Z"></textarea>
-      </label>
+      <div class="field col">
+        <span>Custom shape (24×24 grid)</span>
+        <CustomShape bind:path={config.customPath} on:change={bump} />
+      </div>
     {/if}
     <div class="pair">
       <label class="field">
@@ -178,10 +179,20 @@
       </label>
     </div>
     <label class="field">
-      <span>Glow blur <b>{config.glowBlur}px</b></span>
-      <input type="range" min="0" max="16" bind:value={config.glowBlur} on:input={bump} />
+      <span>Glow</span>
+      <select bind:value={config.glowMode} on:change={bump}>
+        <option value="none">None</option>
+        <option value="fixed">Fixed colour halo</option>
+        <option value="adaptive">Adaptive rim (per theme)</option>
+      </select>
     </label>
-    {#if config.glowBlur > 0}
+    {#if config.glowMode !== 'none'}
+      <label class="field">
+        <span>Glow strength <b>{config.glowBlur}px</b></span>
+        <input type="range" min="1" max="16" bind:value={config.glowBlur} on:input={bump} />
+      </label>
+    {/if}
+    {#if config.glowMode === 'fixed'}
       <label class="field">
         <span>Glow colour</span>
         <select bind:value={config.glowColor} on:change={bump}>
@@ -191,6 +202,9 @@
           <option value="#ffcde4">Blossom pink</option>
         </select>
       </label>
+    {/if}
+    {#if config.glowMode === 'adaptive'}
+      <p class="hint">Light rim on dark themes, soft dark rim on light — keeps the particle readable on any background.</p>
     {/if}
   </section>
 </div>
@@ -314,5 +328,11 @@
     color: var(--text-dim);
     font-size: 15px;
     cursor: pointer;
+  }
+  .hint {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--text-faint);
   }
 </style>

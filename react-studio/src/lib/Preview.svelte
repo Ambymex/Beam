@@ -67,8 +67,9 @@
   }
   const s0 = () => (config.direction === 'burst' ? 0.3 : 1);
   $: travelEase = config.direction === 'burst' ? 'cubic-bezier(0.2, 0.7, 0.3, 1)' : 'linear';
+  // Fixed glow only; the adaptive rim is applied by theme-keyed global CSS.
   function glow(p: Particle): string {
-    if (!config.glowBlur) return 'none';
+    if (config.glowMode !== 'fixed' || !config.glowBlur) return 'none';
     const c = config.glowColor === 'auto' ? p.color : config.glowColor;
     return `drop-shadow(0 0 ${config.glowBlur}px ${c})`;
   }
@@ -127,7 +128,11 @@
           "
         >
           <span class="p-sway">
-            <span class="p-shape" style="filter:{glow(p)};">
+            <span
+              class="p-shape"
+              class:adaptive={config.glowMode === 'adaptive'}
+              style="{config.glowMode === 'fixed' ? `filter:${glow(p)};` : ''} --rim:{config.glowBlur}px;"
+            >
               {#if shapeDef.render === 'path'}
                 <svg viewBox={shapeDef.viewBox} width={p.size} height={p.size} style="display:block;">
                   <path fill={p.color} d={shapeDef.d} />
@@ -253,6 +258,14 @@
   .p-shape {
     display: block;
     animation: s-spin var(--dur) linear var(--delay) both;
+  }
+  /* adaptive readability rim: light on dark skies, soft dark on light — the
+     data-theme selector is global (set on <html>), the shape class stays scoped */
+  :global([data-theme='dark']) .p-shape.adaptive {
+    filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.6)) drop-shadow(0 0 var(--rim, 6px) rgba(255, 255, 255, 0.35));
+  }
+  :global([data-theme='light']) .p-shape.adaptive {
+    filter: drop-shadow(0 0 var(--rim, 6px) rgba(40, 30, 30, 0.32));
   }
   @keyframes s-spin {
     from { transform: rotate(0deg); }
