@@ -226,7 +226,7 @@
     // CompanionReacts.svelte). Stored for the record; only fired on arrival.
     react?: string;
     actions?: Array<{
-      type: 'add_block' | 'update_block' | 'delete_block' | 'read_scratchpad' | 'update_scratchpad' | 'update_diary' | 'add_symptom' | 'update_symptom' | 'delete_symptom' | 'show_notification' | 'schedule_notification' | 'web_search';
+      type: 'add_block' | 'update_block' | 'delete_block' | 'read_scratchpad' | 'update_scratchpad' | 'update_diary' | 'add_symptom' | 'update_symptom' | 'delete_symptom' | 'show_notification' | 'schedule_notification' | 'web_search' | 'control_lights';
       targetDate?: string;
       block?: Partial<Block>;
       labelToMatch?: string;
@@ -242,6 +242,7 @@
       body?: string;
       timeHours?: any;
       query?: string;
+      preset?: string;
     }>;
   }
 
@@ -1671,6 +1672,24 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
               console.error('[Companion] Web search failed:', err);
             });
           }
+        }
+
+        else if (act.type === 'control_lights' && act.preset !== undefined) {
+          fetch(`${SUPABASE_URL}/functions/v1/control-lights`, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              apikey: SUPABASE_ANON,
+              authorization: `Bearer ${SUPABASE_ANON}`,
+            },
+            body: JSON.stringify({ preset: act.preset })
+          }).then(res => {
+            if (!res.ok) {
+              console.warn('[Companion] control_lights fetch failed:', res.status);
+            }
+          }).catch(err => {
+            console.error('[Companion] control_lights fetch error:', err);
+          });
         }
 
         if (!updated[actualDate]) {
