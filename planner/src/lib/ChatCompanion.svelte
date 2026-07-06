@@ -53,18 +53,23 @@
   }
 
   // Robustly pull a JSON object out of a model completion. json_object mode
-  // asks for clean JSON, but models still occasionally wrap it in ```json
-  // fences, add a sentence of preamble, or leave a trailing comma. Rather than
-  // a greedy /\{[\s\S]*\}/ (which over-captures when there's trailing prose
-  // with braces), we strip fences, then balance-scan from the first '{' to its
-  // matching '}' — string-aware so braces inside strings don't fool it — and
-  // clean up trailing commas before parsing.
-  function extractLlmJson(raw: string): any {
+  // asks for clean JSON, but real replies still arrive: fenced in ```json,
+  // wrapped in preamble/trailing prose, with trailing commas, with LITERAL
+  // newlines inside strings (instant parse failure), or TRUNCATED mid-object
+  // when the token cap lands mid-reply. The scan is string-aware (braces in
+  // strings don't fool it) and sanitises control characters as it walks; a
+  // truncated reply gets its open string closed, dangling tail tokens chopped,
+  // and the bracket stack repaired. With opts.salvageProse (interactive chat
+  // only), a reply with no recoverable JSON is shown as plain message text
+  // rather than surfacing an error bar.
+  function extractLlmJson(raw: string, opts?: { salvageProse?: boolean }): any {
     if (!raw || !raw.trim()) throw new Error('Model returned an empty response.');
     let text = raw.trim();
 
-    const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(text);
-    if (fenced) text = fenced[1].trim();
+    // unwrap a ```json fence wherever it sits (models sometimes put prose
+    // around the fence, so don't require the whole reply to BE the fence)
+    const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(text);
+    if (fenced && fenced[1].includes('{')) text = fenced[1].trim();
 
     // fast path: already clean
     try {
@@ -74,29 +79,120 @@
     }
 
     const start = text.indexOf('{');
-    if (start !== -1) {
-      let depth = 0;
-      let inStr = false;
-      let esc = false;
-      for (let i = start; i < text.length; i++) {
-        const c = text[i];
-        if (inStr) {
-          if (esc) esc = false;
-          else if (c === '\\') esc = true;
-          else if (c === '"') inStr = false;
-        } else if (c === '"') {
-          inStr = true;
-        } else if (c === '{') {
-          depth++;
-        } else if (c === '}') {
-          depth--;
-          if (depth === 0) {
-            const candidate = text.slice(start, i + 1).replace(/,(\s*[}\]])/g, '$1');
-            return JSON.parse(candidate); // throws → caught by caller
-          }
-        }
+    if (start === -1) {
+      // no JSON at all — in the interactive chat, show the prose as his
+      // reply rather than an error bar; strict callers still throw
+      if (opts?.salvageProse) return { message: raw.trim(), actions: [] };
+      throw new Error('Model response contained no valid JSON object.');
+    }
+
+    // String-aware scan from the first '{': sanitise control characters
+    // inside strings (models love literal newlines there — instant parse
+    // failure), track the bracket stack, stop at the matching close. If the
+    // reply was TRUNCATED (token cap mid-JSON, the "dropped bracket" bug) we
+    // run out of input with the stack still open — the repair loop below
+    // closes strings/brackets and chops dangling tail tokens until it parses.
+    let inStr = false;
+    let esc = false;
+    let out = '';
+    let complete = '';
+    let depth = 0;
+    for (let i = start; i < text.length; i++) {
+      const c = text[i];
+      if (inStr) {
+        if (esc) { esc = false; out += c; }
+        else if (c === '\\') { esc = true; out += c; }
+        else if (c === '"') { inStr = false; out += c; }
+        else if (c === '\n') out += '\\n';
+        else if (c === '\r') out += '\\r';
+        else if (c === '\t') out += '\\t';
+        else if (c.charCodeAt(0) < 0x20) out += ' ';
+        else out += c;
+        continue;
+      }
+      out += c;
+      if (c === '"') inStr = true;
+      else if (c === '{' || c === '[') depth++;
+      else if (c === '}' || c === ']') {
+        depth--;
+        if (depth <= 0) { complete = out; break; }
       }
     }
+
+    const cleanup = (s: string) => s.replace(/,(\s*[}\]])/g, '$1');
+
+    if (complete) {
+      try {
+        return JSON.parse(cleanup(complete));
+      } catch {
+        if (opts?.salvageProse) return { message: raw.trim(), actions: [] };
+        throw new Error('Model response contained no valid JSON object.');
+      }
+    }
+
+    // A repaired (truncated) reply can carry a half-written trailing action.
+    // executeActions' guards stop most partials, but a CREATOR that lost its
+    // numbers to the cut would land as a 0h→24h slab on the ring — drop those.
+    const pruneTruncatedActions = (parsed: any): any => {
+      if (parsed && Array.isArray(parsed.actions)) {
+        parsed.actions = parsed.actions.filter((a: any) => {
+          if (!a || typeof a !== 'object') return false;
+          if (a.type === 'add_block') {
+            return a.block && a.block.startHours !== undefined && a.block.coreEndHours !== undefined;
+          }
+          if (a.type === 'add_symptom') {
+            return a.symptom && a.symptom.timeHours !== undefined;
+          }
+          return true;
+        });
+      }
+      return parsed;
+    };
+
+    // Truncated: close an open string, then repeatedly (a) re-derive the
+    // open-bracket stack, (b) append the closers and try to parse, (c) on
+    // failure chop one dangling tail token (a cut-off key, a bare fragment,
+    // a trailing comma) and go again. Bounded; salvages "message complete,
+    // actions cut mid-item" — by far the common truncation shape.
+    let t = out + (inStr && !esc ? '"' : inStr ? '\\"' + '"' : '');
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const st: string[] = [];
+      let s2 = false;
+      let e2 = false;
+      for (const ch of t) {
+        if (s2) {
+          if (e2) e2 = false;
+          else if (ch === '\\') e2 = true;
+          else if (ch === '"') s2 = false;
+          continue;
+        }
+        if (ch === '"') s2 = true;
+        else if (ch === '{' || ch === '[') st.push(ch);
+        else if (ch === '}' || ch === ']') st.pop();
+      }
+      if (s2) { t += '"'; continue; }
+      const closers = st.reverse().map((b) => (b === '{' ? '}' : ']')).join('');
+      try {
+        return pruneTruncatedActions(JSON.parse(cleanup(t) + closers));
+      } catch {
+        const before = t;
+        if (/,\s*$/.test(t)) {
+          t = t.replace(/,\s*$/, '');
+        } else if (/([,{])\s*"(?:[^"\\]|\\.)*"\s*:\s*[^,{}[\]"]*$/.test(t)) {
+          // dangling `"key":` (with or without a partial primitive value)
+          t = t.replace(/([,{])\s*"(?:[^"\\]|\\.)*"\s*:\s*[^,{}[\]"]*$/, '$1');
+        } else if (/([,[])\s*[^,{}[\]"]+$/.test(t)) {
+          // bare fragment after , or [ (cut-off literal like `tru` / `14.`)
+          t = t.replace(/([,[])\s*[^,{}[\]"]+$/, '$1');
+        } else if (/([,{[])\s*"(?:[^"\\]|\\.)*"\s*$/.test(t)) {
+          // dangling closed string with no role (a key that never got its ':')
+          t = t.replace(/([,{[])\s*"(?:[^"\\]|\\.)*"\s*$/, '$1');
+        }
+        if (t === before) break; // no progress — stop trying
+      }
+    }
+
+    if (opts?.salvageProse) return { message: raw.trim(), actions: [] };
     throw new Error('Model response contained no valid JSON object.');
   }
 
@@ -1133,7 +1229,9 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
           if (typeof r === 'string' && r.trim()) cotReasoning = r.trim();
         }
         const completionText = result.choices?.[0]?.message?.content?.trim() ?? '';
-        parsed = extractLlmJson(completionText);
+        // interactive chat: if all JSON recovery fails, show the raw reply as
+        // his message instead of an error bar (actions just come up empty)
+        parsed = extractLlmJson(completionText, { salvageProse: true });
       } else {
         const res = await fetch(`${SUPABASE_URL}/functions/v1/parse-command`, {
           method: 'POST',
