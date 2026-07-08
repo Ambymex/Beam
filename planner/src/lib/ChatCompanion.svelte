@@ -706,6 +706,11 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
       "timeHours": number, // decimal hours from midnight (e.g., 18.25 for 6:15 PM)
       "title": "Scheduled Alert Title",
       "body": "Scheduled alert details text"
+    },
+    // K. Control the smart lights in the user's house. You can change the lighting vibe using these presets:
+    {
+      "type": "control_lights",
+      "preset": "test" | "grafting_communion" | "crimson_dawn"
     }
   ]
 }

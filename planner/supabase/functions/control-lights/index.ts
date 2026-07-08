@@ -12,7 +12,7 @@ const cors = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const TUYA_ENDPOINT = 'https://openapi.tuyacn.com'; // China Data Center
+const TUYA_ENDPOINT = 'https://openapi.tuyaeu.com'; // Central Europe Data Center
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
