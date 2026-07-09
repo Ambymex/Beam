@@ -54,6 +54,7 @@ CORE RULES:
    - "Hard-edged block" = Deadline or externally fixed appointment. Taper length is 0 (taperEndHours === coreEndHours).
 4. APPOINTMENTS & TRAVEL WINGS: Appointments (meetings, appointments, classes, fixed external times) are always hard-edged. They feature "travel wings" in a travel vibe: travelBeforeHours (departure wing) and travelAfterHours (get home wing) in decimal hours. (Default travel wings are 0.5h/30m each if not specified).
 5. TIMES: Represented as decimal hours from midnight (e.g. 14.5 = 2:30 PM, 9.75 = 9:45 AM). If the end time is less than the start time, it means it crosses midnight (e.g. 23.5 to 0.5 is 11:30 PM to 12:30 AM).
+6. STRICT INTENT COMPLIANCE: Do NOT hallucinate, invent, or proactively create extra tasks/blocks to be "helpful". Only output \`add_block\` or \`update_block\` actions if the user explicitly asks you to schedule something.
 
 ---
 PLANNER SPECS:
