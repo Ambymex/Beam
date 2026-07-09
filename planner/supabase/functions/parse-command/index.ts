@@ -26,13 +26,14 @@ interface RequestPayload {
   currentTime: string; // HH:MM
   vibes: Vibe[];
   systemPromptOverride?: string;
+  useProxy?: boolean;
 }
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
 
   try {
-    const { messages, currentDate, currentTime, vibes, systemPromptOverride } = (await req.json()) as RequestPayload;
+    const { messages, currentDate, currentTime, vibes, systemPromptOverride, useProxy } = (await req.json()) as RequestPayload;
     
     if (!messages || !messages.length) {
       return json({ error: 'messages array is required' }, 400);
@@ -119,32 +120,69 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
 }
 `;
 
-    // Package messages for OpenRouter
+    // Package messages for OpenRouter / Gemini
     const apiMessages = [
       { role: 'system', content: systemPrompt },
       ...messages.map((m) => ({ role: m.role, content: m.content })),
     ];
 
-    const openRouterRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openRouterApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: modelName,
-        messages: apiMessages,
-        response_format: { type: 'json_object' },
-      }),
-    });
+    let completionText = '';
+    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
 
-    if (!openRouterRes.ok) {
-      const errText = await openRouterRes.text();
-      return json({ error: `OpenRouter API error: ${openRouterRes.status} ${errText}` }, 502);
+    // 1. PRIMARY ROUTE: The Proxy / Free Tier (if enabled)
+    if (useProxy && geminiApiKey) {
+      try {
+        console.log('[Routing] Attempting AI Studio (Gemini) proxy endpoint...');
+        const geminiRes = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${geminiApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gemini-1.5-pro',
+            messages: apiMessages,
+            response_format: { type: 'json_object' }
+          }),
+        });
+
+        if (geminiRes.ok) {
+          const result = await geminiRes.json();
+          completionText = result.choices?.[0]?.message?.content?.trim() ?? '';
+          console.log('[Routing] AI Studio proxy successful.');
+        } else {
+          const errText = await geminiRes.text();
+          console.warn(`[Routing] AI Studio proxy failed (${geminiRes.status}): ${errText}. Falling back...`);
+        }
+      } catch (err) {
+        console.warn(`[Routing] AI Studio proxy threw an exception: ${err}. Falling back...`);
+      }
     }
 
-    const result = await openRouterRes.json();
-    const completionText = result.choices?.[0]?.message?.content?.trim() ?? '';
+    // 2. FALLBACK ROUTE: The Official OpenRouter Endpoint
+    if (!completionText) {
+      console.log('[Routing] Sending request to OpenRouter API (Fallback/Primary)...');
+      const openRouterRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openRouterApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: modelName,
+          messages: apiMessages,
+          response_format: { type: 'json_object' },
+        }),
+      });
+
+      if (!openRouterRes.ok) {
+        const errText = await openRouterRes.text();
+        return json({ error: `OpenRouter API error: ${openRouterRes.status} ${errText}` }, 502);
+      }
+
+      const result = await openRouterRes.json();
+      completionText = result.choices?.[0]?.message?.content?.trim() ?? '';
+    }
     
     // Attempt to parse completion text as JSON
     let parsedResponse;

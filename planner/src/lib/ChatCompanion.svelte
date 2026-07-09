@@ -289,6 +289,7 @@
   // OpenRouter direct settings
   let openRouterKey = safeGetItem('radial-planner-openrouter-key', import.meta.env.VITE_OPENROUTER_KEY || '');
   let selectedModel = safeGetItem('radial-planner-openrouter-model', import.meta.env.VITE_OPENROUTER_MODEL || 'google/gemma-2-27b-it');
+  let useHybridRouting = safeGetItem('radial-planner-hybrid-routing', 'true') === 'true';
   let showSettings = false;
   let debugActions = '';
   
@@ -493,6 +494,7 @@
     try {
       localStorage.setItem('radial-planner-openrouter-key', openRouterKey.trim());
       localStorage.setItem('radial-planner-openrouter-model', selectedModel);
+      localStorage.setItem('radial-planner-hybrid-routing', useHybridRouting ? 'true' : 'false');
       localStorage.setItem('radial-planner-pinecone-key', pineconeKey.trim());
       localStorage.setItem('radial-planner-pinecone-host', pineconeHost.trim());
       localStorage.setItem('radial-planner-vault-enabled', enableVault ? 'true' : 'false');
@@ -852,7 +854,8 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
             currentDate: realDate,
             currentTime: currentTimeStr,
             vibes: allVibes,
-            systemPromptOverride: systemPrompt
+            systemPromptOverride: systemPrompt,
+            useProxy: useHybridRouting
           }),
         });
         if (!res.ok) return;
@@ -1251,7 +1254,8 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
             currentDate: realDate,
             currentTime,
             vibes: allVibes,
-            systemPromptOverride: systemPrompt
+            systemPromptOverride: systemPrompt,
+            useProxy: useHybridRouting
           }),
         });
 
@@ -1833,6 +1837,13 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
             <option value={m.id}>{m.name || m.id}</option>
           {/each}
         </select>
+      </div>
+      <div class="field">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; margin: 0; font-size: 12px; color: var(--text);">
+          <input type="checkbox" bind:checked={useHybridRouting} on:change={saveSettings} style="margin: 0; width: auto;" />
+          Enable Hybrid Proxy Routing (AI Studio Fallback)
+        </label>
+        <span class="tip">Uses free Gemini endpoint when possible. Applies only when routing via Supabase Edge Functions.</span>
       </div>
       <div class="field">
         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; margin: 0; font-size: 12px; color: var(--text);">
