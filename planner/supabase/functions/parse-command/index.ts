@@ -122,6 +122,7 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
     ];
 
     let completionText = '';
+    let proxyError = '';
     const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
 
     // 1. PRIMARY ROUTE: The Proxy / Free Tier (if enabled)
@@ -135,7 +136,7 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'gemini-1.5-pro',
+            model: 'gemini-3.5-flash',
             messages: apiMessages,
             response_format: { type: 'json_object' }
           }),
