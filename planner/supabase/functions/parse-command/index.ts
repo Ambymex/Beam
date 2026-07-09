@@ -39,11 +39,6 @@ Deno.serve(async (req) => {
       return json({ error: 'messages array is required' }, 400);
     }
 
-    const openRouterApiKey = Deno.env.get('OPENROUTER_API_KEY');
-    if (!openRouterApiKey) {
-      return json({ error: 'OPENROUTER_API_KEY environment variable is not set on the server' }, 500);
-    }
-
     const modelName = Deno.env.get('OPENROUTER_MODEL') || 'google/gemma-2-27b-it';
 
     const systemPrompt = systemPromptOverride || `You are a supportive, warm, and clear AI companion for the "Radial Day Planner" app.
@@ -162,6 +157,12 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
     // 2. FALLBACK ROUTE: The Official OpenRouter Endpoint
     if (!completionText) {
       console.log('[Routing] Sending request to OpenRouter API (Fallback/Primary)...');
+      
+      const openRouterApiKey = Deno.env.get('OPENROUTER_API_KEY');
+      if (!openRouterApiKey) {
+        return json({ error: 'No valid API key found. Proxy failed/disabled, and OPENROUTER_API_KEY is missing.' }, 500);
+      }
+
       const openRouterRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
