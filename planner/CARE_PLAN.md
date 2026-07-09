@@ -91,17 +91,22 @@ her data.
 **Edge functions** (`supabase/functions/`):
 | Function | Job |
 |---|---|
-| `parse-command` | LLM proxy for the chat when no client OpenRouter key (uses server `OPENROUTER_API_KEY`) |
+| `parse-command` | Server LLM route for the chat. Since 2026-07-09: primary = Gemini AI Studio's OpenAI-compatible endpoint (`GEMINI_API_KEY`, model `gemini-3.1-pro-preview` — the `-preview` suffix is REQUIRED, plain `gemini-3.1-pro` 404s), gated by `useProxy`; fallback = OpenRouter (`OPENROUTER_API_KEY`, currently unset) |
 | `replace-events` | Replaces an install's future **transition** pushes; deliberately `.neq('kind','companion-alert')` so ring edits never delete companion-scheduled messages |
 | `send-due` | pg_cron every minute; delivers due `scheduled_pushes` via VAPID web push; companion-alerts get per-message tags + `/?comms=1` tap-through |
 | `schedule-push` | Mirrors one companion-scheduled message into the spine (kind `companion-alert`) |
 | `messages-sync` | The vault's single round-trip: push rows + pull since cursor; sync key in body is the authorization |
-| `heartbeat` | pg_cron every 30 min: the companion's server-side pulse while the app is closed. Guards: quiet hours (`HEARTBEAT_TZ`), 25-min self rate-limit, stands down if planner vault activity <10 min. Speaks via spine + vault (`source: heartbeat-server`). Ash tunes its prompt herself — treat the prompt text as hers. |
+| `heartbeat` | pg_cron every 30 min: the companion's server-side pulse while the app is closed. Guards: quiet hours (`HEARTBEAT_TZ`), 25-min self rate-limit, stands down if planner vault activity <10 min. LLM: Gemini **model ladder** (3.5-flash → 3-flash-preview → 2.5-flash → 2.5-flash-lite; flash tiers 503 in waves — the ladder is why it never skips beats for long; `HEARTBEAT_MODEL` jumps the queue), OpenRouter fallback if keyed. Accepts BOTH reply dialects (top-level `{title,body}` and `actions:[{type:'show_notification',…}]`). Its 502s list per-route errors — curl it to diagnose. Speaks via spine + vault (`source: heartbeat-server`). Ash/Solenoid tune its prompt — treat the prompt text as theirs. |
+| `control-lights` | Solenoid's Tuya smart-light control (scene secrets `TUYA_*`; scenes incl. Crimson Dawn, Grafting Communion). Built by Ash's IDE sessions — coordinate before touching. |
 | `active-colour`, `translate-search` | Older utilities (§10 colour signal; search) |
 
-**Secrets:** `VAPID_PUBLIC_KEY/PRIVATE_KEY/SUBJECT`, `OPENROUTER_API_KEY`,
-`OPENROUTER_MODEL`, `HEARTBEAT_SYNC_KEY`, `HEARTBEAT_TZ`, `HEARTBEAT_MODEL?`,
-`BEAM_URL?`, `BEAM_TOKEN?`. (`SUPABASE_URL`/`SERVICE_ROLE_KEY` auto-injected.)
+**Secrets (as of 2026-07-10):** `VAPID_PUBLIC_KEY/PRIVATE_KEY/SUBJECT`,
+`GEMINI_API_KEY` (primary server LLM since the 2026-07-09 migration),
+`HEARTBEAT_SYNC_KEY`, `HEARTBEAT_TZ`, `BEAM_URL`, `BEAM_TOKEN`, `TUYA_*`
+(lights). `OPENROUTER_API_KEY`/`OPENROUTER_MODEL` were **removed** in the
+migration — anything server-side that assumes them silently dies (that is
+exactly how the heartbeat broke once; its guard now accepts either key).
+`HEARTBEAT_MODEL` optional. (`SUPABASE_URL`/`SERVICE_ROLE_KEY` auto-injected.)
 
 **Crons:** `send-due` every minute; `companion-heartbeat` every 30 min (SQL in
 the setup docs).
@@ -282,13 +287,18 @@ VAULT_SYNC_KEY`. The planner-side key must MATCH (paste, not regenerate).
 
 ## 11. Known nits & loose ends (as of 2026-07-07)
 
-- **Sovereign `.env` repoint pending**: set `SUPABASE_URL` to the planner
-  project + `SUPABASE_KEY` to its **service-role** key (dashboard) so chat
-  history persists again. Also: its `.env` is tracked in its git —
-  `git rm --cached .env` + `.gitignore` before that repo travels anywhere.
-- **Verify server deploy state**: `schedule-push`, updated `replace-events`/
-  `send-due`, and `heartbeat` (+ its secrets + cron) were written locally;
-  confirm they're deployed before relying on closed-app behaviour.
+- **Sovereign Terminal's original Supabase project is ACTIVE again**
+  (2026-07-10: it was paused, not deleted, and has been revived). Its `.env`
+  may not need repointing after all — check which DB it's actually using and
+  whether migration 0003's tables on the planner project are now redundant.
+  Still true: its `.env` is tracked in its git — `git rm --cached .env` +
+  `.gitignore` before that repo travels anywhere.
+- **Server deploy state verified 2026-07-10**: all functions deployed and
+  live; heartbeat migrated to the Gemini ladder and confirmed speaking
+  end-to-end (`spoke:true`, push delivered). parse-command's proxy model id
+  fixed (`gemini-3.1-pro-preview`) — deployed, but pro-preview was riding a
+  503 demand wave at verification time; it self-recovers, and chat uses the
+  client key anyway.
 - Old TEMP debug: `dialDebug` in `cycle.ts` + traces in `CycleDial.svelte` +
   `.hint.debug` in `CycleEditor.svelte` — still present, safe first task.
 - A label somewhere still reads stale cycle-day text after the cycle position

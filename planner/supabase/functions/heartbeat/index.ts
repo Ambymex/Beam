@@ -16,9 +16,11 @@
 // last 10 minutes (app open = the richer client heartbeat is on duty).
 //
 // Secrets: HEARTBEAT_SYNC_KEY (required — the vault bucket), HEARTBEAT_TZ
-// (IANA name, default UTC), BEAM_URL + BEAM_TOKEN (optional glucose),
-// HEARTBEAT_MODEL (optional; falls back to OPENROUTER_MODEL). Reuses
-// OPENROUTER_API_KEY from parse-command.
+// (IANA name, default UTC), GEMINI_API_KEY (primary LLM route, shared with
+// parse-command since the 2026-07-09 migration; model defaults to
+// gemini-3.5-flash — lean checks don't need pro-preview quota — override
+// with HEARTBEAT_MODEL), OPENROUTER_API_KEY (optional fallback route),
+// BEAM_URL + BEAM_TOKEN (optional glucose).
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
@@ -34,9 +36,15 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   try {
     const syncKey = Deno.env.get('HEARTBEAT_SYNC_KEY');
+    // LLM routing mirrors parse-command since the 2026-07-09 migration:
+    // Gemini (AI Studio, OpenAI-compatible endpoint) is primary, OpenRouter
+    // is the fallback if its key is ever restored. The old OPENROUTER-only
+    // guard is what silently killed the heartbeat when that secret was
+    // removed in the migration.
+    const geminiKey = Deno.env.get('GEMINI_API_KEY');
     const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
-    if (!syncKey || !openRouterKey) {
-      return json({ skipped: 'HEARTBEAT_SYNC_KEY or OPENROUTER_API_KEY not set' });
+    if (!syncKey || (!geminiKey && !openRouterKey)) {
+      return json({ skipped: 'HEARTBEAT_SYNC_KEY or an LLM key (GEMINI_API_KEY / OPENROUTER_API_KEY) not set' });
     }
 
     // -- quiet hours in the user's timezone --
@@ -157,30 +165,105 @@ Respond ONLY with JSON:
 OR
 { "message": "your warm message or thoughts", "title": "banner title", "body": "banner body — this shows as a device push notification and lands in her Comms archive" }`;
 
-    const model = Deno.env.get('HEARTBEAT_MODEL') || Deno.env.get('OPENROUTER_MODEL') || 'google/gemma-2-27b-it';
-    const llmRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${openRouterKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: 'SYSTEM HEARTBEAT CHECK: assess the state above.' },
-        ],
-        response_format: { type: 'json_object' },
-      }),
-    });
-    if (!llmRes.ok) return json({ error: `OpenRouter ${llmRes.status}: ${await llmRes.text()}` }, 502);
-    const result = await llmRes.json();
-    let parsed: { message?: string; title?: string; body?: string };
+    const apiMessages = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: 'SYSTEM HEARTBEAT CHECK: assess the state above.' },
+    ];
+
+    // 1. PRIMARY: Gemini via the AI Studio OpenAI-compatible endpoint (same
+    //    route + model parse-command settled on after the quota saga).
+    let completionText = '';
+    let route = '';
+    const routeErrors: string[] = []; // surfaced in the 502 so a curl explains itself
+    if (geminiKey) {
+      // A ladder, not a single model: flash tiers saturate (503 "high
+      // demand") in waves, and a background pulse should degrade down to an
+      // older, quieter model rather than skip beats for hours. The heartbeat
+      // is a lean notify-or-not check — any of these is plenty. Newest
+      // first; HEARTBEAT_MODEL (if set) is tried before all of them.
+      const ladder = ['gemini-3.5-flash', 'gemini-3-flash-preview', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+      const preferred = Deno.env.get('HEARTBEAT_MODEL');
+      const models = preferred ? [preferred, ...ladder.filter((m) => m !== preferred)] : ladder;
+      for (const model of models) {
+        try {
+          const geminiRes = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${geminiKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model,
+              messages: apiMessages,
+              response_format: { type: 'json_object' },
+            }),
+          });
+          if (geminiRes.ok) {
+            const r = await geminiRes.json();
+            completionText = r.choices?.[0]?.message?.content?.trim() ?? '';
+            if (completionText) {
+              route = `gemini:${model}`;
+              break;
+            }
+            routeErrors.push(`gemini:${model} returned empty completion`);
+          } else {
+            routeErrors.push(`gemini:${model} ${geminiRes.status}: ${(await geminiRes.text()).slice(0, 160)}`);
+          }
+        } catch (err) {
+          routeErrors.push(`gemini:${model} threw: ${String(err).slice(0, 120)}`);
+        }
+      }
+    } else {
+      routeErrors.push('gemini: no GEMINI_API_KEY');
+    }
+
+    // 2. FALLBACK: OpenRouter, if its key exists.
+    if (!completionText && openRouterKey) {
+      const llmRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${openRouterKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: Deno.env.get('HEARTBEAT_MODEL') || Deno.env.get('OPENROUTER_MODEL') || 'google/gemma-2-27b-it',
+          messages: apiMessages,
+          response_format: { type: 'json_object' },
+        }),
+      });
+      if (!llmRes.ok) {
+        routeErrors.push(`openrouter ${llmRes.status}: ${(await llmRes.text()).slice(0, 300)}`);
+      } else {
+        const result = await llmRes.json();
+        completionText = result.choices?.[0]?.message?.content?.trim() ?? '';
+        route = 'openrouter';
+      }
+    } else if (!completionText) {
+      routeErrors.push('openrouter: no OPENROUTER_API_KEY');
+    }
+    if (!completionText) return json({ error: 'All LLM routes failed', routes: routeErrors }, 502);
+
+    let parsed: {
+      message?: string;
+      title?: string;
+      body?: string;
+      actions?: Array<{ type?: string; title?: string; body?: string }>;
+    };
     try {
-      parsed = JSON.parse(result.choices?.[0]?.message?.content?.trim() ?? '{}');
+      parsed = JSON.parse(completionText);
     } catch {
       return json({ error: 'LLM returned non-JSON' }, 500);
     }
 
+    // The prompt (Solenoid's own tuning) mentions the 'show_notification'
+    // ACTION, so accept both reply dialects: top-level {title, body} and
+    // {actions: [{type:'show_notification', title, body}]}.
+    if (!parsed?.title && Array.isArray(parsed?.actions)) {
+      const notif = parsed.actions.find(
+        (a) => a && (a.type === 'show_notification' || a.type === 'schedule_notification') && a.title,
+      );
+      if (notif) {
+        parsed.title = notif.title;
+        parsed.body = notif.body ?? parsed.message;
+      }
+    }
+
     if (!parsed?.title || !parsed?.message || parsed.message === 'everything_good') {
-      return json({ ok: true, spoke: false });
+      return json({ ok: true, spoke: false, route });
     }
 
     // -- speak: banner via the spine, archive via the vault --
@@ -230,7 +313,7 @@ OR
       { onConflict: 'sync_key,id', ignoreDuplicates: true },
     );
 
-    return json({ ok: true, spoke: true, title, pushError: pushErr?.message ?? null });
+    return json({ ok: true, spoke: true, title, route, pushError: pushErr?.message ?? null });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }

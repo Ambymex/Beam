@@ -136,7 +136,10 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'gemini-3.1-pro',
+            // NB: the AI Studio id needs the -preview suffix — plain
+            // 'gemini-3.1-pro' 404s (that typo silently killed this proxy
+            // route after the quota-revert commit).
+            model: 'gemini-3.1-pro-preview',
             messages: apiMessages,
             response_format: { type: 'json_object' }
           }),
