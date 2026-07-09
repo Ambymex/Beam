@@ -820,7 +820,7 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
       ];
 
       let parsed;
-      if (!SUPABASE_URL || openRouterKey) {
+      if (!SUPABASE_URL || (openRouterKey && !useHybridRouting)) {
         if (!openRouterKey) return;
         const openRouterRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
@@ -1193,7 +1193,7 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
       // Chain-of-thought captured from the OpenRouter path when the bulb is lit
       let cotReasoning: string | undefined;
 
-      if (!SUPABASE_URL || openRouterKey) {
+      if (!SUPABASE_URL || (openRouterKey && !useHybridRouting)) {
         if (!openRouterKey) {
           throw new Error('OpenRouter API key is not configured. Please tap the Settings gear icon above to enter it.');
         }
