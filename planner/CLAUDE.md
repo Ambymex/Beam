@@ -5,6 +5,11 @@ engine, glassmorphism, an AI companion, CGM (glucose) integration, and MCAS
 symptom tracking. This file is aimed at small, focused styling jobs (colours,
 spacing, animations). Read the landmines section before touching anything.
 
+**For anything beyond styling — the companion, sync, push spine, heartbeats,
+reacts, deploys, testing recipes — read [CARE_PLAN.md](./CARE_PLAN.md) first.**
+It is the full handover for any model: architecture maps, ALL the landmines,
+runbooks, and how to work with Ash.
+
 **You are in the right folder if this file is next to `src/App.svelte`.**
 (There is a STALE copy of this app at `radial-planner/planner` two levels up —
 never edit that one.)
@@ -13,7 +18,7 @@ never edit that one.)
 
 | What | File | Notes |
 |---|---|---|
-| Theme palettes (12 env themes) | `src/lib/themes.json` | CSS custom properties per theme; `common` block = shared glass tokens |
+| Theme palettes (13 env themes) | `src/lib/themes.json` | CSS custom properties per theme; `common` block = shared glass tokens |
 | Ring structural colours | `src/lib/theme.ts` → `VAR_PALETTE` | maps SVG parts to CSS vars |
 | Ambient background gradient | derived in `src/lib/envTheme.ts` from `--gradient-start/--gradient-end` | don't hand-write `--ambient-gradient` in themes.json |
 | Background animations (stars, meteors, aurora curtains, rain ripples) | `src/app.css` (`*-canopy` classes) | toggled by `envTheme.ts` state flags |
@@ -23,7 +28,7 @@ never edit that one.)
 
 ### Token cheat-sheet (per theme in themes.json)
 - `--gradient-start` / `--gradient-end` — the page-wide ambient gradient (all full-screen panels share it).
-- `--app-bg` — solid fallback + browser `theme-color`. **Dark themes must keep it starting with `#0`** — `theme.ts` detects dark mode via `startsWith('#0')`.
+- `--app-bg` — solid fallback + browser `theme-color`. Dark/light mode is detected by **perceptual luminance** of this hex (`theme.ts`, threshold 0.45) — a dark theme needs a genuinely dark `--app-bg`, a light one genuinely light.
 - `--surface`, `--surface-2`, `--surface-3` — translucent white elevation tiers (`rgba(255,255,255,α)`). **Keep the rgba format**: the Theme Designer parses the alpha back out of these strings.
 - `--glass-bg/-border/-blur/-shadow` — the glass look. Bright themes (sunrise/day/sunset) override with stronger alphas; dark themes inherit `common`.
 - `--signal` / `--signal-glow` / `--signal-contrast` — the one emphasis colour (selection rings, now-tick, out-of-range glucose).
@@ -69,6 +74,20 @@ the origin's (very low) alpha — always specify it explicitly.
    scratchpad is fetched on demand via `read_scratchpad`, diary history lines
    capped at 300 chars, heartbeat uses its own lean prompt and is enforced
    notify-only. Don't re-add bulk to the every-turn prompt.
+10. **ChatCompanion stays mounted from boot** (hidden via a `visible` prop, not
+    `{#if}`) — its onMount runs the heartbeat, scheduled alerts, and the vault
+    chat adapter. Unmounting it on close kills all three.
+11. **App shell scroll is locked** (`html,body { overflow: hidden }`); inner
+    scroll areas need `min-height: 0` AND `flex: 0 0 auto` on their children,
+    plus `touch-action: pan-y; overscroll-behavior: contain` — or iOS pans the
+    page / flex-squashes the rows to slivers.
+12. **`public/sw.js` deliberately duplicates `notify.ts` shaping** (a SW can't
+    import from src) — change them in lockstep.
+13. **React Studio (`../react-studio`) imports this app's real `themes.json`
+    and `app.css`** — renaming or moving those files breaks it.
+
+Landmines 10–17 with full detail, plus sync/spine/parser rules, live in
+[CARE_PLAN.md](./CARE_PLAN.md) §8.
 
 ## Testing checklist for any visual change
 
