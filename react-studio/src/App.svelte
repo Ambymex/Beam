@@ -1,6 +1,7 @@
 <script lang="ts">
   import Controls from './lib/Controls.svelte';
   import Preview from './lib/Preview.svelte';
+  import Coach from './lib/Coach.svelte';
   import { PRESETS, migrateConfig, type ReactConfig } from './lib/reactConfig';
   import { generate } from './lib/generate';
   import { drafts, saveDraft, deleteDraft } from './lib/drafts';
@@ -75,6 +76,7 @@
     </div>
     <div class="right">
       <Preview {config} />
+      <Coach {config} />
       {#if showExport}
         <div class="export-panel">
           <div class="export-head">
