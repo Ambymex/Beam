@@ -1493,7 +1493,13 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
 
       for (const act of actions) {
         const rawDate = act.targetDate || (act.block as any)?.targetDate || (act.symptom as any)?.targetDate;
-        
+
+        // These action types carry no targetDate by design — a missing date
+        // is normal for them, not a model error, and they shouldn't steer
+        // the ring view (or cancel navigation a dated sibling action set).
+        const dateless = act.type === 'read_scratchpad' || act.type === 'update_scratchpad'
+          || act.type === 'show_notification' || act.type === 'web_search' || act.type === 'control_lights';
+
         let activeViewKey = todayKey();
         currentKey.subscribe(k => { activeViewKey = k; })();
 
@@ -1501,12 +1507,12 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
         const resolved = resolveDate(rawDate, realDate);
 
         if (!resolved) {
-          if (act.type !== 'update_scratchpad') {
+          if (!dateless) {
             console.warn(`[Companion] Ignored invalid/missing date format from LLM: "${rawDate}"`);
             errorMsg = `Warning: The AI tried to use an invalid or missing date format "${rawDate}". Reverted to viewed date instead.`;
+            targetDateToView = activeViewKey;
           }
-          targetDateToView = activeViewKey;
-        } else {
+        } else if (!dateless) {
           targetDateToView = resolved;
         }
 
@@ -1730,6 +1736,28 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
 
     if (targetDateToView) {
       currentKey.set(targetDateToView);
+    }
+  }
+
+  // Human label for an action pill. Every action type gets its own wording —
+  // the old ternary chain's catch-all rendered any newer type (notifications,
+  // lights, search…) as `Deleted "undefined" on undefined`.
+  function actionPillLabel(act: any): string {
+    switch (act.type) {
+      case 'read_scratchpad': return 'Read your Scratch Pad notes';
+      case 'update_scratchpad': return 'Updated your Scratch Pad notes';
+      case 'update_diary': return `Updated the Daily Diary for ${act.targetDate}`;
+      case 'add_block': return `Click to view: Created "${act.block?.label || 'block'}" on ${act.targetDate}`;
+      case 'update_block': return `Click to view: Updated "${act.labelToMatch}" on ${act.targetDate}`;
+      case 'delete_block': return `Click to view: Deleted "${act.labelToMatch}" on ${act.targetDate}`;
+      case 'add_symptom': return `Click to view: Logged symptom "${act.symptom?.category || '?'}" on ${act.targetDate}`;
+      case 'update_symptom': return `Click to view: Updated a symptom on ${act.targetDate}`;
+      case 'delete_symptom': return `Click to view: Removed a symptom on ${act.targetDate}`;
+      case 'show_notification': return `Sent a notification: "${act.title || ''}" (archived in Comms)`;
+      case 'schedule_notification': return `Scheduled "${act.title || ''}" for ${act.targetDate}`;
+      case 'web_search': return `Searched the web: "${act.query || ''}"`;
+      case 'control_lights': return `Set the lights: ${act.preset || ''}`;
+      default: return `Action: ${act.type}`;
     }
   }
 
@@ -1982,7 +2010,7 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
             <div class="actions-notif">
               {#each msg.actions as act}
                 <button class="action-pill" on:click={() => handleActionClick(act)}>
-                  ⚡ {act.type === 'read_scratchpad' ? 'Read your Scratch Pad notes' : act.type === 'update_scratchpad' ? 'Updated your Scratch Pad notes' : act.type === 'update_diary' ? `Updated the Daily Diary for ${act.targetDate}` : `Click to view: ${act.type === 'add_block' ? `Created "${act.block?.label || 'block'}"` : act.type === 'update_block' ? `Updated "${act.labelToMatch}"` : `Deleted "${act.labelToMatch}"`} on ${act.targetDate}`}
+                  ⚡ {actionPillLabel(act)}
                 </button>
               {/each}
             </div>
