@@ -26,10 +26,16 @@ supabase secrets set \
   BEAM_TOKEN='<beam bridge token>'
 ```
 
+**Replace every `<…>` placeholder with a real value.** A placeholder pasted
+verbatim passes length checks and silently archives messages into a bucket no
+app reads (it happened — 16 messages went to the ether). The function now
+refuses `<…>` values and says so in its response, but check anyway.
+
 `BEAM_URL`/`BEAM_TOKEN` are optional (no glucose in the prompt without them —
 but glucose is the safety-relevant signal, so set them if you can; same values
-as the planner's Beam settings). `OPENROUTER_API_KEY` is already set for
-parse-command; `HEARTBEAT_MODEL` optionally overrides `OPENROUTER_MODEL`.
+as the planner's Beam settings). The LLM route is Gemini
+(`GEMINI_API_KEY`, shared with parse-command) with a flash-tier model ladder;
+`HEARTBEAT_MODEL` overrides the first rung.
 
 ## 2. Deploy + cron
 

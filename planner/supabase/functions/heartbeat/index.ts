@@ -46,6 +46,13 @@ Deno.serve(async (req) => {
     if (!syncKey || (!geminiKey && !openRouterKey)) {
       return json({ skipped: 'HEARTBEAT_SYNC_KEY or an LLM key (GEMINI_API_KEY / OPENROUTER_API_KEY) not set' });
     }
+    // A docs placeholder pasted verbatim ('<your shared sync key…>') passes
+    // every length check and silently archives messages into a bucket no app
+    // reads — 16 of Solenoid's check-ins went to the ether this way once.
+    // Refuse loudly instead.
+    if (syncKey.startsWith('<')) {
+      return json({ skipped: 'HEARTBEAT_SYNC_KEY is still the docs placeholder — set the real shared sync key' });
+    }
 
     // -- quiet hours in the user's timezone --
     const tz = Deno.env.get('HEARTBEAT_TZ') || 'UTC';
@@ -117,7 +124,9 @@ Deno.serve(async (req) => {
     let glucoseLine = '';
     const beamUrl = Deno.env.get('BEAM_URL');
     const beamToken = Deno.env.get('BEAM_TOKEN');
-    if (beamUrl && beamToken) {
+    // same placeholder trap as the sync key: '<beam bridge token>' pasted
+    // verbatim means glucose context silently never loads — treat as unset
+    if (beamUrl && beamToken && !beamUrl.startsWith('<') && !beamToken.startsWith('<')) {
       try {
         const res = await fetch(`${beamUrl.replace(/\/$/, '')}/glucose/current`, {
           headers: { Authorization: `Bearer ${beamToken}` },

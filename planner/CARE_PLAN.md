@@ -299,6 +299,16 @@ VAULT_SYNC_KEY`. The planner-side key must MATCH (paste, not regenerate).
   fixed (`gemini-3.1-pro-preview`) — deployed, but pro-preview was riding a
   503 demand wave at verification time; it self-recovers, and chat uses the
   client key anyway.
+- **`BEAM_TOKEN` secret is still the docs placeholder** (`<…>`), so the
+  server heartbeat has never had glucose context. Fix with the real bridge
+  token (same value as the planner's Beam settings / the Fly app's
+  `API_TOKEN`): `npx supabase secrets set BEAM_TOKEN='…'` from `planner/`.
+  The heartbeat treats placeholder values as unset, so this fails safe.
+- **Placeholder-secrets incident (2026-07-10)**: `HEARTBEAT_SYNC_KEY` had
+  been the literal docs placeholder since setup — every heartbeat message
+  archived to an unreadable bucket. Rows were rescued by migrating
+  `sync_key` server-side; the function now refuses `<…>` values loudly. If
+  vault messages ever "vanish" again, audit bucket keys first.
 - Old TEMP debug: `dialDebug` in `cycle.ts` + traces in `CycleDial.svelte` +
   `.hint.debug` in `CycleEditor.svelte` — still present, safe first task.
 - A label somewhere still reads stale cycle-day text after the cycle position
