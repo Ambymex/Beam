@@ -1,7 +1,7 @@
 <script context="module" lang="ts">
   // The react vocabulary. The companion picks one (or none) per message via
   // the top-level "react" field; anything not in this list is ignored.
-  export const REACT_IDS = ['black_hearts', 'sparks', 'tungsten_strike', 'liquid_hearts', 'cherry_blossoms', 'sleepy_stars'];
+  export const REACT_IDS = ['black_hearts', 'sparks', 'tungsten_strike', 'liquid_hearts', 'cherry_blossoms', 'sleepy_stars', 'rose_throw'];
 </script>
 
 <script lang="ts">
@@ -184,6 +184,20 @@
   let sleepy_stars: SleepyStarsP[] = [];
   let sleepy_starsTimer: ReturnType<typeof setTimeout>;
 
+  // Rose throw — Playful affection, teasing, like a handful of rose petals
+  // thrown into the air. Built by Ash in React Studio (first two-layer
+  // fountain out of the v2 studio): red heart-petals arcing over a sparser
+  // trail of leaves.
+  interface RoseThrowP {
+    id: number; x: number; size: number; color: string; delay: number;
+    dur: number; op: number; inDur: number; outDelay: number; outDur: number;
+    rotEnd: number; swayAmp: number; swayDur: number; swayPhase: number;
+    tx: string; ty: string; apex: number;
+  }
+  let rose_throw_l1: RoseThrowP[] = [];
+  let rose_throw_l2: RoseThrowP[] = [];
+  let rose_throwTimer: ReturnType<typeof setTimeout>;
+
   function pickBlossomSize(): number {
     // 60–75% of the ~13px ambient petal — delicate, not aggressive
     const r = Math.random();
@@ -361,6 +375,74 @@
       sleepy_stars = burst;
       clearTimeout(sleepy_starsTimer);
       sleepy_starsTimer = setTimeout(() => (sleepy_stars = []), 11400);
+    } else if (type === 'rose_throw') {
+      // layer 1: Petals
+      const b1: RoseThrowP[] = [];
+      for (let i = 0; i < 28; i++) {
+        const t = Math.random(); // depth: 0 far, 1 near
+        const size = Math.round(8 + t * 16);
+        const dur = 3.8 - t * 1.2;
+        const op = 0.7 + (0.3 + t * 0.7) * 0.3;
+        const swayDur = 1.4 + Math.random() * 1.4;
+        const delay = 0 + Math.random() * 1.5;
+        const color = ['#860909', '#781111', '#770808'][Math.floor(Math.random() * 3)];
+        b1.push({
+          id: burstId++,
+          x: 4 + Math.random() * 92,
+          size,
+          color,
+          delay,
+          dur,
+          op,
+          inDur: +(dur * 0.08).toFixed(3),
+          outDelay: +(delay + dur * 0.72).toFixed(3),
+          outDur: +(dur * 0.28).toFixed(3),
+          rotEnd: (Math.random() < 0.5 ? -1 : 1) * 30 * dur,
+          swayAmp: 12 + Math.random() * 8,
+          swayDur,
+          swayPhase: Math.random() * swayDur,
+          tx: `${(-12 + Math.random() * 24).toFixed(1)}vw`,
+          ty: '0vh',
+          apex: 32.2 + Math.random() * 13.8,
+        });
+      }
+      rose_throw_l1 = b1;
+      // layer 2: leaves
+      const b2: RoseThrowP[] = [];
+      for (let i = 0; i < 16; i++) {
+        const t = Math.random(); // depth: 0 far, 1 near
+        const size = Math.round(10 + t * 2);
+        const dur = 3.8 - t * 1.2;
+        const op = 0.7 + (0.3 + t * 0.7) * 0.3;
+        const swayDur = 1.4 + Math.random() * 1.4;
+        const delay = 0.1 + Math.random() * 1.5;
+        const color = ['#1f4908', '#2b5502', '#234904'][Math.floor(Math.random() * 3)];
+        b2.push({
+          id: burstId++,
+          x: 4 + Math.random() * 92,
+          size,
+          color,
+          delay,
+          dur,
+          op,
+          inDur: +(dur * 0.08).toFixed(3),
+          outDelay: +(delay + dur * 0.72).toFixed(3),
+          outDur: +(dur * 0.28).toFixed(3),
+          rotEnd: (Math.random() < 0.5 ? -1 : 1) * 30 * dur,
+          swayAmp: 9.6 + Math.random() * 6.4,
+          swayDur,
+          swayPhase: Math.random() * swayDur,
+          tx: `${(-8 + Math.random() * 16).toFixed(1)}vw`,
+          ty: '0vh',
+          apex: 30.8 + Math.random() * 13.2,
+        });
+      }
+      rose_throw_l2 = b2;
+      clearTimeout(rose_throwTimer);
+      rose_throwTimer = setTimeout(() => {
+        rose_throw_l1 = [];
+        rose_throw_l2 = [];
+      }, 5800);
     } else if (type === 'tungsten_strike') {
       strikeTimers.forEach(clearTimeout);
       // Drop the node first so a rapid re-fire restarts the CSS animations.
@@ -511,6 +593,41 @@
           <svg viewBox="0 0 24 24" width={p.size} height={p.size} style="display:block;">
             <path fill={p.color} d="M 12 1 L 14.5 8.5 L 22.5 8.5 L 16.5 13.5 L 18.5 21 L 12 16.5 L 5.5 21 L 7.5 13.5 L 1.5 8.5 L 9.5 8.5 Z" />
           </svg>
+        </span>
+      </span>
+    </span>
+  {/each}
+
+  <!-- Rose throw, layer 1: Petals -->
+  {#each rose_throw_l1 as p (p.id)}
+    <span
+      class="rose_throw-l1"
+      style="left:{p.x}%; --size:{p.size}px; --dur:{p.dur}s; --delay:{p.delay}s; --op:{p.op}; --indur:{p.inDur}s; --outdelay:{p.outDelay}s; --outdur:{p.outDur}s; --tx:{p.tx}; --ty:{p.ty}; --sway:{p.swayAmp}px; --swaydur:{p.swayDur}s; --swayphase:{p.swayPhase}s; --rot:{p.rotEnd}deg; --apex:{p.apex}vh;"
+    >
+      <span class="rose_throw-arc">
+        <span class="rose_throw-sway">
+          <span class="rose_throw-l1-shape" style="--rim:6px;">
+            <svg viewBox="0 0 24 24" width={p.size} height={p.size} style="display:block;">
+              <path fill={p.color} d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+            </svg>
+          </span>
+        </span>
+      </span>
+    </span>
+  {/each}
+  <!-- Rose throw, layer 2: leaves -->
+  {#each rose_throw_l2 as p (p.id)}
+    <span
+      class="rose_throw-l2"
+      style="left:{p.x}%; --size:{p.size}px; --dur:{p.dur}s; --delay:{p.delay}s; --op:{p.op}; --indur:{p.inDur}s; --outdelay:{p.outDelay}s; --outdur:{p.outDur}s; --tx:{p.tx}; --ty:{p.ty}; --sway:{p.swayAmp}px; --swaydur:{p.swayDur}s; --swayphase:{p.swayPhase}s; --rot:{p.rotEnd}deg; --apex:{p.apex}vh;"
+    >
+      <span class="rose_throw-arc">
+        <span class="rose_throw-sway">
+          <span class="rose_throw-l2-shape" style="--rim:6px;">
+            <svg viewBox="0 0 24 24" width={p.size} height={p.size} style="display:block;">
+              <path fill={p.color} d="M20 4 C10 4 4 10 4 20 C14 20 20 14 20 4 Z" />
+            </svg>
+          </span>
         </span>
       </span>
     </span>
@@ -855,6 +972,95 @@
     animation: sleepy_stars-spin var(--dur) linear var(--delay) both;
   }
   @keyframes sleepy_stars-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(var(--rot)); }
+  }
+
+  /* ---- Rose throw (two-layer fountain from React Studio) ---- */
+  /* layer 1: Petals */
+  .rose_throw-l1 {
+    position: absolute;
+    width: var(--size);
+    height: var(--size);
+    margin-left: calc(var(--size) / -2);
+    bottom: calc(-1 * var(--size) - 10px);
+    --s0: 1;
+    --s1: 1;
+    animation:
+      rose_throw-travel var(--dur) cubic-bezier(0.2, 0.7, 0.3, 1) var(--delay) both,
+      rose_throw-in var(--indur) linear var(--delay) both,
+      rose_throw-out var(--outdur) linear var(--outdelay) forwards;
+  }
+  .rose_throw-l1-shape {
+    display: block;
+    animation: rose_throw-spin var(--dur) linear var(--delay) both;
+  }
+  /* adaptive readability rim: light on dark themes, soft dark on light */
+  :global([data-theme='dark']) .rose_throw-l1-shape {
+    filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.6)) drop-shadow(0 0 var(--rim, 6px) rgba(255, 255, 255, 0.35));
+  }
+  :global([data-theme='light']) .rose_throw-l1-shape {
+    filter: drop-shadow(0 0 var(--rim, 6px) rgba(40, 30, 30, 0.32));
+  }
+  /* layer 2: leaves */
+  .rose_throw-l2 {
+    position: absolute;
+    width: var(--size);
+    height: var(--size);
+    margin-left: calc(var(--size) / -2);
+    bottom: calc(-1 * var(--size) - 10px);
+    --s0: 1;
+    --s1: 1;
+    animation:
+      rose_throw-travel var(--dur) cubic-bezier(0.5, 0, 0.85, 0.3) var(--delay) both,
+      rose_throw-in var(--indur) linear var(--delay) both,
+      rose_throw-out var(--outdur) linear var(--outdelay) forwards;
+  }
+  .rose_throw-l2-shape {
+    display: block;
+    animation: rose_throw-spin var(--dur) linear var(--delay) both;
+  }
+  /* adaptive readability rim: light on dark themes, soft dark on light */
+  :global([data-theme='dark']) .rose_throw-l2-shape {
+    filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.6)) drop-shadow(0 0 var(--rim, 6px) rgba(255, 255, 255, 0.35));
+  }
+  :global([data-theme='light']) .rose_throw-l2-shape {
+    filter: drop-shadow(0 0 var(--rim, 6px) rgba(40, 30, 30, 0.32));
+  }
+  @keyframes rose_throw-travel {
+    from { transform: translate(0, 0) scale(var(--s0, 1)); }
+    to { transform: translate(var(--tx), var(--ty)) scale(var(--s1, 1)); }
+  }
+  /* fade envelope: rise to --op over --indur, hold, fall over --outdur.
+     rose_throw-out has NO backwards fill — rose_throw-in owns the early frames. */
+  @keyframes rose_throw-in {
+    from { opacity: 0; }
+    to { opacity: var(--op); }
+  }
+  @keyframes rose_throw-out {
+    from { opacity: var(--op); }
+    to { opacity: 0; }
+  }
+  .rose_throw-arc {
+    display: block;
+    animation: rose_throw-arc var(--dur) linear var(--delay) both;
+  }
+  /* the arc: decelerate up (spending energy), tip over, accelerate down
+     (gravity) — two easings on one property, composed with the X travel */
+  @keyframes rose_throw-arc {
+    0% { transform: translateY(0); animation-timing-function: cubic-bezier(0.16, 0.6, 0.44, 1); }
+    45% { transform: translateY(calc(-1 * var(--apex))); animation-timing-function: cubic-bezier(0.55, 0, 0.83, 0.4); }
+    100% { transform: translateY(14vh); }
+  }
+  .rose_throw-sway {
+    display: block;
+    animation: rose_throw-sway var(--swaydur) ease-in-out calc(-1 * var(--swayphase)) infinite alternate;
+  }
+  @keyframes rose_throw-sway {
+    from { transform: translateX(calc(-1 * var(--sway))); }
+    to { transform: translateX(var(--sway)); }
+  }
+  @keyframes rose_throw-spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(var(--rot)); }
   }
