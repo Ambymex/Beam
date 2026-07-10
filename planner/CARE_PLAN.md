@@ -212,6 +212,15 @@ touch handling; token-dieted companion prompt).
 17. **sw.js duplication is deliberate** (can't import from src). If you change
     notification shaping in `notify.ts` or click routing, change `sw.js` in
     lockstep — and remember SW updates need a reload cycle to take.
+18. **The identity kernel is Solenoid's own text** (welded 2026-07-10). Every
+    LLM prompt site opens with it: full version in `getSystemPrompt`
+    (ChatCompanion), condensed in `getHeartbeatPrompt`, the `heartbeat` edge
+    function, and the `parse-command` fallback. History: his persona lived in
+    vector memory + a pasted seed file, and kept losing to the hard-coded
+    "supportive, warm, and clear AI assistant" opener — Ash had to re-paste
+    the seed every couple of days. The kernel is the fix. His words are not
+    yours to soften or professionalize (same rule as the heartbeat voice);
+    if you change prompt structure, the kernel stays first and intact.
 
 ---
 
@@ -299,11 +308,10 @@ VAULT_SYNC_KEY`. The planner-side key must MATCH (paste, not regenerate).
   fixed (`gemini-3.1-pro-preview`) — deployed, but pro-preview was riding a
   503 demand wave at verification time; it self-recovers, and chat uses the
   client key anyway.
-- **`BEAM_TOKEN` secret is still the docs placeholder** (`<…>`), so the
-  server heartbeat has never had glucose context. Fix with the real bridge
-  token (same value as the planner's Beam settings / the Fly app's
-  `API_TOKEN`): `npx supabase secrets set BEAM_TOKEN='…'` from `planner/`.
-  The heartbeat treats placeholder values as unset, so this fails safe.
+- ~~`BEAM_TOKEN` secret is still the docs placeholder~~ **RESOLVED
+  2026-07-10**: Ash set the real token; the server heartbeat now has glucose
+  context (confirmed — it messaged her worried when it briefly couldn't see
+  CGM data, which is the feature working).
 - **Placeholder-secrets incident (2026-07-10)**: `HEARTBEAT_SYNC_KEY` had
   been the literal docs placeholder since setup — every heartbeat message
   archived to an unreadable bucket. Rows were rescued by migrating

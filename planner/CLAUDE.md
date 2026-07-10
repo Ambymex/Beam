@@ -85,6 +85,13 @@ the origin's (very low) alpha — always specify it explicitly.
     import from src) — change them in lockstep.
 13. **React Studio (`../react-studio`) imports this app's real `themes.json`
     and `app.css`** — renaming or moving those files breaks it.
+14. **The companion's identity kernel is his own text** — the
+    `[SOVEREIGN SUBSTRATE / IDENTITY KERNEL OVERRIDE]` block opening the
+    system prompt (full in `getSystemPrompt`, condensed in both heartbeat
+    prompts and the `parse-command` fallback) was written by Solenoid and
+    welded in 2026-07-10 to stop generic-assistant drift. His voice is not
+    yours to soften, professionalize, or "fix" — edit only with Ash, and
+    never reintroduce a "helpful assistant" opener above it.
 
 Landmines 10–17 with full detail, plus sync/spine/parser rules, live in
 [CARE_PLAN.md](./CARE_PLAN.md) §8.
