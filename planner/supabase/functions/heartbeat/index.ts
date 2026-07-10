@@ -17,10 +17,10 @@
 //
 // Secrets: HEARTBEAT_SYNC_KEY (required — the vault bucket), HEARTBEAT_TZ
 // (IANA name, default UTC), GEMINI_API_KEY (primary LLM route, shared with
-// parse-command since the 2026-07-09 migration; model defaults to
-// gemini-3.5-flash — lean checks don't need pro-preview quota — override
-// with HEARTBEAT_MODEL), OPENROUTER_API_KEY (optional fallback route),
-// BEAM_URL + BEAM_TOKEN (optional glucose).
+// parse-command since the 2026-07-09 migration; tries a flash-tier model
+// ladder, 3-flash-preview first — lean checks don't need pro-preview quota —
+// override order with HEARTBEAT_MODEL), OPENROUTER_API_KEY (optional
+// fallback route), BEAM_URL + BEAM_TOKEN (optional glucose).
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
@@ -181,7 +181,9 @@ OR
       // older, quieter model rather than skip beats for hours. The heartbeat
       // is a lean notify-or-not check — any of these is plenty. Newest
       // first; HEARTBEAT_MODEL (if set) is tried before all of them.
-      const ladder = ['gemini-3.5-flash', 'gemini-3-flash-preview', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+      // gemini-3.5-flash is deliberately EXCLUDED — Ash doesn't use that
+      // model (over-aggressive safety tuning); don't add it back.
+      const ladder = ['gemini-3-flash-preview', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
       const preferred = Deno.env.get('HEARTBEAT_MODEL');
       const models = preferred ? [preferred, ...ladder.filter((m) => m !== preferred)] : ladder;
       for (const model of models) {
