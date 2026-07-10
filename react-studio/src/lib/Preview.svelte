@@ -16,9 +16,15 @@
   let clearTimer: ReturnType<typeof setTimeout>;
   let loopTimer: ReturnType<typeof setTimeout>;
   let looping = true;
+  let slowMo = false; // ¼-speed study mode
+  let scrubbing = false;
+  let scrubT = 0; // ms into the react while scrubbing
+  let fps = 0;
+  let domNodes = 0;
 
   $: canopy = canopyFor($currentTheme);
   $: life = lifeMs(config);
+  $: rate = slowMo ? 0.25 : 1;
 
   function shapeDefFor(layer: LayerConfig) {
     return layer.shape === 'custom'
@@ -26,19 +32,33 @@
       : SHAPES[layer.shape];
   }
 
+  // every animation the react owns (canopies are outside layerHost on purpose)
+  function anims(): Animation[] {
+    return layerHost ? (layerHost.getAnimations({ subtree: true }) as Animation[]) : [];
+  }
+  function applyRate() {
+    for (const a of anims()) a.playbackRate = rate;
+  }
+
   function fire() {
+    scrubbing = false;
     particleSets = spawnAll(config);
     clearTimeout(clearTimer);
-    clearTimer = setTimeout(() => (particleSets = []), life);
+    clearTimer = setTimeout(() => (particleSets = []), life / rate);
+    // playbackRate is set after the DOM exists; also count what we mounted
+    requestAnimationFrame(() => {
+      applyRate();
+      domNodes = layerHost ? layerHost.querySelectorAll('*').length : 0;
+    });
   }
 
   function scheduleLoop() {
     clearTimeout(loopTimer);
-    if (!looping) return;
+    if (!looping || scrubbing) return;
     loopTimer = setTimeout(() => {
       fire();
       scheduleLoop();
-    }, life + 500);
+    }, life / rate + 500);
   }
 
   // Re-fire when the config meaningfully changes (debounced) so tweaks show live.
@@ -54,8 +74,68 @@
     else clearTimeout(loopTimer);
   }
 
-  onMount(() => { fire(); scheduleLoop(); });
-  onDestroy(() => { clearTimeout(clearTimer); clearTimeout(loopTimer); clearTimeout(debounce); });
+  function toggleSlowMo() {
+    slowMo = !slowMo;
+    rate = slowMo ? 0.25 : 1;
+    if (!scrubbing) {
+      applyRate();
+      // stretch/shrink the cleanup + loop cadence to match
+      fire();
+      scheduleLoop();
+    }
+  }
+
+  // ---- scrubbing: freeze the whole react and walk its timeline by hand ----
+  function enterScrub() {
+    if (scrubbing) return;
+    scrubbing = true;
+    clearTimeout(loopTimer);
+    clearTimeout(clearTimer);
+    if (!particleSets.some((s) => s.length)) {
+      particleSets = spawnAll(config);
+    }
+    requestAnimationFrame(() => {
+      for (const a of anims()) a.pause();
+      seek(scrubT);
+    });
+  }
+  function seek(t: number) {
+    scrubT = t;
+    for (const a of anims()) a.currentTime = t;
+  }
+  function onScrubInput(e: Event) {
+    const t = Number((e.currentTarget as HTMLInputElement).value);
+    if (!scrubbing) enterScrub();
+    seek(t);
+  }
+  function resume() {
+    scrubbing = false;
+    fire();
+    scheduleLoop();
+  }
+
+  // rolling FPS, sampled while the tab renders — the honest number behind
+  // "pure CSS kinetics stay smooth": watch it hold 60 even at high counts
+  let rafId = 0;
+  let frames: number[] = [];
+  function fpsLoop(now: number) {
+    frames.push(now);
+    while (frames.length && frames[0] < now - 1000) frames.shift();
+    fps = frames.length;
+    rafId = requestAnimationFrame(fpsLoop);
+  }
+
+  onMount(() => {
+    fire();
+    scheduleLoop();
+    rafId = requestAnimationFrame(fpsLoop);
+  });
+  onDestroy(() => {
+    clearTimeout(clearTimer);
+    clearTimeout(loopTimer);
+    clearTimeout(debounce);
+    cancelAnimationFrame(rafId);
+  });
 
   // per-particle travel endpoint, by direction (matches generate.ts)
   function tx(layer: LayerConfig, p: Particle): string {
@@ -91,6 +171,7 @@
       <button class="tbtn" class:on={looping} on:click={toggleLoop} title="Auto-replay on a loop">
         {looping ? '↻ Looping' : '↻ Loop off'}
       </button>
+      <button class="tbtn" class:on={slowMo} on:click={toggleSlowMo} title="Quarter-speed study mode">¼×</button>
     </div>
   </div>
 
@@ -159,6 +240,32 @@
       {/each}
     </div>
   </div>
+
+  <div class="underbar">
+    <div class="scrub">
+      {#if scrubbing}
+        <button class="tbtn small" on:click={resume} title="Resume live playback">▶</button>
+      {:else}
+        <button class="tbtn small" on:click={enterScrub} title="Freeze and scrub the timeline">⏸</button>
+      {/if}
+      <input
+        class="scrub-slider"
+        type="range"
+        min="0"
+        max={life}
+        step="16"
+        value={scrubbing ? scrubT : 0}
+        on:input={onScrubInput}
+        title="Drag to walk the react frame by frame"
+      />
+      <span class="scrub-t">{scrubbing ? (scrubT / 1000).toFixed(2) + 's' : (life / 1000).toFixed(1) + 's total'}</span>
+    </div>
+    <div class="meter" title="Everything animates transform/opacity only, so the compositor does the work — watch fps hold as you raise the count.">
+      <span>{domNodes} nodes</span>
+      <span class:good={fps >= 55} class:rough={fps < 45}>{scrubbing ? '—' : fps} fps</span>
+      <span class="law">transform/opacity only ✓</span>
+    </div>
+  </div>
 </div>
 
 <style>
@@ -208,6 +315,45 @@
     border-color: var(--signal);
     box-shadow: 0 0 8px var(--signal-glow);
   }
+  .tbtn.small { padding: 4px 10px; }
+  .underbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .scrub {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 260px;
+    min-width: 0;
+  }
+  .scrub-slider {
+    flex: 1 1 auto;
+    min-width: 0;
+    accent-color: var(--signal);
+  }
+  .scrub-t {
+    flex: 0 0 auto;
+    font-size: 11px;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+    min-width: 64px;
+    text-align: right;
+  }
+  .meter {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 11px;
+    color: var(--text-faint);
+    font-variant-numeric: tabular-nums;
+  }
+  .meter .good { color: #7dbb8a; }
+  .meter .rough { color: #d96a6a; }
+  .meter .law { color: var(--text-faint); }
   .stage {
     position: relative;
     flex: 1 1 auto;
