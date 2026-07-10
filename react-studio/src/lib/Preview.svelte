@@ -6,28 +6,30 @@
   import { onMount, onDestroy } from 'svelte';
   import { THEME_ORDER, THEME_LABELS, currentTheme, canopyFor } from './theme';
   import { SHAPES } from './shapes';
-  import { spawnParticles, type ReactConfig, type Particle } from './reactConfig';
+  import { spawnAll, lifeMs, EASES, type ReactConfig, type LayerConfig, type Particle } from './reactConfig';
 
   export let config: ReactConfig;
 
-  let particles: Particle[] = [];
+  let particleSets: Particle[][] = [];
   let stageEl: HTMLDivElement;
+  let layerHost: HTMLDivElement;
   let clearTimer: ReturnType<typeof setTimeout>;
   let loopTimer: ReturnType<typeof setTimeout>;
   let looping = true;
 
   $: canopy = canopyFor($currentTheme);
-  $: shapeDef = config.shape === 'custom'
-    ? { render: 'path' as const, viewBox: '0 0 24 24', d: config.customPath || SHAPES.heart.d }
-    : SHAPES[config.shape];
+  $: life = lifeMs(config);
 
-  // Longest a burst can live, for the DOM cleanup + loop cadence.
-  $: lifeMs = (config.spawnWindow + config.durMax) * 1000 + 400;
+  function shapeDefFor(layer: LayerConfig) {
+    return layer.shape === 'custom'
+      ? { render: 'path' as const, viewBox: '0 0 24 24', d: layer.customPath || SHAPES.heart.d }
+      : SHAPES[layer.shape];
+  }
 
   function fire() {
-    particles = spawnParticles(config);
+    particleSets = spawnAll(config);
     clearTimeout(clearTimer);
-    clearTimer = setTimeout(() => (particles = []), lifeMs);
+    clearTimer = setTimeout(() => (particleSets = []), life);
   }
 
   function scheduleLoop() {
@@ -36,7 +38,7 @@
     loopTimer = setTimeout(() => {
       fire();
       scheduleLoop();
-    }, lifeMs + 500);
+    }, life + 500);
   }
 
   // Re-fire when the config meaningfully changes (debounced) so tweaks show live.
@@ -56,22 +58,21 @@
   onDestroy(() => { clearTimeout(clearTimer); clearTimeout(loopTimer); clearTimeout(debounce); });
 
   // per-particle travel endpoint, by direction (matches generate.ts)
-  function tx(p: Particle): string {
-    if (config.direction === 'burst') return `${(Math.cos((p.angle * Math.PI) / 180) * p.distance).toFixed(1)}vmin`;
+  function tx(layer: LayerConfig, p: Particle): string {
+    if (layer.direction === 'burst') return `${(Math.cos((p.angle * Math.PI) / 180) * p.distance).toFixed(1)}vmin`;
     return `${p.driftX.toFixed(1)}vw`;
   }
-  function ty(p: Particle): string {
-    if (config.direction === 'fall') return '112vh';
-    if (config.direction === 'rise') return '-72vh';
+  function ty(layer: LayerConfig, p: Particle): string {
+    if (layer.direction === 'fall') return '112vh';
+    if (layer.direction === 'rise') return '-72vh';
+    if (layer.direction === 'fountain') return '0vh'; // Y lives on the arc wrapper
     return `${(Math.sin((p.angle * Math.PI) / 180) * p.distance * 0.7 + 8).toFixed(1)}vmin`;
   }
-  const s0 = () => (config.direction === 'burst' ? 0.3 : 1);
-  $: travelEase = config.direction === 'burst' ? 'cubic-bezier(0.2, 0.7, 0.3, 1)' : 'linear';
   // Fixed glow only; the adaptive rim is applied by theme-keyed global CSS.
-  function glow(p: Particle): string {
-    if (config.glowMode !== 'fixed' || !config.glowBlur) return 'none';
-    const c = config.glowColor === 'auto' ? p.color : config.glowColor;
-    return `drop-shadow(0 0 ${config.glowBlur}px ${c})`;
+  function glow(layer: LayerConfig, p: Particle): string {
+    if (layer.glowMode !== 'fixed' || !layer.glowBlur) return 'none';
+    const c = layer.glowColor === 'auto' ? p.color : layer.glowColor;
+    return `drop-shadow(0 0 ${layer.glowBlur}px ${c})`;
   }
 </script>
 
@@ -115,37 +116,46 @@
       <span>{config.label || 'Untitled react'}</span>
     </div>
 
-    <!-- the react layer -->
-    <div class="react-layer {config.direction}">
-      {#each particles as p (p.id)}
-        <span
-          class="p"
-          style="
-            --size:{p.size}px; --dur:{p.dur}s; --delay:{p.delay}s; --op:{p.op};
-            --tx:{tx(p)}; --ty:{ty(p)}; --s0:{s0()}; --ease:{travelEase};
-            --sway:{p.swayAmp}px; --swaydur:{p.swayDur}s; --swayphase:{p.swayPhase}s;
-            --rot:{p.rotEnd}deg; {config.direction !== 'burst' ? `left:${p.x}%;` : ''}
-          "
-        >
-          <span class="p-sway">
+    <!-- the react layers, stacked in config order -->
+    <div class="layer-host" bind:this={layerHost}>
+      {#each config.layers as layer, li}
+        {@const sd = shapeDefFor(layer)}
+        <div class="react-layer {layer.direction}">
+          {#each particleSets[li] ?? [] as p (p.id)}
             <span
-              class="p-shape"
-              class:adaptive={config.glowMode === 'adaptive'}
-              style="{config.glowMode === 'fixed' ? `filter:${glow(p)};` : ''} --rim:{config.glowBlur}px;"
+              class="p"
+              style="
+                --size:{p.size}px; --dur:{p.dur}s; --delay:{p.delay}s; --op:{p.op};
+                --indur:{p.inDur.toFixed(3)}s; --outdelay:{p.outDelay.toFixed(3)}s; --outdur:{p.outDur.toFixed(3)}s;
+                --tx:{tx(layer, p)}; --ty:{ty(layer, p)}; --s0:{layer.scaleFrom}; --s1:{layer.scaleTo};
+                --ease:{EASES[layer.travelEase].css};
+                --sway:{p.swayAmp}px; --swaydur:{p.swayDur}s; --swayphase:{p.swayPhase}s;
+                --rot:{p.rotEnd}deg; --apex:{p.apex.toFixed(1)}vh; {layer.direction !== 'burst' ? `left:${p.x}%;` : ''}
+              "
             >
-              {#if shapeDef.render === 'path'}
-                <svg viewBox={shapeDef.viewBox} width={p.size} height={p.size} style="display:block;">
-                  <path fill={p.color} d={shapeDef.d} />
-                </svg>
-              {:else}
-                <span
-                  class="css-shape"
-                  style="width:{p.size}px; height:{p.size}px; background:{p.color}; border-radius:{shapeDef.radius};"
-                ></span>
-              {/if}
+              <span class="p-arc">
+                <span class="p-sway">
+                  <span
+                    class="p-shape"
+                    class:adaptive={layer.glowMode === 'adaptive'}
+                    style="{layer.glowMode === 'fixed' ? `filter:${glow(layer, p)};` : ''} --rim:{layer.glowBlur}px;"
+                  >
+                    {#if sd.render === 'path'}
+                      <svg viewBox={sd.viewBox} width={p.size} height={p.size} style="display:block;">
+                        <path fill={p.color} d={sd.d} />
+                      </svg>
+                    {:else}
+                      <span
+                        class="css-shape"
+                        style="width:{p.size}px; height:{p.size}px; background:{p.color}; border-radius:{sd.radius};"
+                      ></span>
+                    {/if}
+                  </span>
+                </span>
+              </span>
             </span>
-          </span>
-        </span>
+          {/each}
+        </div>
       {/each}
     </div>
   </div>
@@ -218,6 +228,7 @@
     font-size: 13px;
     z-index: 5;
   }
+  .layer-host,
   .react-layer {
     position: absolute;
     inset: 0;
@@ -225,6 +236,9 @@
     pointer-events: none;
     z-index: 60;
   }
+
+  /* ---- particle skeleton: .p travels + fades, .p-arc is the fountain's Y
+     axis, .p-sway flutters, .p-shape spins. All transform/opacity only. ---- */
   .p {
     position: absolute;
     width: var(--size);
@@ -232,21 +246,41 @@
     margin-left: calc(var(--size) / -2);
     animation:
       s-travel var(--dur) var(--ease, linear) var(--delay) both,
-      s-fade var(--dur) linear var(--delay) both;
+      s-in var(--indur) linear var(--delay) both,
+      s-out var(--outdur) linear var(--outdelay) forwards;
   }
   .react-layer.fall .p { top: calc(-1 * var(--size) - 10px); }
   .react-layer.rise .p { bottom: calc(-1 * var(--size) - 10px); }
+  .react-layer.fountain .p { bottom: calc(-1 * var(--size) - 10px); }
   .react-layer.burst .p { top: 50%; left: 50%; margin-top: calc(var(--size) / -2); }
   @keyframes s-travel {
-    from { transform: translate(0, 0) scale(var(--s0)); }
-    to { transform: translate(var(--tx), var(--ty)) scale(1); }
+    from { transform: translate(0, 0) scale(var(--s0, 1)); }
+    to { transform: translate(var(--tx), var(--ty)) scale(var(--s1, 1)); }
   }
-  @keyframes s-fade {
-    0% { opacity: 0; }
-    8% { opacity: var(--op); }
-    72% { opacity: var(--op); }
-    100% { opacity: 0; }
+  /* fade envelope: rise to --op over --indur, hold, fall over --outdur.
+     s-out deliberately has NO backwards fill — s-in owns the early frames. */
+  @keyframes s-in {
+    from { opacity: 0; }
+    to { opacity: var(--op); }
   }
+  @keyframes s-out {
+    from { opacity: var(--op); }
+    to { opacity: 0; }
+  }
+
+  .p-arc { display: block; }
+  /* the fountain arc: Y rises decelerating (spending energy), tips over at
+     45%, then falls accelerating (gravity). Two easings on one property —
+     composed with the outer X travel, this is how CSS fakes a parabola. */
+  .react-layer.fountain .p-arc {
+    animation: s-arc var(--dur) linear var(--delay) both;
+  }
+  @keyframes s-arc {
+    0% { transform: translateY(0); animation-timing-function: cubic-bezier(0.16, 0.6, 0.44, 1); }
+    45% { transform: translateY(calc(-1 * var(--apex))); animation-timing-function: cubic-bezier(0.55, 0, 0.83, 0.4); }
+    100% { transform: translateY(14vh); }
+  }
+
   .p-sway {
     display: block;
     animation: s-sway var(--swaydur) ease-in-out calc(-1 * var(--swayphase)) infinite alternate;

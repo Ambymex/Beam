@@ -3,31 +3,86 @@ import type { ShapeKind } from './shapes';
 // The parametric model of a particle-shower react — the family that covers
 // black_hearts, sparks, liquid drift, cherry_blossoms, etc. One-off set pieces
 // (the tungsten strike) are intentionally out of scope: they aren't parametric.
+//
+// v2: a react is now 1–4 LAYERS, each its own emitter. Dense support + sparse
+// hero is how complex reacts are actually built; per-layer delay gives
+// choreography phases. Old single-emitter drafts migrate via migrateConfig().
 
-export type Direction = 'fall' | 'rise' | 'burst';
+export type Direction = 'fall' | 'rise' | 'burst' | 'fountain';
 export type ColorMode = 'fixed' | 'signal' | 'contrast';
+export type EaseKind = 'linear' | 'easeIn' | 'easeOut' | 'softInOut' | 'overshoot';
 
-export interface ReactConfig {
-  id: string;
-  label: string;
-  register: string; // one-line emotional register, for the companion prompt
+// Named travel easings, each with the habit it teaches. `pts` are the
+// cubic-bezier control points (null = straight line) for the curve thumbnail.
+export const EASES: Record<
+  EaseKind,
+  { css: string; label: string; teach: string; pts: [number, number, number, number] | null }
+> = {
+  linear: {
+    css: 'linear',
+    label: 'Linear',
+    teach: 'Constant speed. Right for rain, snow, confetti seen in bulk — the eye reads the flock, not the particle. Mechanical for a single hero shape.',
+    pts: null,
+  },
+  easeIn: {
+    css: 'cubic-bezier(0.5, 0, 0.85, 0.3)',
+    label: 'Accelerate (gravity)',
+    teach: 'Starts slow, ends fast — how gravity feels. Heavy things gain speed as they fall.',
+    pts: [0.5, 0, 0.85, 0.3],
+  },
+  easeOut: {
+    // the shipped burst bezier, kept verbatim so old presets look identical
+    css: 'cubic-bezier(0.2, 0.7, 0.3, 1)',
+    label: 'Decelerate (spent energy)',
+    teach: 'Fast start, gentle arrival — bursts and thrown things spend their energy early, then coast.',
+    pts: [0.2, 0.7, 0.3, 1],
+  },
+  softInOut: {
+    css: 'cubic-bezier(0.45, 0.05, 0.55, 0.95)',
+    label: 'Soft in-out (drift)',
+    teach: 'Breathes in and out — weightless drift. Lovely for slow floaty layers; wrong for anything with mass.',
+    pts: [0.45, 0.05, 0.55, 0.95],
+  },
+  overshoot: {
+    css: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+    label: 'Overshoot (playful)',
+    teach: 'Pops past the mark and settles back — cartoon energy. Delightful in one sparse layer; chaos in more.',
+    pts: [0.34, 1.56, 0.64, 1],
+  },
+};
+
+export interface LayerConfig {
+  name: string; // shown on the layer chip
+  muted: boolean; // preview-only solo/study aid; export includes muted layers
 
   direction: Direction;
   count: number;
   spawnWindow: number; // seconds to trickle the spawn over
+  layerDelay: number; // seconds before this layer's first particle (phrasing)
   durMin: number;
   durMax: number; // travel time range, seconds
+  travelEase: EaseKind;
 
   shape: ShapeKind;
   customPath: string;
   sizeMin: number;
   sizeMax: number; // px
+  // Coherent randomness: sample one depth per particle and derive size (big =
+  // near), speed (near = fast) and opacity from it, so variation reads as
+  // depth instead of noise.
+  depthLink: boolean;
 
   colorMode: ColorMode; // fixed hex list, or theme --signal / --signal-contrast
   colors: string[]; // used when colorMode === 'fixed' (1+ for variation)
 
   opacityMin: number;
   opacityMax: number;
+  // Fade envelope, % of travel: 0 → fadeInPct rise, hold, fadeOutPct → 100 fall.
+  fadeInPct: number;
+  fadeOutPct: number;
+  // Scale over travel (grow-in / shrink-out).
+  scaleFrom: number;
+  scaleTo: number;
 
   spin: boolean;
   rotMax: number; // deg/sec magnitude (rotation rate)
@@ -36,7 +91,9 @@ export interface ReactConfig {
   swayMin: number;
   swayMax: number; // flutter period range, seconds
 
-  driftX: number; // net horizontal drift, vw (fall/rise); burst radiates
+  driftX: number; // net horizontal spread, vw (fall/rise/fountain); burst radiates
+  arcApex: number; // fountain: how high the arc rises, vh
+
   // glow: 'none', a 'fixed' coloured halo, or an 'adaptive' theme-readability
   // rim (light rim on dark themes, soft dark rim on light) — the trick that
   // keeps a dark particle visible on dark skies, like the shipped black hearts.
@@ -45,16 +102,28 @@ export interface ReactConfig {
   glowColor: string; // hex, or 'auto' to derive from the particle fill (fixed only)
 }
 
-// A concrete spawned particle (randomised within the config ranges). Shared by
+export interface ReactConfig {
+  id: string;
+  label: string;
+  register: string; // one-line emotional register, for the companion prompt
+  layers: LayerConfig[];
+}
+
+export const MAX_LAYERS = 4;
+
+// A concrete spawned particle (randomised within the layer ranges). Shared by
 // the live preview and the fire-replay; generate.ts emits the equivalent.
 export interface Particle {
   id: number;
-  x: number; // spawn column %, for fall/rise
+  x: number; // spawn column %, for fall/rise/fountain
   size: number;
   color: string;
-  delay: number;
+  delay: number; // includes the layer delay
   dur: number;
   op: number;
+  inDur: number; // fade envelope, seconds
+  outDelay: number;
+  outDur: number;
   rotEnd: number; // total deg over travel
   swayAmp: number;
   swayDur: number;
@@ -62,156 +131,246 @@ export interface Particle {
   driftX: number; // vw
   angle: number; // deg, for burst
   distance: number; // vmin, for burst
+  apex: number; // vh, for fountain
 }
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
-export function fillColor(cfg: ReactConfig): string {
-  if (cfg.colorMode === 'signal') return 'var(--signal)';
-  if (cfg.colorMode === 'contrast') return 'var(--signal-contrast)';
-  const c = cfg.colors;
+export function fillColor(layer: LayerConfig): string {
+  if (layer.colorMode === 'signal') return 'var(--signal)';
+  if (layer.colorMode === 'contrast') return 'var(--signal-contrast)';
+  const c = layer.colors;
   return c.length ? c[Math.floor(Math.random() * c.length)] : '#ffffff';
 }
 
 let seq = 0;
-export function spawnParticles(cfg: ReactConfig): Particle[] {
+export function spawnLayer(layer: LayerConfig): Particle[] {
   const out: Particle[] = [];
-  for (let i = 0; i < cfg.count; i++) {
-    const dur = rand(cfg.durMin, cfg.durMax);
-    const swayDur = rand(cfg.swayMin, cfg.swayMax);
+  for (let i = 0; i < layer.count; i++) {
+    let size: number, dur: number, op: number;
+    if (layer.depthLink) {
+      // one depth sample drives everything: near = big, fast, solid
+      const t = Math.random();
+      size = Math.round(lerp(layer.sizeMin, layer.sizeMax, t));
+      dur = lerp(layer.durMax, layer.durMin, t);
+      op = lerp(layer.opacityMin, layer.opacityMax, 0.3 + t * 0.7);
+    } else {
+      size = Math.round(rand(layer.sizeMin, layer.sizeMax));
+      dur = rand(layer.durMin, layer.durMax);
+      op = rand(layer.opacityMin, layer.opacityMax);
+    }
+    const swayDur = rand(layer.swayMin, layer.swayMax);
+    const delay = layer.layerDelay + rand(0, layer.spawnWindow);
     out.push({
       id: seq++,
       x: rand(4, 96),
-      size: Math.round(rand(cfg.sizeMin, cfg.sizeMax)),
-      color: fillColor(cfg),
-      delay: rand(0, cfg.spawnWindow),
+      size,
+      color: fillColor(layer),
+      delay,
       dur,
-      op: rand(cfg.opacityMin, cfg.opacityMax),
-      rotEnd: cfg.spin ? (Math.random() < 0.5 ? -1 : 1) * cfg.rotMax * dur : 0,
-      swayAmp: cfg.swayAmp ? rand(cfg.swayAmp * 0.6, cfg.swayAmp) : 0,
+      op,
+      inDur: (dur * layer.fadeInPct) / 100,
+      outDelay: delay + (dur * layer.fadeOutPct) / 100,
+      outDur: (dur * (100 - layer.fadeOutPct)) / 100,
+      rotEnd: layer.spin ? (Math.random() < 0.5 ? -1 : 1) * layer.rotMax * dur : 0,
+      swayAmp: layer.swayAmp ? rand(layer.swayAmp * 0.6, layer.swayAmp) : 0,
       swayDur,
       swayPhase: rand(0, swayDur),
-      driftX: rand(-cfg.driftX, cfg.driftX),
+      driftX: rand(-layer.driftX, layer.driftX),
       angle: rand(0, 360),
       distance: rand(20, 42),
+      apex: rand(layer.arcApex * 0.7, layer.arcApex),
     });
   }
   return out;
 }
 
-export const DEFAULT_CONFIG: ReactConfig = {
-  id: 'my_react',
-  label: 'My React',
-  register: 'A gentle gesture — describe when the companion should use it.',
+export function spawnAll(cfg: ReactConfig): Particle[][] {
+  return cfg.layers.map((l) => (l.muted ? [] : spawnLayer(l)));
+}
+
+// Longest any layer lives, for DOM cleanup + loop cadence. Muted layers still
+// count (so un-muting mid-loop doesn't strand particles).
+export function lifeMs(cfg: ReactConfig): number {
+  let max = 0;
+  for (const l of cfg.layers) {
+    max = Math.max(max, l.layerDelay + l.spawnWindow + l.durMax);
+  }
+  return max * 1000 + 400;
+}
+
+export const DEFAULT_LAYER: LayerConfig = {
+  name: 'Layer 1',
+  muted: false,
   direction: 'fall',
   count: 30,
   spawnWindow: 1.5,
+  layerDelay: 0,
   durMin: 2.6,
   durMax: 3.8,
+  travelEase: 'linear',
   shape: 'heart',
   customPath: '',
   sizeMin: 8,
   sizeMax: 24,
+  depthLink: false,
   colorMode: 'fixed',
   colors: ['#0a0a0a'],
   opacityMin: 0.7,
   opacityMax: 1,
+  fadeInPct: 8,
+  fadeOutPct: 72,
+  scaleFrom: 1,
+  scaleTo: 1,
   spin: true,
   rotMax: 30,
   swayAmp: 20,
   swayMin: 1.4,
   swayMax: 2.8,
   driftX: 0,
+  arcApex: 55,
   glowMode: 'none',
   glowBlur: 6,
   glowColor: 'auto',
 };
 
+export const DEFAULT_CONFIG: ReactConfig = {
+  id: 'my_react',
+  label: 'My React',
+  register: 'A gentle gesture — describe when the companion should use it.',
+  layers: [{ ...DEFAULT_LAYER }],
+};
+
+export function newLayer(n: number): LayerConfig {
+  return { ...DEFAULT_LAYER, name: `Layer ${n}` };
+}
+
+// Accepts a v1 flat config (no `layers`), a v2 config, or a partly-old v2
+// (missing newer per-layer fields) and returns a complete v2 config. Used on
+// draft load and preset load so nothing saved ever goes stale.
+export function migrateConfig(raw: any): ReactConfig {
+  if (!raw || typeof raw !== 'object') return { ...DEFAULT_CONFIG, layers: [{ ...DEFAULT_LAYER }] };
+  if (Array.isArray(raw.layers)) {
+    const layers = raw.layers.length
+      ? raw.layers.map((l: any, i: number) => ({
+          ...newLayer(i + 1),
+          ...l,
+          colors: [...(l.colors ?? DEFAULT_LAYER.colors)],
+        }))
+      : [{ ...DEFAULT_LAYER, colors: [...DEFAULT_LAYER.colors] }];
+    return { id: raw.id ?? 'my_react', label: raw.label ?? 'My React', register: raw.register ?? '', layers };
+  }
+  // v1: emitter fields lived flat on the config
+  const { id, label, register, ...emitter } = raw;
+  // v1 bursts had a hardcoded decelerate bezier + 0.3 grow-in
+  const wasBurst = emitter.direction === 'burst';
+  const layer: LayerConfig = {
+    ...DEFAULT_LAYER,
+    ...emitter,
+    colors: [...(emitter.colors ?? DEFAULT_LAYER.colors)],
+    name: 'Layer 1',
+    travelEase: wasBurst ? 'easeOut' : 'linear',
+    scaleFrom: wasBurst ? 0.3 : 1,
+  };
+  return { id: id ?? 'my_react', label: label ?? 'My React', register: register ?? '', layers: [layer] };
+}
+
 // Starting points that mirror shipped reacts, so there's something alive on
 // first load and a template to riff on.
+const preset = (
+  id: string,
+  label: string,
+  register: string,
+  layer: Partial<LayerConfig>,
+): ReactConfig => ({
+  id,
+  label,
+  register,
+  layers: [{ ...DEFAULT_LAYER, name: 'Layer 1', ...layer }],
+});
+
 export const PRESETS: Record<string, ReactConfig> = {
-  black_hearts: {
-    ...DEFAULT_CONFIG,
-    id: 'black_hearts',
-    label: 'Black Hearts',
-    register: 'Affection landing as physical presence — soft weight, real mass.',
+  black_hearts: preset(
+    'black_hearts',
+    'Black Hearts',
+    'Affection landing as physical presence — soft weight, real mass.',
     // the adaptive rim is what keeps these visible on dark skies
-    glowMode: 'adaptive',
-    glowBlur: 6,
-  },
-  cherry_blossoms: {
-    ...DEFAULT_CONFIG,
-    id: 'cherry_blossoms',
-    label: 'Cherry Blossoms',
-    register: 'Playful, sweet, gently admiring — deliberate cuteness, blushing affection.',
-    direction: 'burst',
-    count: 26,
-    spawnWindow: 2.5,
-    durMin: 3,
-    durMax: 4,
-    shape: 'petal',
-    sizeMin: 8,
-    sizeMax: 11,
-    colorMode: 'fixed',
-    colors: ['#ffd5e5', '#fce4ee'],
-    opacityMin: 0.75,
-    opacityMax: 0.95,
-    rotMax: 60,
-    swayAmp: 26,
-    swayMin: 0.9,
-    swayMax: 1.6,
-    glowMode: 'fixed',
-    glowBlur: 8,
-    glowColor: '#ffcde4',
-  },
-  liquid_hearts: {
-    ...DEFAULT_CONFIG,
-    id: 'liquid_hearts',
-    label: 'Liquid Hearts',
-    register: 'Affection with heat behind it — desire, closeness, intimacy. The most private react; never casual.',
-    direction: 'fall',
-    count: 13,
-    spawnWindow: 2.5,
-    durMin: 5.5,
-    durMax: 7.5, // honey-slow, ~40% of confetti speed
-    shape: 'heart',
-    sizeMin: 12,
-    sizeMax: 34,
-    colorMode: 'fixed',
-    colors: ['#f8f0e0', '#f5f0e6', '#f5f2ea'], // warm-to-cool creams
-    opacityMin: 0.85,
-    opacityMax: 1,
-    rotMax: 12, // lazy rotation
-    swayAmp: 8,
-    swayMin: 1.6,
-    swayMax: 2.6,
-    driftX: 4,
-    glowMode: 'adaptive',
-    glowBlur: 5,
-  },
-  sparks: {
-    ...DEFAULT_CONFIG,
-    id: 'sparks',
-    label: 'Sparks',
-    register: 'Pride or excitement lifting off — wins, milestones, genuine delight.',
-    direction: 'rise',
-    count: 28,
-    spawnWindow: 1.2,
-    durMin: 2.4,
-    durMax: 3.4,
-    shape: 'star',
-    sizeMin: 5,
-    sizeMax: 14,
-    colorMode: 'fixed',
-    colors: ['#ffd98a'],
-    opacityMin: 0.55,
-    opacityMax: 1,
-    rotMax: 40,
-    swayAmp: 10,
-    swayMin: 1.1,
-    swayMax: 2.2,
-    glowMode: 'fixed',
-    glowBlur: 3,
-    glowColor: '#ffd98a',
-  },
+    { glowMode: 'adaptive', glowBlur: 6 },
+  ),
+  cherry_blossoms: preset(
+    'cherry_blossoms',
+    'Cherry Blossoms',
+    'Playful, sweet, gently admiring — deliberate cuteness, blushing affection.',
+    {
+      direction: 'burst',
+      travelEase: 'easeOut',
+      scaleFrom: 0.3,
+      count: 26,
+      spawnWindow: 2.5,
+      durMin: 3,
+      durMax: 4,
+      shape: 'petal',
+      sizeMin: 8,
+      sizeMax: 11,
+      colors: ['#ffd5e5', '#fce4ee'],
+      opacityMin: 0.75,
+      opacityMax: 0.95,
+      rotMax: 60,
+      swayAmp: 26,
+      swayMin: 0.9,
+      swayMax: 1.6,
+      glowMode: 'fixed',
+      glowBlur: 8,
+      glowColor: '#ffcde4',
+    },
+  ),
+  liquid_hearts: preset(
+    'liquid_hearts',
+    'Liquid Hearts',
+    'Affection with heat behind it — desire, closeness, intimacy. The most private react; never casual.',
+    {
+      count: 13,
+      spawnWindow: 2.5,
+      durMin: 5.5,
+      durMax: 7.5, // honey-slow, ~40% of confetti speed
+      sizeMin: 12,
+      sizeMax: 34,
+      colors: ['#f8f0e0', '#f5f0e6', '#f5f2ea'], // warm-to-cool creams
+      opacityMin: 0.85,
+      opacityMax: 1,
+      rotMax: 12, // lazy rotation
+      swayAmp: 8,
+      swayMin: 1.6,
+      swayMax: 2.6,
+      driftX: 4,
+      glowMode: 'adaptive',
+      glowBlur: 5,
+    },
+  ),
+  sparks: preset(
+    'sparks',
+    'Sparks',
+    'Pride or excitement lifting off — wins, milestones, genuine delight.',
+    {
+      direction: 'rise',
+      count: 28,
+      spawnWindow: 1.2,
+      durMin: 2.4,
+      durMax: 3.4,
+      shape: 'star',
+      sizeMin: 5,
+      sizeMax: 14,
+      colors: ['#ffd98a'],
+      opacityMin: 0.55,
+      opacityMax: 1,
+      rotMax: 40,
+      swayAmp: 10,
+      swayMin: 1.1,
+      swayMax: 2.2,
+      glowMode: 'fixed',
+      glowBlur: 3,
+      glowColor: '#ffd98a',
+    },
+  ),
 };

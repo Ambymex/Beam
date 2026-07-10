@@ -1,46 +1,45 @@
 // config → paste-ready code for CompanionReacts.svelte, reproducing exactly
 // what Preview.svelte renders. Everything is namespaced by the react id so it
 // drops into the existing file without colliding with the other reacts.
+//
+// v2 layout: one shared particle interface + shared keyframes per react;
+// each layer gets its own array (`${id}_l1`…), base class (`.${id}-l1`) with
+// its scale/ease baked in, and its own block in the fire() branch.
 import { SHAPES, type ShapeDef } from './shapes';
-import type { ReactConfig } from './reactConfig';
+import { EASES, type ReactConfig, type LayerConfig } from './reactConfig';
 
 const n = (x: number) => Number(x.toFixed(3)).toString();
 
-function ease(cfg: ReactConfig): string {
-  return cfg.direction === 'burst' ? 'cubic-bezier(0.2, 0.7, 0.3, 1)' : 'linear';
-}
-function s0(cfg: ReactConfig): string {
-  return cfg.direction === 'burst' ? '0.3' : '1';
-}
-function shapeDef(cfg: ReactConfig): ShapeDef {
-  if (cfg.shape === 'custom') {
-    return { render: 'path', viewBox: '0 0 24 24', d: cfg.customPath || SHAPES.heart.d };
+function shapeDef(layer: LayerConfig): ShapeDef {
+  if (layer.shape === 'custom') {
+    return { render: 'path', viewBox: '0 0 24 24', d: layer.customPath || SHAPES.heart.d };
   }
-  return SHAPES[cfg.shape];
+  return SHAPES[layer.shape];
 }
 
 // per-particle colour expression, evaluated in the generated fire()
-function colorExpr(cfg: ReactConfig): string {
-  if (cfg.colorMode === 'signal') return `'var(--signal)'`;
-  if (cfg.colorMode === 'contrast') return `'var(--signal-contrast)'`;
-  if (cfg.colors.length === 1) return `'${cfg.colors[0]}'`;
-  const arr = cfg.colors.map((c) => `'${c}'`).join(', ');
-  return `[${arr}][Math.floor(Math.random() * ${cfg.colors.length})]`;
+function colorExpr(layer: LayerConfig): string {
+  if (layer.colorMode === 'signal') return `'var(--signal)'`;
+  if (layer.colorMode === 'contrast') return `'var(--signal-contrast)'`;
+  if (layer.colors.length === 1) return `'${layer.colors[0]}'`;
+  const arr = layer.colors.map((c) => `'${c}'`).join(', ');
+  return `[${arr}][Math.floor(Math.random() * ${layer.colors.length})]`;
 }
 
 // per-particle fixed glow, evaluated in fire() (only when glowMode === 'fixed')
-function glowExpr(cfg: ReactConfig): string {
-  if (cfg.glowColor === 'auto') return `\`drop-shadow(0 0 ${cfg.glowBlur}px \${color})\``;
-  return `'drop-shadow(0 0 ${cfg.glowBlur}px ${cfg.glowColor})'`;
+function glowExpr(layer: LayerConfig): string {
+  if (layer.glowColor === 'auto') return `\`drop-shadow(0 0 ${layer.glowBlur}px \${color})\``;
+  return `'drop-shadow(0 0 ${layer.glowBlur}px ${layer.glowColor})'`;
 }
 
-function txExpr(cfg: ReactConfig): string {
-  if (cfg.direction === 'burst') return '`${(Math.cos(angle * Math.PI / 180) * distance).toFixed(1)}vmin`';
-  return `\`\${(-${n(cfg.driftX)} + Math.random() * ${n(cfg.driftX * 2)}).toFixed(1)}vw\``;
+function txExpr(layer: LayerConfig): string {
+  if (layer.direction === 'burst') return '`${(Math.cos(angle * Math.PI / 180) * distance).toFixed(1)}vmin`';
+  return `\`\${(-${n(layer.driftX)} + Math.random() * ${n(layer.driftX * 2)}).toFixed(1)}vw\``;
 }
-function tyExpr(cfg: ReactConfig): string {
-  if (cfg.direction === 'fall') return `'112vh'`;
-  if (cfg.direction === 'rise') return `'-72vh'`;
+function tyExpr(layer: LayerConfig): string {
+  if (layer.direction === 'fall') return `'112vh'`;
+  if (layer.direction === 'rise') return `'-72vh'`;
+  if (layer.direction === 'fountain') return `'0vh'`; // Y lives on the arc wrapper
   return '`${(Math.sin(angle * Math.PI / 180) * distance * 0.7 + 8).toFixed(1)}vmin`';
 }
 
@@ -57,112 +56,205 @@ export interface Generated {
 export function generate(cfg: ReactConfig): Generated {
   const id = cfg.id || 'my_react';
   const Cap = id.replace(/(^|_)([a-z])/g, (_, __, c) => c.toUpperCase());
-  const sd = shapeDef(cfg);
-  const fixedGlow = cfg.glowMode === 'fixed';
-  const adaptiveGlow = cfg.glowMode === 'adaptive';
-  const lifeMs = Math.round((cfg.spawnWindow + cfg.durMax) * 1000 + 400);
-  const durRange = cfg.durMax - cfg.durMin;
-  const swayRange = cfg.swayMax - cfg.swayMin;
-  const sizeRange = cfg.sizeMax - cfg.sizeMin;
-  const opRange = cfg.opacityMax - cfg.opacityMin;
+  const layers = cfg.layers;
+  const anyFixedGlow = layers.some((l) => l.glowMode === 'fixed');
+  const anyFountain = layers.some((l) => l.direction === 'fountain');
+  const lifeMs = Math.round(
+    Math.max(...layers.map((l) => l.layerDelay + l.spawnWindow + l.durMax)) * 1000 + 400,
+  );
 
   const idsLine = `// add '${id}' to REACT_IDS:\nexport const REACT_IDS = [/* …existing…, */ '${id}'];`;
+
+  const arrayNames = layers.map((_, k) => (layers.length === 1 ? id : `${id}_l${k + 1}`));
 
   const script = `  // ${cfg.label} — ${cfg.register}
   interface ${Cap}P {
     id: number; x: number; size: number; color: string; delay: number;
-    dur: number; op: number; rotEnd: number; swayAmp: number; swayDur: number;
-    swayPhase: number; tx: string; ty: string;${fixedGlow ? ' glow: string;' : ''}
+    dur: number; op: number; inDur: number; outDelay: number; outDur: number;
+    rotEnd: number; swayAmp: number; swayDur: number; swayPhase: number;
+    tx: string; ty: string;${anyFountain ? ' apex: number;' : ''}${anyFixedGlow ? ' glow: string;' : ''}
   }
-  let ${id}: ${Cap}P[] = [];
+${arrayNames.map((a) => `  let ${a}: ${Cap}P[] = [];`).join('\n')}
   let ${id}Timer: ReturnType<typeof setTimeout>;`;
 
-  const fireBranch = `    } else if (type === '${id}') {
-      const burst: ${Cap}P[] = [];
-      const count = ${cfg.count};
-      for (let i = 0; i < count; i++) {
-        const dur = ${n(cfg.durMin)} + Math.random() * ${n(durRange)};
-        const swayDur = ${n(cfg.swayMin)} + Math.random() * ${n(swayRange)};
+  // ---- fire() branch: one block per layer ----
+  const layerBlocks = layers
+    .map((l, k) => {
+      const arr = arrayNames[k];
+      const durRange = l.durMax - l.durMin;
+      const swayRange = l.swayMax - l.swayMin;
+      const sizeRange = l.sizeMax - l.sizeMin;
+      const opRange = l.opacityMax - l.opacityMin;
+      const fixedGlow = l.glowMode === 'fixed';
+      // depth-linked: one sample drives size/speed/opacity; else independent
+      const sampled = l.depthLink
+        ? `const t = Math.random(); // depth: 0 far, 1 near
+        const size = Math.round(${n(l.sizeMin)} + t * ${n(sizeRange)});
+        const dur = ${n(l.durMax)} - t * ${n(durRange)};
+        const op = ${n(l.opacityMin)} + (0.3 + t * 0.7) * ${n(opRange)};`
+        : `const size = Math.round(${n(l.sizeMin)} + Math.random() * ${n(sizeRange)});
+        const dur = ${n(l.durMin)} + Math.random() * ${n(durRange)};
+        const op = ${n(l.opacityMin)} + Math.random() * ${n(opRange)};`;
+      return `      // layer ${k + 1}: ${l.name}
+      const b${k + 1}: ${Cap}P[] = [];
+      for (let i = 0; i < ${l.count}; i++) {
+        ${sampled}
+        const swayDur = ${n(l.swayMin)} + Math.random() * ${n(swayRange)};
+        const delay = ${n(l.layerDelay)} + Math.random() * ${n(l.spawnWindow)};
         const angle = Math.random() * 360;
         const distance = 20 + Math.random() * 22;
-        const color = ${colorExpr(cfg)};
-        burst.push({
+        const color = ${colorExpr(l)};
+        b${k + 1}.push({
           id: burstId++,
           x: 4 + Math.random() * 92,
-          size: Math.round(${n(cfg.sizeMin)} + Math.random() * ${n(sizeRange)}),
+          size,
           color,
-          delay: Math.random() * ${n(cfg.spawnWindow)},
+          delay,
           dur,
-          op: ${n(cfg.opacityMin)} + Math.random() * ${n(opRange)},
-          rotEnd: ${cfg.spin ? `(Math.random() < 0.5 ? -1 : 1) * ${n(cfg.rotMax)} * dur` : '0'},
-          swayAmp: ${cfg.swayAmp ? `${n(cfg.swayAmp * 0.6)} + Math.random() * ${n(cfg.swayAmp * 0.4)}` : '0'},
+          op,
+          inDur: +(dur * ${n(l.fadeInPct / 100)}).toFixed(3),
+          outDelay: +(delay + dur * ${n(l.fadeOutPct / 100)}).toFixed(3),
+          outDur: +(dur * ${n((100 - l.fadeOutPct) / 100)}).toFixed(3),
+          rotEnd: ${l.spin ? `(Math.random() < 0.5 ? -1 : 1) * ${n(l.rotMax)} * dur` : '0'},
+          swayAmp: ${l.swayAmp ? `${n(l.swayAmp * 0.6)} + Math.random() * ${n(l.swayAmp * 0.4)}` : '0'},
           swayDur,
           swayPhase: Math.random() * swayDur,
-          tx: ${txExpr(cfg)},
-          ty: ${tyExpr(cfg)},${fixedGlow ? `\n          glow: ${glowExpr(cfg)},` : ''}
+          tx: ${txExpr(l)},
+          ty: ${tyExpr(l)},${anyFountain ? `\n          apex: ${l.direction === 'fountain' ? `${n(l.arcApex * 0.7)} + Math.random() * ${n(l.arcApex * 0.3)}` : '0'},` : ''}${anyFixedGlow ? `\n          glow: ${fixedGlow ? glowExpr(l) : `''`},` : ''}
         });
       }
-      ${id} = burst;
+      ${arr} = b${k + 1};`;
+    })
+    .join('\n');
+
+  const fireBranch = `    } else if (type === '${id}') {
+${layerBlocks}
       clearTimeout(${id}Timer);
-      ${id}Timer = setTimeout(() => (${id} = []), ${lifeMs});
+      ${id}Timer = setTimeout(() => {
+${arrayNames.map((a) => `        ${a} = [];`).join('\n')}
+      }, ${lifeMs});
     }`;
 
-  // shape wrapper style/attrs differ by glow mode: fixed = inline filter;
-  // adaptive = a --rim var (the filter comes from the theme-keyed CSS below).
-  const shapeAttr = fixedGlow
-    ? ` style="filter:{p.glow};"`
-    : adaptiveGlow
-      ? ` style="--rim:${n(cfg.glowBlur)}px;"`
-      : '';
-  const shapeInner =
-    sd.render === 'path'
-      ? `          <svg viewBox="${sd.viewBox}" width={p.size} height={p.size} style="display:block;">
-            <path fill={p.color} d="${sd.d}" />
-          </svg>`
-      : `          <span style="display:block; width:{p.size}px; height:{p.size}px; background:{p.color}; border-radius:${sd.radius};"></span>`;
-  const shapeMarkup = `        <span class="${id}-shape"${shapeAttr}>
+  // ---- markup: one {#each} per layer ----
+  const markup = layers
+    .map((l, k) => {
+      const arr = arrayNames[k];
+      const cls = layers.length === 1 ? id : `${id}-l${k + 1}`;
+      const sd = shapeDef(l);
+      const fixedGlow = l.glowMode === 'fixed';
+      const adaptiveGlow = l.glowMode === 'adaptive';
+      const shapeAttr = fixedGlow
+        ? ` style="filter:{p.glow};"`
+        : adaptiveGlow
+          ? ` style="--rim:${n(l.glowBlur)}px;"`
+          : '';
+      const shapeInner =
+        sd.render === 'path'
+          ? `            <svg viewBox="${sd.viewBox}" width={p.size} height={p.size} style="display:block;">
+              <path fill={p.color} d="${sd.d}" />
+            </svg>`
+          : `            <span style="display:block; width:{p.size}px; height:{p.size}px; background:{p.color}; border-radius:${sd.radius};"></span>`;
+      const shapeMarkup = `          <span class="${cls}-shape"${shapeAttr}>
 ${shapeInner}
-        </span>`;
-
-  const leftAttr = cfg.direction === 'burst' ? '' : 'left:{p.x}%; ';
-  const markup = `  {#each ${id} as p (p.id)}
-    <span
-      class="${id}"
-      style="${leftAttr}--size:{p.size}px; --dur:{p.dur}s; --delay:{p.delay}s; --op:{p.op}; --tx:{p.tx}; --ty:{p.ty}; --sway:{p.swayAmp}px; --swaydur:{p.swayDur}s; --swayphase:{p.swayPhase}s; --rot:{p.rotEnd}deg;"
-    >
-      <span class="${id}-sway">
+          </span>`;
+      const swayMarkup = `        <span class="${id}-sway">
 ${shapeMarkup}
-      </span>
+        </span>`;
+      const inner =
+        l.direction === 'fountain'
+          ? `      <span class="${id}-arc">
+${swayMarkup}
+      </span>`
+          : swayMarkup;
+      const leftAttr = l.direction === 'burst' ? '' : 'left:{p.x}%; ';
+      const apexVar = l.direction === 'fountain' ? ' --apex:{p.apex}vh;' : '';
+      return `  <!-- ${cfg.label}, layer ${k + 1}: ${l.name} -->
+  {#each ${arr} as p (p.id)}
+    <span
+      class="${cls}"
+      style="${leftAttr}--size:{p.size}px; --dur:{p.dur}s; --delay:{p.delay}s; --op:{p.op}; --indur:{p.inDur}s; --outdelay:{p.outDelay}s; --outdur:{p.outDur}s; --tx:{p.tx}; --ty:{p.ty}; --sway:{p.swayAmp}px; --swaydur:{p.swayDur}s; --swayphase:{p.swayPhase}s; --rot:{p.rotEnd}deg;${apexVar}"
+    >
+${inner}
     </span>
   {/each}`;
+    })
+    .join('\n');
 
-  const basePos =
-    cfg.direction === 'fall'
-      ? 'top: calc(-1 * var(--size) - 10px);'
-      : cfg.direction === 'rise'
-        ? 'bottom: calc(-1 * var(--size) - 10px);'
-        : 'top: 50%; left: 50%; margin-top: calc(var(--size) / -2);';
-
-  const css = `  .${id} {
+  // ---- CSS: shared keyframes + one base class per layer ----
+  const layerCss = layers
+    .map((l, k) => {
+      const cls = layers.length === 1 ? id : `${id}-l${k + 1}`;
+      const basePos =
+        l.direction === 'fall'
+          ? 'top: calc(-1 * var(--size) - 10px);'
+          : l.direction === 'burst'
+            ? 'top: 50%; left: 50%; margin-top: calc(var(--size) / -2);'
+            : 'bottom: calc(-1 * var(--size) - 10px);'; // rise + fountain
+      const adaptiveGlow = l.glowMode === 'adaptive';
+      const spinAnim = l.spin
+        ? `\n    animation: ${id}-spin var(--dur) linear var(--delay) both;`
+        : '';
+      return `  /* layer ${k + 1}: ${l.name} */
+  .${cls} {
     position: absolute;
     width: var(--size);
     height: var(--size);
     margin-left: calc(var(--size) / -2);
     ${basePos}
+    --s0: ${n(l.scaleFrom)};
+    --s1: ${n(l.scaleTo)};
     animation:
-      ${id}-travel var(--dur) ${ease(cfg)} var(--delay) both,
-      ${id}-fade var(--dur) linear var(--delay) both;
+      ${id}-travel var(--dur) ${EASES[l.travelEase].css} var(--delay) both,
+      ${id}-in var(--indur) linear var(--delay) both,
+      ${id}-out var(--outdur) linear var(--outdelay) forwards;
   }
+  .${cls}-shape {
+    display: block;${spinAnim}
+  }${
+    adaptiveGlow
+      ? `
+  /* adaptive readability rim: light on dark themes, soft dark on light */
+  :global([data-theme='dark']) .${cls}-shape {
+    filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.6)) drop-shadow(0 0 var(--rim, 6px) rgba(255, 255, 255, 0.35));
+  }
+  :global([data-theme='light']) .${cls}-shape {
+    filter: drop-shadow(0 0 var(--rim, 6px) rgba(40, 30, 30, 0.32));
+  }`
+      : ''
+  }`;
+    })
+    .join('\n');
+
+  const arcCss = anyFountain
+    ? `
+  .${id}-arc {
+    display: block;
+    animation: ${id}-arc var(--dur) linear var(--delay) both;
+  }
+  /* the arc: decelerate up (spending energy), tip over, accelerate down
+     (gravity) — two easings on one property, composed with the X travel */
+  @keyframes ${id}-arc {
+    0% { transform: translateY(0); animation-timing-function: cubic-bezier(0.16, 0.6, 0.44, 1); }
+    45% { transform: translateY(calc(-1 * var(--apex))); animation-timing-function: cubic-bezier(0.55, 0, 0.83, 0.4); }
+    100% { transform: translateY(14vh); }
+  }`
+    : '';
+
+  const css = `${layerCss}
   @keyframes ${id}-travel {
-    from { transform: translate(0, 0) scale(${s0(cfg)}); }
-    to { transform: translate(var(--tx), var(--ty)) scale(1); }
+    from { transform: translate(0, 0) scale(var(--s0, 1)); }
+    to { transform: translate(var(--tx), var(--ty)) scale(var(--s1, 1)); }
   }
-  @keyframes ${id}-fade {
-    0% { opacity: 0; }
-    8% { opacity: var(--op); }
-    72% { opacity: var(--op); }
-    100% { opacity: 0; }
+  /* fade envelope: rise to --op over --indur, hold, fall over --outdur.
+     ${id}-out has NO backwards fill — ${id}-in owns the early frames. */
+  @keyframes ${id}-in {
+    from { opacity: 0; }
+    to { opacity: var(--op); }
   }
+  @keyframes ${id}-out {
+    from { opacity: var(--op); }
+    to { opacity: 0; }
+  }${arcCss}
   .${id}-sway {
     display: block;
     animation: ${id}-sway var(--swaydur) ease-in-out calc(-1 * var(--swayphase)) infinite alternate;
@@ -171,30 +263,15 @@ ${shapeMarkup}
     from { transform: translateX(calc(-1 * var(--sway))); }
     to { transform: translateX(var(--sway)); }
   }
-  .${id}-shape {
-    display: block;
-    animation: ${id}-spin var(--dur) linear var(--delay) both;
-  }
   @keyframes ${id}-spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(var(--rot)); }
-  }${
-    adaptiveGlow
-      ? `
-  /* adaptive readability rim: light on dark themes, soft dark on light */
-  :global([data-theme='dark']) .${id}-shape {
-    filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.6)) drop-shadow(0 0 var(--rim, 6px) rgba(255, 255, 255, 0.35));
-  }
-  :global([data-theme='light']) .${id}-shape {
-    filter: drop-shadow(0 0 var(--rim, 6px) rgba(40, 30, 30, 0.32));
-  }`
-      : ''
   }`;
 
   const prompt = `- "${id}": ${cfg.register}`;
 
   const combined = `/* ============================================================
-   ${cfg.label}  (react id: ${id})
+   ${cfg.label}  (react id: ${id}${layers.length > 1 ? `, ${layers.length} layers` : ''})
    Paste each part into src/lib/CompanionReacts.svelte, and the
    prompt line into the REACTS section of ChatCompanion.svelte.
    ============================================================ */

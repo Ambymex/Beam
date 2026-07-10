@@ -1,12 +1,12 @@
 <script lang="ts">
   import Controls from './lib/Controls.svelte';
   import Preview from './lib/Preview.svelte';
-  import { PRESETS, type ReactConfig } from './lib/reactConfig';
+  import { PRESETS, migrateConfig, type ReactConfig } from './lib/reactConfig';
   import { generate } from './lib/generate';
   import { drafts, saveDraft, deleteDraft } from './lib/drafts';
 
   // start on something pretty so the stage is alive on first load
-  let config: ReactConfig = { ...PRESETS.cherry_blossoms };
+  let config: ReactConfig = migrateConfig(PRESETS.cherry_blossoms);
   let showExport = false;
   let copied = false;
   let draftName = '';
@@ -28,7 +28,8 @@
     loadSel = nm;
   }
   function doLoad(name: string) {
-    if (name && $drafts[name]) config = { ...$drafts[name] };
+    // migrate on load: old single-emitter drafts become one-layer configs
+    if (name && $drafts[name]) config = migrateConfig($drafts[name]);
   }
   function doDelete() {
     if (loadSel && $drafts[loadSel]) {

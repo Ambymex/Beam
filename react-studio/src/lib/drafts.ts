@@ -23,7 +23,9 @@ drafts.subscribe((d) => {
 });
 
 export function saveDraft(name: string, cfg: ReactConfig): void {
-  drafts.update((d) => ({ ...d, [name]: { ...cfg } }));
+  // deep copy — the config is plain JSON, and a shallow copy would leave the
+  // saved draft sharing its layers array with the live config being edited
+  drafts.update((d) => ({ ...d, [name]: JSON.parse(JSON.stringify(cfg)) }));
 }
 
 export function deleteDraft(name: string): void {
