@@ -8,28 +8,35 @@
 
   let showAll = false;
   $: notes = coach(config);
-  $: nudges = notes.filter((n) => !n.ok);
-  $: oks = notes.filter((n) => n.ok);
+  $: nudges = notes.filter((n) => n.kind === 'nudge');
+  $: tips = notes.filter((n) => n.kind === 'tip');
+  $: oks = notes.filter((n) => n.kind === 'ok');
 </script>
 
 <div class="coach">
   <button class="head" on:click={() => (showAll = !showAll)}>
     <span class="title">Coach</span>
     <span class="summary">
-      {#if nudges.length === 0}
+      {#if nudges.length === 0 && tips.length === 0}
         all {oks.length} habits singing ✓
       {:else}
-        {oks.length} ✓ · {nudges.length} {nudges.length === 1 ? 'nudge' : 'nudges'}
+        {oks.length} ✓{#if nudges.length}&nbsp;· {nudges.length} {nudges.length === 1 ? 'nudge' : 'nudges'}{/if}{#if tips.length}&nbsp;· {tips.length} {tips.length === 1 ? 'tip' : 'tips'}{/if}
       {/if}
     </span>
     <span class="tw">{showAll ? '▾' : '▸'}</span>
   </button>
 
-  {#if nudges.length || showAll}
+  {#if nudges.length || tips.length || showAll}
     <ul>
       {#each nudges as nte (nte.id)}
         <li class="nudge">
           <span class="dot">•</span>
+          <span><b>{nte.title}.</b> {nte.note}</span>
+        </li>
+      {/each}
+      {#each tips as nte (nte.id)}
+        <li class="tip">
+          <span class="dot">◇</span>
           <span><b>{nte.title}.</b> {nte.note}</span>
         </li>
       {/each}
@@ -91,6 +98,8 @@
   li b { color: var(--text); font-weight: 600; }
   .dot { flex: 0 0 auto; width: 12px; text-align: center; }
   .nudge .dot { color: var(--signal); }
+  .tip { opacity: 0.85; }
+  .tip .dot { color: #b9a3e0; }
   .ok { opacity: 0.75; }
   .ok .dot { color: #7dbb8a; }
 </style>

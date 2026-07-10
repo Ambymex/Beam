@@ -8,7 +8,10 @@ import type { ReactConfig, LayerConfig } from './reactConfig';
 export interface CoachNote {
   id: string;
   title: string;
-  ok: boolean;
+  // ok = principle satisfied · nudge = worth fixing · tip = worth *trying* —
+  // tips flag technique choices the shipped reacts themselves make, so they
+  // invite an experiment rather than imply a mistake.
+  kind: 'ok' | 'nudge' | 'tip';
   note: string;
 }
 
@@ -26,13 +29,13 @@ export function coach(cfg: ReactConfig): CoachNote[] {
         ? {
             id: 'speeds',
             title: 'Vary the speeds',
-            ok: false,
+            kind: 'nudge',
             note: `${flat.map((l) => name(l, layers.indexOf(l))).join(', ')}: every particle travels at nearly the same pace — a flock of identical speeds reads mechanical. Spread travel min/max a little and it breathes.`,
           }
         : {
             id: 'speeds',
             title: 'Vary the speeds',
-            ok: true,
+            kind: 'ok',
             note: 'Particles travel at their own pace — variation is what makes a shower read organic.',
           },
     );
@@ -46,13 +49,13 @@ export function coach(cfg: ReactConfig): CoachNote[] {
         ? {
             id: 'trickle',
             title: 'Trickle the entrance',
-            ok: false,
+            kind: 'nudge',
             note: `${walls.map((l) => name(l, layers.indexOf(l))).join(', ')}: that many particles arriving in the same instant reads as a glitch, not a gesture. Even 0.5s of spawn trickle turns a wall into a shower.`,
           }
         : {
             id: 'trickle',
             title: 'Trickle the entrance',
-            ok: true,
+            kind: 'ok',
             note: 'Arrivals are staggered — the eye gets to discover the react instead of being hit by it.',
           },
     );
@@ -66,13 +69,13 @@ export function coach(cfg: ReactConfig): CoachNote[] {
         ? {
             id: 'pop',
             title: 'Never pop',
-            ok: false,
+            kind: 'nudge',
             note: `${pops.map((l) => name(l, layers.indexOf(l))).join(', ')}: appearing or vanishing at full opacity is the classic amateur tell. Even 5% of fade preserves the illusion of a thing arriving and leaving.`,
           }
         : {
             id: 'pop',
             title: 'Never pop',
-            ok: true,
+            kind: 'ok',
             note: 'Everything arrives and leaves through a fade — nothing blinks into existence.',
           },
     );
@@ -86,13 +89,13 @@ export function coach(cfg: ReactConfig): CoachNote[] {
         ? {
             id: 'restraint',
             title: 'Restraint',
-            ok: false,
+            kind: 'nudge',
             note: `${total} particles across layers. More isn't more: the shipped reacts live between 13 (liquid hearts) and ~50 (black hearts), and the sparse ones hit hardest. What can you remove?`,
           }
         : {
             id: 'restraint',
             title: 'Restraint',
-            ok: true,
+            kind: 'ok',
             note: 'A restrained count — each particle still gets to matter.',
           },
     );
@@ -106,19 +109,22 @@ export function coach(cfg: ReactConfig): CoachNote[] {
         ? {
             id: 'mass',
             title: 'Big things move slow',
-            ok: false,
+            kind: 'nudge',
             note: `${rushed.map((l) => name(l, layers.indexOf(l))).join(', ')}: large shapes crossing the screen in under 2s read panicked, not heavy. Mass is communicated by patience — compare liquid hearts at 5.5–7.5s.`,
           }
         : {
             id: 'mass',
             title: 'Big things move slow',
-            ok: true,
+            kind: 'ok',
             note: 'Sizes and speeds agree — nothing heavy is in a hurry.',
           },
     );
   }
 
-  // 6 — coherent depth
+  // 6 — coherent depth. A TIP, not a nudge: the shipped reacts roll size,
+  // speed and opacity independently across wide ranges and wear it fine
+  // (sway phase and colour variation decorrelate them). Depth link is a
+  // technique worth *feeling* once, not a correction.
   {
     const scattered = layers.filter((l) => l.sizeMax >= l.sizeMin * 2 && !l.depthLink);
     notes.push(
@@ -126,13 +132,13 @@ export function coach(cfg: ReactConfig): CoachNote[] {
         ? {
             id: 'depth',
             title: 'Coherent depth',
-            ok: false,
-            note: `${scattered.map((l) => name(l, layers.indexOf(l))).join(', ')}: a wide size range with size, speed and opacity all rolled separately reads as noise. Try Depth link — one roll drives all three, and the variation becomes distance.`,
+            kind: 'tip',
+            note: `${scattered.map((l) => name(l, layers.indexOf(l))).join(', ')} rolls size, speed and opacity separately across a wide size range — the shipped reacts do this too and wear it well. Still, toggle Depth link once to feel the difference: one roll per particle, and variation starts reading as distance.`,
           }
         : {
             id: 'depth',
             title: 'Coherent depth',
-            ok: true,
+            kind: 'ok',
             note: 'Size variation is either tight or depth-linked — randomness is reading as space, not static.',
           },
     );
@@ -153,11 +159,11 @@ export function coach(cfg: ReactConfig): CoachNote[] {
     if (overshooters.length > 1) odd.push('overshoot on multiple layers — one wink is charming, three is chaos');
     notes.push(
       odd.length
-        ? { id: 'physics', title: 'Easing tells the physics', ok: false, note: odd.join('. ') + '.' }
+        ? { id: 'physics', title: 'Easing tells the physics', kind: 'nudge' as const, note: odd.join('. ') + '.' }
         : {
             id: 'physics',
             title: 'Easing tells the physics',
-            ok: true,
+            kind: 'ok',
             note: 'Curves agree with the forces they imply — gravity accelerates, spent energy decelerates.',
           },
     );
@@ -175,13 +181,13 @@ export function coach(cfg: ReactConfig): CoachNote[] {
         ? {
             id: 'hero',
             title: 'Hero and support',
-            ok: false,
+            kind: 'nudge',
             note: 'Your layers are near-twins — same density, same scale. Give one the hero role (fewer, bigger, brighter) and let the other be atmosphere (more, smaller, dimmer, slower). Contrast between layers is the whole point of layering.',
           }
         : {
             id: 'hero',
             title: 'Hero and support',
-            ok: true,
+            kind: 'ok',
             note: 'Layers are doing different jobs — one carries the feeling, the rest sell the depth.',
           },
     );
@@ -195,18 +201,19 @@ export function coach(cfg: ReactConfig): CoachNote[] {
         ? {
             id: 'flutter',
             title: 'Calm hands',
-            ok: false,
+            kind: 'nudge',
             note: `${frantic.map((l) => name(l, layers.indexOf(l))).join(', ')}: wide flutter at sub-0.8s periods vibrates rather than floats. Either flutter far and slow, or near and quick — not both.`,
           }
         : {
             id: 'flutter',
             title: 'Calm hands',
-            ok: true,
+            kind: 'ok',
             note: 'Flutter stays in the floaty zone — movement without jitter.',
           },
     );
   }
 
-  // nudges first, then satisfied principles
-  return [...notes.filter((n) => !n.ok), ...notes.filter((n) => n.ok)];
+  // nudges first, then tips, then satisfied principles
+  const order = { nudge: 0, tip: 1, ok: 2 } as const;
+  return notes.sort((a, b) => order[a.kind] - order[b.kind]);
 }

@@ -159,7 +159,11 @@ choreographed not simulated, self-removing from the DOM. Adding one touches:
 `REACT_IDS`, state+interface, a `fire()` branch, markup, CSS — plus the
 schema line and REACTS register description in ChatCompanion's prompt. A
 react is **earned**; the prompt teaches restraint. The easiest path: build it
-in **React Studio**, Export code, paste the six labelled sections.
+in **React Studio**, Export code, paste the six labelled sections. (Since
+2026-07-10 the studio does multi-layer reacts, easing curves, fade/scale
+envelopes, fountain arcs, a habits Coach, and a timeline scrubber — see its
+README. Exports are still the same six sections; multi-layer reacts emit
+per-layer arrays/classes over shared keyframes.)
 
 ---
 
