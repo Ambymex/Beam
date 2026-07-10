@@ -100,9 +100,13 @@ ${arrayNames.map((a) => `  let ${a}: ${Cap}P[] = [];`).join('\n')}
       for (let i = 0; i < ${l.count}; i++) {
         ${sampled}
         const swayDur = ${n(l.swayMin)} + Math.random() * ${n(swayRange)};
-        const delay = ${n(l.layerDelay)} + Math.random() * ${n(l.spawnWindow)};
+        const delay = ${n(l.layerDelay)} + Math.random() * ${n(l.spawnWindow)};${
+        l.direction === 'burst'
+          ? `
         const angle = Math.random() * 360;
-        const distance = 20 + Math.random() * 22;
+        const distance = 20 + Math.random() * 22;`
+          : ''
+      }
         const color = ${colorExpr(l)};
         b${k + 1}.push({
           id: burstId++,
