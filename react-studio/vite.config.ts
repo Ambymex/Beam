@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [svelte()],
   server: {
     host: true,
+    port: 5210,
     allowedHosts: true,
     // reach up into the sibling planner/ folder so we can import the REAL
     // themes.json + app.css (single source of truth — the studio never keeps
