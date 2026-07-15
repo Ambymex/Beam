@@ -243,17 +243,54 @@ export function updateTheme() {
   });
 }
 
+// Weather/space-weather were originally fetched ONCE at boot, so a storm
+// arriving after launch could never trigger the storm theme (the cache went
+// stale after 30 min and the weather branch was skipped forever). Refresh on
+// a cadence instead — and again on visibility resume, because iOS suspends
+// the PWA's timers: "app wakes after hours asleep" must re-check the sky.
+const WEATHER_REFRESH_MS = 15 * 60 * 1000;
+const SPACE_REFRESH_MS = 30 * 60 * 1000;
+let lastWeatherFetch = 0;
+let lastSpaceFetch = 0;
+
+function refreshEnvSources() {
+  const now = Date.now();
+  if (now - lastWeatherFetch > WEATHER_REFRESH_MS) {
+    lastWeatherFetch = now;
+    fetchWeather();
+  }
+  if (now - lastSpaceFetch > SPACE_REFRESH_MS) {
+    lastSpaceFetch = now;
+    fetchSpaceWeather();
+  }
+}
+
+function onVisible() {
+  if (document.visibilityState === 'visible') {
+    updateTheme();
+    refreshEnvSources();
+  }
+}
+
 let timer: ReturnType<typeof setInterval>;
 export function startEnvTheme() {
   updateTheme();
-  // Update every minute for time changes
-  timer = setInterval(updateTheme, 60000);
-  fetchWeather();
-  fetchSpaceWeather();
+  // Update every minute for time changes; re-fetch env sources as they age
+  timer = setInterval(() => {
+    updateTheme();
+    refreshEnvSources();
+  }, 60000);
+  refreshEnvSources();
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', onVisible);
+  }
 }
 
 export function stopEnvTheme() {
   clearInterval(timer);
+  if (typeof document !== 'undefined') {
+    document.removeEventListener('visibilitychange', onVisible);
+  }
 }
 
 debugThemeOverride.subscribe(() => {
