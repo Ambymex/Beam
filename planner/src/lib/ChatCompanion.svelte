@@ -1221,41 +1221,57 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
           ...payloadMessages
         ];
 
-        const openRouterRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${openRouterKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: selectedModel,
-            messages: apiMessages,
-            response_format: { type: 'json_object' },
-            // martini mode: temperature pinned high for this sitting only;
-            // otherwise the provider default applies, unchanged from before
-            ...(martiniMode ? { temperature: 1.0 } : {}),
-            // visible CoT: ask OpenRouter to return the model's reasoning
-            // alongside the JSON reply (same flag Sovereign Terminal uses)
-            ...(visibleCot ? { include_reasoning: true } : {}),
-            // PDF attached: OpenRouter's file-parser plugin extracts the text
-            // for models without native document support. pdf-text is free
-            // (embedded text); mistral-ocr bills per page but reads scans —
-            // chosen per-upload via the tray toggle, default off.
-            ...(activeIsPdf ? { plugins: [{ id: 'file-parser', pdf: { engine: activePdfOcr ? 'mistral-ocr' : 'pdf-text' } }] } : {}),
-          }),
-        });
+        // Providers occasionally return 200 with EMPTY content (safety blip,
+        // reasoning-only reply, upstream hiccup). An empty turn used to become
+        // an instant error bar; now we quietly retry a couple of times first —
+        // an empty completion bills almost nothing, and the second attempt
+        // nearly always lands.
+        let completionText = '';
+        let finishReason = '';
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          const openRouterRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${openRouterKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: selectedModel,
+              messages: apiMessages,
+              response_format: { type: 'json_object' },
+              // martini mode: temperature pinned high for this sitting only;
+              // otherwise the provider default applies, unchanged from before
+              ...(martiniMode ? { temperature: 1.0 } : {}),
+              // visible CoT: ask OpenRouter to return the model's reasoning
+              // alongside the JSON reply (same flag Sovereign Terminal uses)
+              ...(visibleCot ? { include_reasoning: true } : {}),
+              // PDF attached: OpenRouter's file-parser plugin extracts the text
+              // for models without native document support. pdf-text is free
+              // (embedded text); mistral-ocr bills per page but reads scans —
+              // chosen per-upload via the tray toggle, default off.
+              ...(activeIsPdf ? { plugins: [{ id: 'file-parser', pdf: { engine: activePdfOcr ? 'mistral-ocr' : 'pdf-text' } }] } : {}),
+            }),
+          });
 
-        if (!openRouterRes.ok) {
-          const errText = await openRouterRes.text();
-          throw new Error(`OpenRouter API error: ${openRouterRes.status} ${errText}`);
-        }
+          if (!openRouterRes.ok) {
+            const errText = await openRouterRes.text();
+            throw new Error(`OpenRouter API error: ${openRouterRes.status} ${errText}`);
+          }
 
-        const result = await openRouterRes.json();
-        if (visibleCot) {
-          const r = result.choices?.[0]?.message?.reasoning;
-          if (typeof r === 'string' && r.trim()) cotReasoning = r.trim();
+          const result = await openRouterRes.json();
+          if (visibleCot) {
+            const r = result.choices?.[0]?.message?.reasoning;
+            if (typeof r === 'string' && r.trim()) cotReasoning = r.trim();
+          }
+          completionText = result.choices?.[0]?.message?.content?.trim() ?? '';
+          finishReason = result.choices?.[0]?.finish_reason ?? '';
+          if (completionText) break;
+          console.warn(`[Companion] Empty completion (attempt ${attempt}/3${finishReason ? `, finish_reason: ${finishReason}` : ''}) — retrying…`);
+          if (attempt < 3) await new Promise((r) => setTimeout(r, 600 * attempt));
         }
-        const completionText = result.choices?.[0]?.message?.content?.trim() ?? '';
+        if (!completionText) {
+          throw new Error(`The model returned an empty reply three times${finishReason ? ` (finish_reason: ${finishReason})` : ''} — the provider may be having a moment. Try again, or switch models in Settings.`);
+        }
         // interactive chat: if all JSON recovery fails, show the raw reply as
         // his message instead of an error bar (actions just come up empty)
         parsed = extractLlmJson(completionText, { salvageProse: true });

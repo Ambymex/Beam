@@ -27,9 +27,14 @@ match it rather than sanding it off.
 **Working rhythm:** one change at a time; commit at every working checkpoint
 (usage can cut out mid-task — the repo must always be runnable at HEAD); Ash
 pushes to the remote from her IDE; she tests on iPhone via an ngrok tunnel
-(`vite --host`, typically port 5173 or 5200 →
-https://divisibly-snowfield-handgrip.ngrok-free.dev). Flag anything that might
-behave differently on touch/WebKit — it usually does. Be honest about caveats
+(typically port 5173 or 5200 →
+https://divisibly-snowfield-handgrip.ngrok-free.dev). For DAILY phone use
+prefer `npm run phone` (build + `vite preview --host` on 5173) over the dev
+server: a built app is 3 requests instead of ~300 modules through the
+tunnel, and since 2026-07-16 `sw.js` caches the built shell so the PWA
+boots instantly even when the tunnel/laptop is asleep (dev-server module
+paths are deliberately excluded from that cache — HMR is untouched). Flag
+anything that might behave differently on touch/WebKit — it usually does. Be honest about caveats
 and about what you could not verify; state what you proved and how.
 
 ---
@@ -91,7 +96,7 @@ her data.
 **Edge functions** (`supabase/functions/`):
 | Function | Job |
 |---|---|
-| `parse-command` | Server LLM route for the chat. Since 2026-07-09: primary = Gemini AI Studio's OpenAI-compatible endpoint (`GEMINI_API_KEY`, model `gemini-3.1-pro-preview` — the `-preview` suffix is REQUIRED, plain `gemini-3.1-pro` 404s), gated by `useProxy`; fallback = OpenRouter (`OPENROUTER_API_KEY`, currently unset) |
+| `parse-command` | Server LLM route for the chat. Since 2026-07-09: primary = Gemini AI Studio's OpenAI-compatible endpoint (`GEMINI_API_KEY`, model `gemini-3.1-pro-preview` — the `-preview` suffix is REQUIRED, plain `gemini-3.1-pro` 404s), gated by `useProxy`; fallback = OpenRouter (`OPENROUTER_API_KEY`, currently unset). Since 2026-07-16 the proxy is a mini-ladder (pro-preview ×2 → 2.5-flash) and treats 200-with-empty-content as a failed rung — pro-preview returns reasoning-only empties under load, which used to surface as a hard 500. The client's direct-OpenRouter path retries empties ×3 for the same reason. |
 | `replace-events` | Replaces an install's future **transition** pushes; deliberately `.neq('kind','companion-alert')` so ring edits never delete companion-scheduled messages |
 | `send-due` | pg_cron every minute; delivers due `scheduled_pushes` via VAPID web push; companion-alerts get per-message tags + `/?comms=1` tap-through |
 | `schedule-push` | Mirrors one companion-scheduled message into the spine (kind `companion-alert`) |
@@ -321,6 +326,14 @@ VAULT_SYNC_KEY`. The planner-side key must MATCH (paste, not regenerate).
   archived to an unreadable bucket. Rows were rescued by migrating
   `sync_key` server-side; the function now refuses `<…>` values loudly. If
   vault messages ever "vanish" again, audit bucket keys first.
+- **Occasional mid-session freeze on iPhone (reported 2026-07-16, cause
+  unconfirmed)**: best theory is WebKit memory pressure against the
+  dev-server app over the tunnel (unminified module graph + HMR client).
+  The slow relaunch half ("long black then long white screen") WAS
+  diagnosed: no SW shell cache + full re-stream through a cold tunnel —
+  fixed 2026-07-16 (sw.js shell caching + the `npm run phone` runbook). If
+  freezes persist once she's daily-driving a built app, investigate
+  on-device with evidence, not theory.
 - Old TEMP debug: `dialDebug` in `cycle.ts` + traces in `CycleDial.svelte` +
   `.hint.debug` in `CycleEditor.svelte` — still present, safe first task.
 - A label somewhere still reads stale cycle-day text after the cycle position

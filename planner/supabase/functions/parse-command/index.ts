@@ -128,36 +128,49 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
     let completionText = '';
     const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
 
-    // 1. PRIMARY ROUTE: The Proxy / Free Tier (if enabled)
+    // 1. PRIMARY ROUTE: The Proxy / Free Tier (if enabled).
+    // A ladder, not a single shot: pro-preview sometimes returns 200 with
+    // EMPTY content (reasoning-only replies under load) — that used to fall
+    // through to the OpenRouter fallback, which has no key since the 2026-07
+    // migration, and the user got a hard 500 for what was a transient blip.
+    // Same medicine as the heartbeat: retry, then degrade to flash.
+    // (NB: the AI Studio id needs the -preview suffix — plain
+    // 'gemini-3.1-pro' 404s; that typo silently killed this route once.)
     if (useProxy && geminiApiKey) {
-      try {
-        console.log('[Routing] Attempting AI Studio (Gemini) proxy endpoint...');
-        const geminiRes = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${geminiApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            // NB: the AI Studio id needs the -preview suffix — plain
-            // 'gemini-3.1-pro' 404s (that typo silently killed this proxy
-            // route after the quota-revert commit).
-            model: 'gemini-3.1-pro-preview',
-            messages: apiMessages,
-            response_format: { type: 'json_object' }
-          }),
-        });
+      const attempts = ['gemini-3.1-pro-preview', 'gemini-3.1-pro-preview', 'gemini-2.5-flash'];
+      for (let i = 0; i < attempts.length && !completionText; i++) {
+        const model = attempts[i];
+        try {
+          console.log(`[Routing] AI Studio proxy attempt ${i + 1}/${attempts.length} (${model})...`);
+          const geminiRes = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${geminiApiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model,
+              messages: apiMessages,
+              response_format: { type: 'json_object' }
+            }),
+          });
 
-        if (geminiRes.ok) {
-          const result = await geminiRes.json();
-          completionText = result.choices?.[0]?.message?.content?.trim() ?? '';
-          console.log('[Routing] AI Studio proxy successful.');
-        } else {
-          const errText = await geminiRes.text();
-          console.warn(`[Routing] AI Studio proxy failed (${geminiRes.status}): ${errText}. Falling back...`);
+          if (geminiRes.ok) {
+            const result = await geminiRes.json();
+            completionText = result.choices?.[0]?.message?.content?.trim() ?? '';
+            if (completionText) {
+              console.log(`[Routing] AI Studio proxy successful (${model}).`);
+            } else {
+              const finish = result.choices?.[0]?.finish_reason ?? 'none';
+              console.warn(`[Routing] ${model} returned EMPTY content (finish_reason: ${finish}). Trying next rung...`);
+            }
+          } else {
+            const errText = await geminiRes.text();
+            console.warn(`[Routing] ${model} failed (${geminiRes.status}): ${errText}. Trying next rung...`);
+          }
+        } catch (err) {
+          console.warn(`[Routing] ${model} threw an exception: ${err}. Trying next rung...`);
         }
-      } catch (err) {
-        console.warn(`[Routing] AI Studio proxy threw an exception: ${err}. Falling back...`);
       }
     }
 
@@ -167,7 +180,7 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
       
       const openRouterApiKey = Deno.env.get('OPENROUTER_API_KEY');
       if (!openRouterApiKey) {
-        return json({ error: 'No valid API key found. Proxy failed/disabled, and OPENROUTER_API_KEY is missing.' }, 500);
+        return json({ error: 'All Gemini proxy attempts failed or returned empty (see function logs), and OPENROUTER_API_KEY is not set for fallback. Usually transient — try again in a moment.' }, 502);
       }
 
       const openRouterRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
