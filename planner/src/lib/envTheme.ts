@@ -54,15 +54,74 @@ function getInitialDebugOverride(): string | null {
 
 export const debugThemeOverride = writable<string | null>(getInitialDebugOverride());
 
-// City config for weather
+// City config for weather. The engine had this API from day one but no UI
+// ever called it (2026-07-16 discovery: the storm theme had never once been
+// able to fire) — the Sky & Weather section in AlertsSettings is its face now.
 const CITY_KEY = 'radial-planner-weather-city';
+
+export interface WeatherCity {
+  lat: number;
+  lon: number;
+  name: string;
+}
+
+function readCity(): WeatherCity | null {
+  try {
+    const raw = typeof localStorage === 'undefined' ? null : localStorage.getItem(CITY_KEY);
+    return raw ? (JSON.parse(raw) as WeatherCity) : null;
+  } catch {
+    return null;
+  }
+}
+
+// UI-facing state: the configured city and a human line about the last check.
+export const weatherCity = writable<WeatherCity | null>(readCity());
+export const lastWeatherCheck = writable<string>('');
+
 export function setWeatherCity(lat: number, lon: number, name: string) {
   try {
     localStorage.setItem(CITY_KEY, JSON.stringify({ lat, lon, name }));
   } catch (e) {
     console.warn('localStorage write failed:', e);
   }
+  weatherCity.set({ lat, lon, name });
   fetchWeather();
+}
+
+export function clearWeatherCity() {
+  try {
+    localStorage.removeItem(CITY_KEY);
+  } catch (e) {
+    console.warn('localStorage remove failed:', e);
+  }
+  weatherCity.set(null);
+  weatherCache = null;
+  lastWeatherCheck.set('');
+  updateTheme();
+}
+
+// City search via open-meteo's free geocoding (same provider as the weather
+// itself, no key needed).
+export interface CityResult {
+  name: string;
+  label: string; // "Brisbane, Queensland, Australia"
+  lat: number;
+  lon: number;
+}
+export async function searchCities(query: string): Promise<CityResult[]> {
+  const q = query.trim();
+  if (!q) return [];
+  const res = await fetchWithTimeout(
+    `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&language=en&format=json`,
+    4000,
+  );
+  const data = await res.json();
+  return (data.results ?? []).map((r: any) => ({
+    name: r.name,
+    label: [r.name, r.admin1, r.country].filter(Boolean).join(', '),
+    lat: r.latitude,
+    lon: r.longitude,
+  }));
 }
 
 async function fetchWithTimeout(url: string, timeoutMs = 2500): Promise<Response> {
@@ -90,15 +149,21 @@ async function fetchWeather() {
     const data = await res.json();
     const temp = data.current.temperature_2m;
     const code = data.current.weather_code;
-    
+
     // WMO Weather interpretation codes
     // 50-69 rain/drizzle, 80-82 rain showers, 95-99 thunderstorm
     const isStorm = (code >= 50 && code <= 69) || (code >= 80 && code <= 82) || (code >= 95 && code <= 99);
     const isHeatwave = temp >= 35;
-    
+
     weatherCache = { isStorm, isHeatwave, fetchTime: Date.now() };
+    const t = new Date();
+    const hhmm = `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
+    lastWeatherCheck.set(
+      `${isStorm ? 'storm ⛈' : isHeatwave ? 'heatwave 🔥' : 'calm'} · ${Math.round(temp)}°C · checked ${hhmm}`,
+    );
     updateTheme();
   } catch {
+    lastWeatherCheck.set('last check failed — will retry');
     // Ignore weather or localStorage failure
   }
 }

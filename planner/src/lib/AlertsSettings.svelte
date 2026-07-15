@@ -18,6 +18,14 @@
   import { gcalSyncActive, connectGCal, disconnectGCal } from './gcal';
   import { exportBackup, importBackup } from './backup';
   import { getBeamConfig, saveBeamConfig, testBeam, formatGlucose, TREND_ARROWS } from './glucose';
+  import {
+    weatherCity,
+    lastWeatherCheck,
+    setWeatherCity,
+    clearWeatherCity,
+    searchCities,
+    type CityResult,
+  } from './envTheme';
 
   const dispatch = createEventDispatcher<{ close: void }>();
   const standalone = isStandalone();
@@ -76,6 +84,54 @@
     } catch (e: any) {
       beamStatus = `Connection failed: ${e?.message ?? e}`;
     }
+  }
+
+  // ----- Sky & Weather (storm/heatwave themes need a location) -----
+  let cityQuery = '';
+  let cityResults: CityResult[] = [];
+  let citySearching = false;
+  let cityStatus = '';
+
+  async function handleCitySearch() {
+    const q = cityQuery.trim();
+    if (!q) return;
+    citySearching = true;
+    cityStatus = '';
+    cityResults = [];
+    try {
+      cityResults = await searchCities(q);
+      if (!cityResults.length) cityStatus = 'No matches — try the nearest bigger town.';
+    } catch {
+      cityStatus = 'Search failed — check the connection and try again.';
+    } finally {
+      citySearching = false;
+    }
+  }
+
+  function pickCity(r: CityResult) {
+    setWeatherCity(r.lat, r.lon, r.label);
+    cityResults = [];
+    cityQuery = '';
+    cityStatus = `Watching the sky over ${r.name} ✓`;
+  }
+
+  function useMyLocation() {
+    if (!('geolocation' in navigator)) {
+      cityStatus = 'Location is not available in this browser.';
+      return;
+    }
+    cityStatus = 'Asking for your location…';
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setWeatherCity(pos.coords.latitude, pos.coords.longitude, 'My location');
+        cityResults = [];
+        cityStatus = 'Watching the sky over your location ✓';
+      },
+      () => {
+        cityStatus = 'Location denied — search for your city instead.';
+      },
+      { timeout: 10000, maximumAge: 600000 },
+    );
   }
 
   let textareaEl: HTMLTextAreaElement;
@@ -281,6 +337,63 @@
       </div>
       {#if beamStatus}
         <p class="ok" style="word-break: break-word;">{beamStatus}</p>
+      {/if}
+    </div>
+
+    <!-- Sky & Weather section -->
+    <hr class="divider" />
+
+    <div class="gcal-section">
+      <h3>Sky &amp; Weather</h3>
+      <p class="desc">
+        The storm and heatwave themes follow the real sky at your location —
+        set a city (or use your location) and the ring weathers with you.
+        Checked every 15 minutes while the app is open.
+      </p>
+
+      <div class="row">
+        <span class="lbl">Watching</span>
+        <span class="state" class:active={!!$weatherCity}>
+          {$weatherCity ? $weatherCity.name : 'not set — storm theme can’t trigger'}
+        </span>
+      </div>
+      {#if $weatherCity && $lastWeatherCheck}
+        <div class="row sub">
+          <span class="lbl">Sky right now</span>
+          <span class="state">{$lastWeatherCheck}</span>
+        </div>
+      {/if}
+
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <input
+          type="text"
+          bind:value={cityQuery}
+          placeholder="Search city…"
+          aria-label="Search for a city"
+          on:keydown={(e) => e.key === 'Enter' && handleCitySearch()}
+          style="flex:1; min-width:0; background: var(--surface-2); color: var(--text); border: 1px solid var(--border-2); border-radius: 6px; padding: 8px; font-size: 13px;"
+        />
+        <button class="secondary" on:click={handleCitySearch} disabled={citySearching || !cityQuery.trim()}>
+          {citySearching ? 'Searching…' : 'Search'}
+        </button>
+      </div>
+
+      {#if cityResults.length}
+        <div class="card" style="margin-top:8px; display:flex; flex-direction:column; gap:4px;">
+          {#each cityResults as r}
+            <button class="secondary" style="text-align:left;" on:click={() => pickCity(r)}>{r.label}</button>
+          {/each}
+        </div>
+      {/if}
+
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <button class="primary" style="flex:1;" on:click={useMyLocation}>Use my location</button>
+        {#if $weatherCity}
+          <button class="secondary" style="flex:1;" on:click={() => { clearWeatherCity(); cityStatus = 'Sky watching off.'; }}>Clear</button>
+        {/if}
+      </div>
+      {#if cityStatus}
+        <p class="ok" style="word-break: break-word;">{cityStatus}</p>
       {/if}
     </div>
 
