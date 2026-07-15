@@ -133,10 +133,14 @@
         <option value="rise">Rise (bottom → up)</option>
         <option value="burst">Burst (from centre)</option>
         <option value="fountain">Fountain (arc up & over)</option>
+        <option value="converge">Converge (scatter → focus)</option>
       </select>
     </label>
     {#if layer.direction === 'fountain'}
       <p class="hint">The arc is two easings on one property: decelerate up (spending energy), accelerate down (gravity). The travel easing below drives the horizontal only.</p>
+    {/if}
+    {#if layer.direction === 'converge'}
+      <p class="hint">Particles begin scattered around the frame, settle into a focused cloud by 72% of travel, then hold still. Fade-out timing decides how long the lock gets to breathe.</p>
     {/if}
     <label class="field">
       <span>Count <b>{layer.count}</b></span>
@@ -178,7 +182,7 @@
       </div>
       <p class="hint"><b>{EASES[layer.travelEase].label}:</b> {EASES[layer.travelEase].teach}</p>
     </div>
-    {#if layer.direction !== 'burst'}
+    {#if layer.direction === 'fall' || layer.direction === 'rise' || layer.direction === 'fountain'}
       <label class="field">
         <span>Horizontal drift <b>{layer.driftX}vw</b></span>
         <input type="range" min="0" max="30" bind:value={layer.driftX} on:input={bump} />
@@ -188,6 +192,12 @@
       <label class="field">
         <span>Arc height <b>{layer.arcApex}vh</b></span>
         <input type="range" min="15" max="85" bind:value={layer.arcApex} on:input={bump} />
+      </label>
+    {/if}
+    {#if layer.direction === 'converge'}
+      <label class="field">
+        <span>Focus radius <b>{layer.focusRadius.toFixed(1)}vmin</b></span>
+        <input type="range" min="0" max="30" step="0.5" bind:value={layer.focusRadius} on:input={bump} />
       </label>
     {/if}
   </section>

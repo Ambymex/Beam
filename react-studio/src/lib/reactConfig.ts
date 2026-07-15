@@ -1,14 +1,14 @@
 import type { ShapeKind } from './shapes';
 
-// The parametric model of a particle-shower react — the family that covers
-// black_hearts, sparks, liquid drift, cherry_blossoms, etc. One-off set pieces
+// The parametric model of a particle-gesture react — the family that covers
+// black_hearts, sparks, liquid drift, cherry_blossoms, convergence, etc. One-off set pieces
 // (the tungsten strike) are intentionally out of scope: they aren't parametric.
 //
 // v2: a react is now 1–4 LAYERS, each its own emitter. Dense support + sparse
 // hero is how complex reacts are actually built; per-layer delay gives
 // choreography phases. Old single-emitter drafts migrate via migrateConfig().
 
-export type Direction = 'fall' | 'rise' | 'burst' | 'fountain';
+export type Direction = 'fall' | 'rise' | 'burst' | 'fountain' | 'converge';
 export type ColorMode = 'fixed' | 'signal' | 'contrast';
 export type EaseKind = 'linear' | 'easeIn' | 'easeOut' | 'softInOut' | 'overshoot';
 
@@ -93,6 +93,7 @@ export interface LayerConfig {
 
   driftX: number; // net horizontal spread, vw (fall/rise/fountain); burst radiates
   arcApex: number; // fountain: how high the arc rises, vh
+  focusRadius: number; // converge: landing-cloud radius around centre, vmin
 
   // glow: 'none', a 'fixed' coloured halo, or an 'adaptive' theme-readability
   // rim (light rim on dark themes, soft dark rim on light) — the trick that
@@ -130,8 +131,10 @@ export interface Particle {
   swayPhase: number;
   driftX: number; // vw
   angle: number; // deg, for burst
-  distance: number; // vmin, for burst
+  distance: number; // vmin, burst travel or converge focus radius
   apex: number; // vh, for fountain
+  fromX: number; // vmin, converge scatter offset from centre
+  fromY: number; // vmin, converge scatter offset from centre
 }
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
@@ -162,6 +165,12 @@ export function spawnLayer(layer: LayerConfig): Particle[] {
     }
     const swayDur = rand(layer.swayMin, layer.swayMax);
     const delay = layer.layerDelay + rand(0, layer.spawnWindow);
+    const angle = rand(0, 360);
+    const distance = layer.direction === 'converge'
+      ? Math.sqrt(Math.random()) * layer.focusRadius
+      : rand(20, 42);
+    const fromAngle = rand(0, 360);
+    const fromDistance = rand(28, 68);
     out.push({
       id: seq++,
       x: rand(4, 96),
@@ -178,9 +187,11 @@ export function spawnLayer(layer: LayerConfig): Particle[] {
       swayDur,
       swayPhase: rand(0, swayDur),
       driftX: rand(-layer.driftX, layer.driftX),
-      angle: rand(0, 360),
-      distance: rand(20, 42),
+      angle,
+      distance,
       apex: rand(layer.arcApex * 0.7, layer.arcApex),
+      fromX: Math.cos((fromAngle * Math.PI) / 180) * fromDistance,
+      fromY: Math.sin((fromAngle * Math.PI) / 180) * fromDistance * 0.7,
     });
   }
   return out;
@@ -230,6 +241,7 @@ export const DEFAULT_LAYER: LayerConfig = {
   swayMax: 2.8,
   driftX: 0,
   arcApex: 55,
+  focusRadius: 10,
   glowMode: 'none',
   glowBlur: 6,
   glowColor: 'auto',
@@ -591,6 +603,95 @@ export const PRESETS: Record<string, ReactConfig> = {
         arcApex: 42,
         glowMode: 'adaptive',
         glowBlur: 5,
+      },
+    ],
+  },
+  structure_found: {
+    id: 'structure_found',
+    label: 'Structure Found',
+    register: 'The moment confusion stops being noise — a pattern locks into place, holds, then makes room for the next thought.',
+    layers: [
+      {
+        ...DEFAULT_LAYER,
+        name: 'Loose syntax (support)',
+        direction: 'converge',
+        count: 26,
+        spawnWindow: 0.7,
+        durMin: 3.2,
+        durMax: 4.1,
+        travelEase: 'easeOut',
+        shape: 'circle',
+        sizeMin: 3,
+        sizeMax: 7,
+        depthLink: true,
+        colorMode: 'signal',
+        opacityMin: 0.18,
+        opacityMax: 0.42,
+        fadeInPct: 6,
+        fadeOutPct: 82,
+        scaleFrom: 0.45,
+        scaleTo: 0.82,
+        spin: false,
+        rotMax: 0,
+        swayAmp: 0,
+        focusRadius: 14,
+      },
+      {
+        ...DEFAULT_LAYER,
+        name: 'Open angle (hero)',
+        direction: 'converge',
+        count: 3,
+        spawnWindow: 0.4,
+        layerDelay: 0.55,
+        durMin: 2.8,
+        durMax: 3.4,
+        travelEase: 'easeOut',
+        shape: 'caret',
+        sizeMin: 19,
+        sizeMax: 30,
+        depthLink: true,
+        colorMode: 'signal',
+        opacityMin: 0.72,
+        opacityMax: 1,
+        fadeInPct: 5,
+        fadeOutPct: 90,
+        scaleFrom: 0.55,
+        scaleTo: 1,
+        spin: false,
+        rotMax: 0,
+        swayAmp: 0,
+        focusRadius: 2.5,
+        glowMode: 'adaptive',
+        glowBlur: 6,
+      },
+      {
+        ...DEFAULT_LAYER,
+        name: 'Released thought (afterglow)',
+        direction: 'rise',
+        count: 10,
+        spawnWindow: 0.8,
+        layerDelay: 3.3,
+        durMin: 2.4,
+        durMax: 3.4,
+        travelEase: 'easeOut',
+        shape: 'sparkle',
+        sizeMin: 4,
+        sizeMax: 9,
+        depthLink: true,
+        colorMode: 'signal',
+        opacityMin: 0.28,
+        opacityMax: 0.62,
+        fadeInPct: 7,
+        fadeOutPct: 70,
+        scaleFrom: 0.65,
+        scaleTo: 0.9,
+        rotMax: 24,
+        swayAmp: 5,
+        swayMin: 1.2,
+        swayMax: 2.1,
+        driftX: 4,
+        glowMode: 'adaptive',
+        glowBlur: 3,
       },
     ],
   },

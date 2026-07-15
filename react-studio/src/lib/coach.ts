@@ -154,6 +154,8 @@ export function coach(cfg: ReactConfig): CoachNote[] {
         odd.push(`${name(l, i)} accelerates upward — rising embers coast and slow; acceleration reads like being yanked on a string`);
       if (l.direction === 'burst' && l.travelEase === 'linear')
         odd.push(`${name(l, i)} bursts at constant speed — explosions spend their energy early; give it a decelerate`);
+      if (l.direction === 'converge' && l.travelEase === 'easeIn')
+        odd.push(`${name(l, i)} accelerates into the lock — convergence wants a gentle arrival, not a collision; decelerate into focus`);
     });
     const overshooters = layers.filter((l) => l.travelEase === 'overshoot');
     if (overshooters.length > 1) odd.push('overshoot on multiple layers — one wink is charming, three is chaos');

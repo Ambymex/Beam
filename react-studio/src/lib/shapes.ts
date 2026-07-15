@@ -13,6 +13,7 @@ export type ShapeKind =
   | 'moon'
   | 'snowflake'
   | 'bolt'
+  | 'caret'
   | 'custom';
 
 export interface ShapeDef {
@@ -40,6 +41,8 @@ const MOON_D = 'M21 12.8 A9.5 9.5 0 1 1 11.2 3 A7.6 7.6 0 0 0 21 12.8 Z';
 const SNOWFLAKE_D =
   'M12 23 L10.7 12 L12 1 L13.3 12 Z M21.5 17.5 L11.4 13.1 L2.5 6.5 L12.7 10.9 Z M2.5 17.5 L11.4 10.9 L21.5 6.5 L12.7 13.1 Z';
 const BOLT_D = 'M13 2 L4 14 L10 14 L9 22 L20 9 L13 9 Z';
+// open angle / code caret: a softened chevron with enough body to glow cleanly
+const CARET_D = 'M5 3 L8.2 1 L21 12 L8.2 23 L5 21 L15.5 12 Z';
 
 export const SHAPES: Record<ShapeKind, ShapeDef> = {
   heart: { render: 'path', viewBox: '0 0 24 24', d: HEART_D },
@@ -53,6 +56,7 @@ export const SHAPES: Record<ShapeKind, ShapeDef> = {
   moon: { render: 'path', viewBox: '0 0 24 24', d: MOON_D },
   snowflake: { render: 'path', viewBox: '0 0 24 24', d: SNOWFLAKE_D },
   bolt: { render: 'path', viewBox: '0 0 24 24', d: BOLT_D },
+  caret: { render: 'path', viewBox: '0 0 24 24', d: CARET_D },
   custom: { render: 'path', viewBox: '0 0 24 24', d: HEART_D },
 };
 
@@ -67,5 +71,6 @@ export const SHAPE_LABELS: Record<ShapeKind, string> = {
   moon: 'Crescent moon',
   snowflake: 'Snowflake',
   bolt: 'Bolt',
+  caret: 'Open angle / caret',
   custom: 'Custom path',
 };

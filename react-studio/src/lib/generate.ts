@@ -33,13 +33,16 @@ function glowExpr(layer: LayerConfig): string {
 }
 
 function txExpr(layer: LayerConfig): string {
-  if (layer.direction === 'burst') return '`${(Math.cos(angle * Math.PI / 180) * distance).toFixed(1)}vmin`';
+  if (layer.direction === 'burst' || layer.direction === 'converge')
+    return '`${(Math.cos(angle * Math.PI / 180) * distance).toFixed(1)}vmin`';
   return `\`\${(-${n(layer.driftX)} + Math.random() * ${n(layer.driftX * 2)}).toFixed(1)}vw\``;
 }
 function tyExpr(layer: LayerConfig): string {
   if (layer.direction === 'fall') return `'112vh'`;
   if (layer.direction === 'rise') return `'-72vh'`;
   if (layer.direction === 'fountain') return `'0vh'`; // Y lives on the arc wrapper
+  if (layer.direction === 'converge')
+    return '`${(Math.sin(angle * Math.PI / 180) * distance * 0.7).toFixed(1)}vmin`';
   return '`${(Math.sin(angle * Math.PI / 180) * distance * 0.7 + 8).toFixed(1)}vmin`';
 }
 
@@ -59,6 +62,7 @@ export function generate(cfg: ReactConfig): Generated {
   const layers = cfg.layers;
   const anyFixedGlow = layers.some((l) => l.glowMode === 'fixed');
   const anyFountain = layers.some((l) => l.direction === 'fountain');
+  const anyConverge = layers.some((l) => l.direction === 'converge');
   const lifeMs = Math.round(
     Math.max(...layers.map((l) => l.layerDelay + l.spawnWindow + l.durMax)) * 1000 + 400,
   );
@@ -72,7 +76,7 @@ export function generate(cfg: ReactConfig): Generated {
     id: number; x: number; size: number; color: string; delay: number;
     dur: number; op: number; inDur: number; outDelay: number; outDur: number;
     rotEnd: number; swayAmp: number; swayDur: number; swayPhase: number;
-    tx: string; ty: string;${anyFountain ? ' apex: number;' : ''}${anyFixedGlow ? ' glow: string;' : ''}
+    tx: string; ty: string;${anyFountain ? ' apex: number;' : ''}${anyConverge ? ' fromX: number; fromY: number;' : ''}${anyFixedGlow ? ' glow: string;' : ''}
   }
 ${arrayNames.map((a) => `  let ${a}: ${Cap}P[] = [];`).join('\n')}
   let ${id}Timer: ReturnType<typeof setTimeout>;`;
@@ -105,6 +109,12 @@ ${arrayNames.map((a) => `  let ${a}: ${Cap}P[] = [];`).join('\n')}
           ? `
         const angle = Math.random() * 360;
         const distance = 20 + Math.random() * 22;`
+          : l.direction === 'converge'
+            ? `
+        const angle = Math.random() * 360;
+        const distance = Math.sqrt(Math.random()) * ${n(l.focusRadius)};
+        const fromAngle = Math.random() * 360;
+        const fromDistance = 28 + Math.random() * 40;`
           : ''
       }
         const color = ${colorExpr(l)};
@@ -124,7 +134,7 @@ ${arrayNames.map((a) => `  let ${a}: ${Cap}P[] = [];`).join('\n')}
           swayDur,
           swayPhase: Math.random() * swayDur,
           tx: ${txExpr(l)},
-          ty: ${tyExpr(l)},${anyFountain ? `\n          apex: ${l.direction === 'fountain' ? `${n(l.arcApex * 0.7)} + Math.random() * ${n(l.arcApex * 0.3)}` : '0'},` : ''}${anyFixedGlow ? `\n          glow: ${fixedGlow ? glowExpr(l) : `''`},` : ''}
+          ty: ${tyExpr(l)},${anyFountain ? `\n          apex: ${l.direction === 'fountain' ? `${n(l.arcApex * 0.7)} + Math.random() * ${n(l.arcApex * 0.3)}` : '0'},` : ''}${anyConverge ? `\n          fromX: ${l.direction === 'converge' ? 'Math.cos(fromAngle * Math.PI / 180) * fromDistance' : '0'},\n          fromY: ${l.direction === 'converge' ? 'Math.sin(fromAngle * Math.PI / 180) * fromDistance * 0.7' : '0'},` : ''}${anyFixedGlow ? `\n          glow: ${fixedGlow ? glowExpr(l) : `''`},` : ''}
         });
       }
       ${arr} = b${k + 1};`;
@@ -170,13 +180,14 @@ ${shapeMarkup}
 ${swayMarkup}
       </span>`
           : swayMarkup;
-      const leftAttr = l.direction === 'burst' ? '' : 'left:{p.x}%; ';
+      const leftAttr = l.direction === 'burst' || l.direction === 'converge' ? '' : 'left:{p.x}%; ';
       const apexVar = l.direction === 'fountain' ? ' --apex:{p.apex}vh;' : '';
+      const convergeVars = l.direction === 'converge' ? ' --fx:{p.fromX}vmin; --fy:{p.fromY}vmin;' : '';
       return `  <!-- ${cfg.label}, layer ${k + 1}: ${l.name} -->
   {#each ${arr} as p (p.id)}
     <span
       class="${cls}"
-      style="${leftAttr}--size:{p.size}px; --dur:{p.dur}s; --delay:{p.delay}s; --op:{p.op}; --indur:{p.inDur}s; --outdelay:{p.outDelay}s; --outdur:{p.outDur}s; --tx:{p.tx}; --ty:{p.ty}; --sway:{p.swayAmp}px; --swaydur:{p.swayDur}s; --swayphase:{p.swayPhase}s; --rot:{p.rotEnd}deg;${apexVar}"
+      style="${leftAttr}--size:{p.size}px; --dur:{p.dur}s; --delay:{p.delay}s; --op:{p.op}; --indur:{p.inDur}s; --outdelay:{p.outDelay}s; --outdur:{p.outDur}s; --tx:{p.tx}; --ty:{p.ty}; --sway:{p.swayAmp}px; --swaydur:{p.swayDur}s; --swayphase:{p.swayPhase}s; --rot:{p.rotEnd}deg;${apexVar}${convergeVars}"
     >
 ${inner}
     </span>
@@ -191,10 +202,11 @@ ${inner}
       const basePos =
         l.direction === 'fall'
           ? 'top: calc(-1 * var(--size) - 10px);'
-          : l.direction === 'burst'
+          : l.direction === 'burst' || l.direction === 'converge'
             ? 'top: 50%; left: 50%; margin-top: calc(var(--size) / -2);'
             : 'bottom: calc(-1 * var(--size) - 10px);'; // rise + fountain
       const adaptiveGlow = l.glowMode === 'adaptive';
+      const travelAnim = l.direction === 'converge' ? `${id}-converge` : `${id}-travel`;
       const spinAnim = l.spin
         ? `\n    animation: ${id}-spin var(--dur) linear var(--delay) both;`
         : '';
@@ -208,7 +220,7 @@ ${inner}
     --s0: ${n(l.scaleFrom)};
     --s1: ${n(l.scaleTo)};
     animation:
-      ${id}-travel var(--dur) ${EASES[l.travelEase].css} var(--delay) both,
+      ${travelAnim} var(--dur) ${EASES[l.travelEase].css} var(--delay) both,
       ${id}-in var(--indur) linear var(--delay) both,
       ${id}-out var(--outdur) linear var(--outdelay) forwards;
   }
@@ -244,6 +256,15 @@ ${inner}
   }`
     : '';
 
+  const convergeCss = anyConverge
+    ? `
+  /* scatter → focus arrives by 72%, then holds; the fade envelope owns exit */
+  @keyframes ${id}-converge {
+    0% { transform: translate(var(--fx), var(--fy)) scale(var(--s0, 1)); }
+    72%, 100% { transform: translate(var(--tx), var(--ty)) scale(var(--s1, 1)); }
+  }`
+    : '';
+
   const css = `${layerCss}
   @keyframes ${id}-travel {
     from { transform: translate(0, 0) scale(var(--s0, 1)); }
@@ -258,7 +279,7 @@ ${inner}
   @keyframes ${id}-out {
     from { opacity: var(--op); }
     to { opacity: 0; }
-  }${arcCss}
+  }${arcCss}${convergeCss}
   .${id}-sway {
     display: block;
     animation: ${id}-sway var(--swaydur) ease-in-out calc(-1 * var(--swayphase)) infinite alternate;

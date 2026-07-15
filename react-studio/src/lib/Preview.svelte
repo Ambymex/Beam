@@ -139,13 +139,16 @@
 
   // per-particle travel endpoint, by direction (matches generate.ts)
   function tx(layer: LayerConfig, p: Particle): string {
-    if (layer.direction === 'burst') return `${(Math.cos((p.angle * Math.PI) / 180) * p.distance).toFixed(1)}vmin`;
+    if (layer.direction === 'burst' || layer.direction === 'converge')
+      return `${(Math.cos((p.angle * Math.PI) / 180) * p.distance).toFixed(1)}vmin`;
     return `${p.driftX.toFixed(1)}vw`;
   }
   function ty(layer: LayerConfig, p: Particle): string {
     if (layer.direction === 'fall') return '112vh';
     if (layer.direction === 'rise') return '-72vh';
     if (layer.direction === 'fountain') return '0vh'; // Y lives on the arc wrapper
+    if (layer.direction === 'converge')
+      return `${(Math.sin((p.angle * Math.PI) / 180) * p.distance * 0.7).toFixed(1)}vmin`;
     return `${(Math.sin((p.angle * Math.PI) / 180) * p.distance * 0.7 + 8).toFixed(1)}vmin`;
   }
   // Fixed glow only; the adaptive rim is applied by theme-keyed global CSS.
@@ -211,7 +214,9 @@
                 --tx:{tx(layer, p)}; --ty:{ty(layer, p)}; --s0:{layer.scaleFrom}; --s1:{layer.scaleTo};
                 --ease:{EASES[layer.travelEase].css};
                 --sway:{p.swayAmp}px; --swaydur:{p.swayDur}s; --swayphase:{p.swayPhase}s;
-                --rot:{p.rotEnd}deg; --apex:{p.apex.toFixed(1)}vh; {layer.direction !== 'burst' ? `left:${p.x}%;` : ''}
+                --rot:{p.rotEnd}deg; --apex:{p.apex.toFixed(1)}vh;
+                --fx:{p.fromX.toFixed(1)}vmin; --fy:{p.fromY.toFixed(1)}vmin;
+                {layer.direction !== 'burst' && layer.direction !== 'converge' ? `left:${p.x}%;` : ''}
               "
             >
               <span class="p-arc">
@@ -399,9 +404,24 @@
   .react-layer.rise .p { bottom: calc(-1 * var(--size) - 10px); }
   .react-layer.fountain .p { bottom: calc(-1 * var(--size) - 10px); }
   .react-layer.burst .p { top: 50%; left: 50%; margin-top: calc(var(--size) / -2); }
+  .react-layer.converge .p {
+    top: 50%;
+    left: 50%;
+    margin-top: calc(var(--size) / -2);
+    animation:
+      s-converge var(--dur) var(--ease, linear) var(--delay) both,
+      s-in var(--indur) linear var(--delay) both,
+      s-out var(--outdur) linear var(--outdelay) forwards;
+  }
   @keyframes s-travel {
     from { transform: translate(0, 0) scale(var(--s0, 1)); }
     to { transform: translate(var(--tx), var(--ty)) scale(var(--s1, 1)); }
+  }
+  /* Convergence is phrased, not merely reversed: arrive by 72%, then let the
+     resolved shape hold still while the fade envelope decides when it leaves. */
+  @keyframes s-converge {
+    0% { transform: translate(var(--fx), var(--fy)) scale(var(--s0, 1)); }
+    72%, 100% { transform: translate(var(--tx), var(--ty)) scale(var(--s1, 1)); }
   }
   /* fade envelope: rise to --op over --indur, hold, fall over --outdur.
      s-out deliberately has NO backwards fill — s-in owns the early frames. */

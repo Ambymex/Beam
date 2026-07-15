@@ -39,8 +39,9 @@ npm run dev      # opens on port 5210 with the planner's live dev server family
    selling the depth — load **Champagne Toast** to study one). Layers can be
    muted for solo study and delayed for phrasing.
 3. Tune the **parametric controls** on the left — emission (direction
-   including *fountain* arcs, count, trickle, delay, travel **easing curves**
-   with teach notes), particle (11 shapes + custom paths, size, **depth
+   including *fountain* arcs and scatter-to-focus *convergence*, count,
+   trickle, delay, travel **easing curves** with teach notes), particle
+   (12 shapes + custom paths, size, **depth
    link**, colour), motion (spin, flutter, **scale from/to**), look (opacity,
    **fade envelope**, glow).
 4. Watch the **Coach** under the stage — nine live animation-habit principles
@@ -60,9 +61,9 @@ npm run dev      # opens on port 5210 with the planner's live dev server family
 
 ## Scope
 
-Covers the **particle-shower family** — fall, rise, burst, and fountain —
-which is what most reacts are (black hearts, sparks, cherry blossoms,
-drifting petals, champagne). One-off set pieces like the tungsten strike
+Covers the **particle-gesture family** — fall, rise, burst, fountain, and
+converge-and-lock — which is what most reacts are (black hearts, sparks,
+cherry blossoms, drifting petals, champagne, focused formations). One-off set pieces like the tungsten strike
 aren't parametric and are hand-built in the app; the studio deliberately
 doesn't try to model them.
 
