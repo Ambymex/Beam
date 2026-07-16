@@ -177,7 +177,9 @@ async function fetchSpaceWeather() {
     // The last element is the most recent
     const latest = data[data.length - 1];
     const kp = parseFloat(latest[1]);
-    const isAurora = kp >= 5;
+    // 4.5, not 5: Ash has seen aurora from her latitude at Kp 4.7 (2026-07) —
+    // the theme should fire when the real sky does, not when NOAA rounds up.
+    const isAurora = kp >= 4.5;
     
     spaceWeatherCache = { isAurora, fetchTime: Date.now() };
     updateTheme();
