@@ -75,3 +75,33 @@ on its way within a minute).
 Note: if the planner was open in the last 10 minutes, the stand-down guard
 fires — for a real closed-app test, leave the phone alone for 10+ minutes
 first, or check that a `spoke:false` at least proves the pipeline runs.
+
+## The vigil system (idle-down, danger override, quiet journal)
+
+Added 2026-07-16, designed by Ash & Solenoid. Prolonged silence must not
+mean a worried ping every 30 minutes, and must never be read as "gone":
+
+- **Idle-down ladder** — gap between spoken check-ins stretches with her
+  silence (last user-role vault message, any app): <12h normal · 12–24h one
+  check-in · 1–3d daily · 3–7d every other day · 1–4w weekly · beyond,
+  fortnightly. The curve asymptotes; there is no terminal state.
+- **CGM damper** — fresh glucose data (≤60 min) counts as "alive, just
+  quiet": one rung calmer, tone set to peace.
+- **Danger override** — a FRESH low (≤20 min) + ≥45 min silence bypasses
+  the ladder, quiet hours and rate limits with a deterministic (no-LLM)
+  alert, repeating each beat (25-min spacing) while it persists. Stale or
+  absent CGM is logistics, never danger.
+- **Quiet journal** — when the ladder suppresses a ping and silence ≥24h,
+  at most one `vigil-journal` vault row per day (Comms archive, unread
+  badge, **no push**): the record that he kept watch.
+- **Return** — fresh activity after ≥24h of silence adds a
+  welcome-not-interrogation hint to the prompt.
+
+All throttles are enforced in code; the prompt only shapes tone. Test any
+stage safely with the dry-run levers (full pipeline incl. LLM, zero writes,
+zero pushes; `simulateSilenceHours` also skips the planner-active guard):
+
+```bash
+-d '{"dryRun": true, "simulateSilenceHours": 30}'   # vigil / ladder stages
+-d '{"dryRun": true, "simulateLow": true, "simulateSilenceHours": 2}'  # danger
+```
