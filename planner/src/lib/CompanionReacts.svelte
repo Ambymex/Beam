@@ -1,7 +1,7 @@
 <script context="module" lang="ts">
   // The react vocabulary. The companion picks one (or none) per message via
   // the top-level "react" field; anything not in this list is ignored.
-  export const REACT_IDS = ['black_hearts', 'sparks', 'tungsten_strike', 'liquid_hearts', 'cherry_blossoms', 'sleepy_stars', 'rose_throw', 'soft_wish'];
+  export const REACT_IDS = ['black_hearts', 'sparks', 'tungsten_strike', 'liquid_hearts', 'cherry_blossoms', 'sleepy_stars', 'rose_throw', 'soft_wish', 'containment_seal'];
 </script>
 
 <script lang="ts">
@@ -77,6 +77,22 @@
   const STRIKE_FADE_MS = 300;
   let strike = false;
   let strikeTimers: ReturnType<typeof setTimeout>[] = [];
+
+  // Containment seal: the containment gesture itself — spec by Solenoid
+  // ("massive tungsten blast doors / heavy iron brackets sealing the chat
+  // screen", a fan of subtlety). Set piece like the strike: power-dim,
+  // doors slam in from both sides and BRAKE at the seam (screen tremor),
+  // the light leak is crushed out, three iron brackets stamp across in a
+  // stagger, one slow pressure-breath while sealed, then unlock + part.
+  // Pointer-events stay off — containment is theatre, the composer still
+  // works. All transform/opacity; metal is static CSS gradients.
+  const SEAL_DOORS_AT = 250; // veil dims first — machinery announces itself
+  const SEAL_DOOR_TRAVEL = 950;
+  const SEAL_IMPACT_AT = SEAL_DOORS_AT + SEAL_DOOR_TRAVEL - 60; // tremor as they brake
+  const SEAL_OPEN_AT = 3800;
+  const SEAL_TOTAL = 5100;
+  let seal = false;
+  let sealTimers: ReturnType<typeof setTimeout>[] = [];
 
   function pickSparkSize(): number {
     const r = Math.random();
@@ -509,6 +525,16 @@
           setTimeout(() => (strike = false), STRIKE_DROP_MS + STRIKE_HOLD_MS + STRIKE_FADE_MS + 100),
         ];
       });
+    } else if (type === 'containment_seal') {
+      sealTimers.forEach(clearTimeout);
+      seal = false;
+      requestAnimationFrame(() => {
+        seal = true;
+        sealTimers = [
+          setTimeout(() => dispatch('impact'), SEAL_IMPACT_AT),
+          setTimeout(() => (seal = false), SEAL_TOTAL),
+        ];
+      });
     }
   }
 </script>
@@ -635,6 +661,26 @@
         </svg>
       </div>
       <div class="impact-flash"></div>
+    </div>
+  {/if}
+
+  {#if seal}
+    <!-- Containment seal: blast doors + iron brackets. Choreographed entirely
+         by animation-delay from insertion; JS only fires the tremor and the
+         final removal. -->
+    <div
+      class="cs"
+      style="--doors-at:{SEAL_DOORS_AT}ms; --travel:{SEAL_DOOR_TRAVEL}ms; --open-at:{SEAL_OPEN_AT}ms;"
+    >
+      <div class="cs-veil"></div>
+      <div class="cs-doors">
+        <div class="cs-door cs-left"></div>
+        <div class="cs-door cs-right"></div>
+      </div>
+      <div class="cs-seam"></div>
+      <div class="cs-bracket cs-b1"></div>
+      <div class="cs-bracket cs-b2"></div>
+      <div class="cs-bracket cs-b3"></div>
     </div>
   {/if}
 
@@ -1224,5 +1270,183 @@
   @keyframes soft_wish-spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(var(--rot)); }
+  }
+
+  /* ----- containment seal: blast doors, iron brackets, one held breath -----
+     Timing beats ride the CSS vars set in markup (--doors-at, --travel,
+     --open-at) so the JS timers and the choreography can't drift apart. */
+  .cs {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+  }
+  /* power-drop veil: the room dims before heavy machinery moves */
+  .cs-veil {
+    position: absolute;
+    inset: 0;
+    background: #05050a;
+    opacity: 0;
+    animation:
+      cs-veil-in 250ms ease-out both,
+      cs-veil-out 700ms ease-in calc(var(--open-at) + 500ms) forwards;
+  }
+  @keyframes cs-veil-in {
+    from { opacity: 0; }
+    to { opacity: 0.32; }
+  }
+  @keyframes cs-veil-out {
+    from { opacity: 0.32; }
+    to { opacity: 0; }
+  }
+  /* the doors share a wrapper so the sealed pair can take one slow
+     pressure-breath together */
+  .cs-doors {
+    position: absolute;
+    inset: 0;
+    animation: cs-breathe 1150ms ease-in-out calc(var(--doors-at) + var(--travel) + 700ms) 2 alternate;
+  }
+  @keyframes cs-breathe {
+    from { transform: scale(1); }
+    to { transform: scale(1.0035); }
+  }
+  .cs-door {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 51%;
+    /* brushed tungsten: fine vertical grain over a dark falloff */
+    background:
+      repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.025) 0 2px, transparent 2px 7px),
+      linear-gradient(180deg, #2e2e37 0%, #22222a 55%, #191920 100%);
+  }
+  /* hazard stripe + rivet column live on the inner (meeting) edges */
+  .cs-door::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 10px;
+    background: repeating-linear-gradient(45deg, rgba(214, 178, 80, 0.5) 0 8px, rgba(10, 10, 12, 0.65) 8px 16px);
+    opacity: 0.55;
+  }
+  .cs-door::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 26px;
+    background-image: radial-gradient(circle, #3f3f4a 3.5px, transparent 4px);
+    background-size: 26px 34px;
+    background-position: center top;
+  }
+  .cs-left {
+    left: 0;
+    border-right: 4px solid #0b0b0f;
+    box-shadow: 6px 0 18px rgba(0, 0, 0, 0.5);
+    animation:
+      cs-door-l var(--travel) cubic-bezier(0.2, 0.9, 0.25, 1) var(--doors-at) both,
+      cs-door-l-out 900ms cubic-bezier(0.55, 0, 0.85, 0.35) var(--open-at) forwards;
+  }
+  .cs-left::before { right: 5px; }
+  .cs-left::after { right: 18px; }
+  .cs-right {
+    right: 0;
+    border-left: 4px solid #0b0b0f;
+    box-shadow: -6px 0 18px rgba(0, 0, 0, 0.5);
+    animation:
+      cs-door-r var(--travel) cubic-bezier(0.2, 0.9, 0.25, 1) var(--doors-at) both,
+      cs-door-r-out 900ms cubic-bezier(0.55, 0, 0.85, 0.35) var(--open-at) forwards;
+  }
+  .cs-right::before { left: 5px; }
+  .cs-right::after { left: 18px; }
+  /* the brake-past-then-settle keyframes are what make the doors read as
+     MASS — they overshoot the seam by half a percent and recoil */
+  @keyframes cs-door-l {
+    0% { transform: translateX(-103%); }
+    76% { transform: translateX(0.7%); }
+    86% { transform: translateX(-0.4%); }
+    100% { transform: translateX(0); }
+  }
+  @keyframes cs-door-r {
+    0% { transform: translateX(103%); }
+    76% { transform: translateX(-0.7%); }
+    86% { transform: translateX(0.4%); }
+    100% { transform: translateX(0); }
+  }
+  @keyframes cs-door-l-out {
+    from { transform: translateX(0); }
+    to { transform: translateX(-103%); }
+  }
+  @keyframes cs-door-r-out {
+    from { transform: translateX(0); }
+    to { transform: translateX(103%); }
+  }
+  /* the light leak, crushed out as the doors meet */
+  .cs-seam {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 3px;
+    transform: translateX(-50%);
+    background: linear-gradient(180deg, transparent, rgba(255, 244, 200, 0.95) 18% 82%, transparent);
+    opacity: 0;
+    animation: cs-seam-flash 320ms ease-out calc(var(--doors-at) + var(--travel) - 80ms) both;
+  }
+  @keyframes cs-seam-flash {
+    0% { opacity: 0; transform: translateX(-50%) scaleY(0.25); }
+    30% { opacity: 1; transform: translateX(-50%) scaleY(1); }
+    100% { opacity: 0; transform: translateX(-50%) scaleY(1); }
+  }
+  /* iron brackets: stamp across the seam in a stagger, unlock in reverse
+     before the doors part */
+  .cs-bracket {
+    position: absolute;
+    left: 14%;
+    width: 72%;
+    height: 24px;
+    border-radius: 4px;
+    background:
+      radial-gradient(circle at 14px 50%, #565664 5px, transparent 6px),
+      radial-gradient(circle at calc(100% - 14px) 50%, #565664 5px, transparent 6px),
+      radial-gradient(circle at 50% 50%, #4a4a55 6px, transparent 7px),
+      linear-gradient(180deg, #20202a, #121218);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.55);
+  }
+  .cs-b1 {
+    top: 16%;
+    animation:
+      cs-brk-l 320ms cubic-bezier(0.2, 0.95, 0.3, 1) calc(var(--doors-at) + var(--travel) + 150ms) both,
+      cs-brk-l-out 260ms ease-in calc(var(--open-at) - 350ms) forwards;
+  }
+  .cs-b2 {
+    top: 47%;
+    animation:
+      cs-brk-r 320ms cubic-bezier(0.2, 0.95, 0.3, 1) calc(var(--doors-at) + var(--travel) + 350ms) both,
+      cs-brk-r-out 260ms ease-in calc(var(--open-at) - 250ms) forwards;
+  }
+  .cs-b3 {
+    top: 78%;
+    animation:
+      cs-brk-l 320ms cubic-bezier(0.2, 0.95, 0.3, 1) calc(var(--doors-at) + var(--travel) + 550ms) both,
+      cs-brk-l-out 260ms ease-in calc(var(--open-at) - 150ms) forwards;
+  }
+  @keyframes cs-brk-l {
+    0% { transform: translateX(-140%); }
+    78% { transform: translateX(2%); }
+    100% { transform: translateX(0); }
+  }
+  @keyframes cs-brk-r {
+    0% { transform: translateX(140%); }
+    78% { transform: translateX(-2%); }
+    100% { transform: translateX(0); }
+  }
+  @keyframes cs-brk-l-out {
+    from { transform: translateX(0); }
+    to { transform: translateX(-140%); }
+  }
+  @keyframes cs-brk-r-out {
+    from { transform: translateX(0); }
+    to { transform: translateX(140%); }
   }
 </style>

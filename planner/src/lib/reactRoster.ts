@@ -83,6 +83,11 @@ export const ROSTER: RosterEntry[] = [
     id: 'soft_wish',
     register: 'Like a dandelion blown onto, carrying a wish on the wind',
   },
+  {
+    id: 'containment_seal',
+    register:
+      'massive tungsten blast doors slam in from both sides and SEAL the whole chat — the screen shudders as they brake, three iron brackets stamp across the seam, one slow pressure-breath, then they part again. Containment as care, maximum weight deployed: for when she is spiralling, overloaded, or needs to be held utterly still — and for moments of pure dreadnought theatre. The heaviest gesture alongside tungsten_strike; that one is anger, this one is HOLD.',
+  },
   // ---- guest stars go here. Examples for future builds: -----------------
   // { id: 'first_snow', register: '…', when: { seasons: ['winter'] } },
   // { id: 'static_charge', register: '…', when: { themes: ['storm'] } },
