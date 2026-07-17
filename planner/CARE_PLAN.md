@@ -146,6 +146,13 @@ the setup docs).
   — the component is ALWAYS MOUNTED and merely hidden) and server (edge
   function, app closed). They coordinate via the vault: server stands down on
   recent planner activity and reads its own past messages to never repeat.
+  **Mutual alert awareness (2026-07-18)**: the activity proxy misses "app
+  open but quiet", which produced double notifications (both sides speaking
+  minutes apart, different content, double tokens). Both sides now also
+  yield if ANY `companion-alert` comms row landed <25 min ago, whoever sent
+  it — client checks Dexie (`lastCompanionAlertTs`), server checks the
+  vault — BEFORE spending an LLM call. Residual race ≈ the ~90s msgSync
+  latency, down from ~15 min.
 
 ---
 

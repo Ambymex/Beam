@@ -85,6 +85,17 @@ export async function insertRemoteComms(
   if (added) unreadComms.update((n) => n + added);
 }
 
+// Most recent companion-alert timestamp, ANY source — his own local sends
+// and server-heartbeat rows pulled in by msgSync both count. The client
+// heartbeat uses this to yield when a notification already landed recently,
+// whoever sent it (the other half of this guard lives in the heartbeat edge
+// function) — one voice per half hour, never two different pings back to back.
+export async function lastCompanionAlertTs(): Promise<number> {
+  const recent = await db.comms.orderBy('ts').reverse().limit(25).toArray();
+  const hit = recent.find((c) => c.kind === 'companion-alert');
+  return hit?.ts ?? 0;
+}
+
 export async function loadComms(limit = 200): Promise<CommMessage[]> {
   return db.comms.orderBy('ts').reverse().limit(limit).toArray();
 }

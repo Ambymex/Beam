@@ -307,6 +307,25 @@ Deno.serve(async (req) => {
       return json({ skipped: 'spoke recently' });
     }
 
+    // -- mutual awareness with the CLIENT heartbeat: its notifications sync
+    //    into the vault as comms rows (source 'planner', kind
+    //    'companion-alert'). The planner-activity stand-down above misses
+    //    "app open but quiet" (it only sees vault WRITES), so both sides
+    //    also yield if ANY companion alert landed in the last 25 minutes —
+    //    one voice per half hour, never two different pings back to back.
+    //    (The client-side twin of this guard lives in triggerHeartbeatCheck.)
+    const { data: lastAlert } = await supabase
+      .from('messages')
+      .select('created_at, source')
+      .eq('sync_key', syncKey)
+      .eq('channel', 'comms')
+      .eq('kind', 'companion-alert')
+      .order('created_at', { ascending: false })
+      .limit(1);
+    if (lastAlert?.length && now.getTime() - Date.parse(lastAlert[0].created_at) < 25 * MIN) {
+      return json({ skipped: `a companion alert landed ${Math.round((now.getTime() - Date.parse(lastAlert[0].created_at)) / MIN)} min ago (${lastAlert[0].source}) — one voice at a time` });
+    }
+
     // ---- the idle-down ladder -------------------------------------------
     const rung = ladderFor(silenceMs, cgmFresh);
     if (rung.gap > 0) {

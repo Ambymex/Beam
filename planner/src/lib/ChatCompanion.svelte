@@ -20,7 +20,7 @@
   import type { Symptom } from './symptoms';
   import { fetchContext, injectMemory } from './vault';
   import { checkPendingNotifications, scheduleNotification } from './notifications';
-  import { logComm } from './comms';
+  import { logComm, lastCompanionAlertTs } from './comms';
   import { starsVisible } from './theme';
   import { envThemeState } from './envTheme';
   import {
@@ -802,6 +802,28 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
     // Run every 30 minutes (unless forced)
     if (!force && elapsedMins < 30) {
       return;
+    }
+
+    // Mutual awareness with the SERVER heartbeat (they already share the
+    // comms archive): if any companion-alert landed in the last 25 minutes —
+    // this heartbeat's own, or a server beat pulled in by msgSync — stand
+    // down BEFORE spending an LLM call. This is the fix for the double-speak
+    // (two different notifications back to back): the server's 10-min
+    // planner-activity proxy misses "app open but quiet", so each side now
+    // also checks whether a notification already landed, whoever sent it.
+    // Deliberately not stamping last-heartbeat here, so the next minute's
+    // tick re-checks cheaply. The server-side twin of this guard lives in
+    // the heartbeat edge function.
+    if (!force) {
+      try {
+        const lastAlert = await lastCompanionAlertTs();
+        if (Date.now() - lastAlert < 25 * 60 * 1000) {
+          console.log('[Heartbeat] A companion alert landed recently — standing down this beat.');
+          return;
+        }
+      } catch {
+        /* Dexie hiccup — proceed as before */
+      }
     }
 
     try {
