@@ -216,7 +216,8 @@
 
   // Soft Wish — Like a dandelion blown onto, carrying a wish on the wind
   interface SoftWishP {
-    id: number; x: number; size: number; color: string; colorMid: string; colorEnd: string; delay: number;
+    id: number; x: number; size: number; color: string; colorMid: string; colorEnd: string;
+    glowColor: string; glowColorMid: string; glowColorEnd: string; delay: number;
     dur: number; op: number; inDur: number; outDelay: number; outDur: number;
     envMidDur: number; envEndDelay: number; envEndDur: number;
     rotEnd: number; swayAmp: number; swayDur: number; swayPhase: number;
@@ -473,18 +474,21 @@
     } else if (type === 'soft_wish') {
       // layer 1: Layer 1
       const b1: SoftWishP[] = [];
-      for (let i = 0; i < 48; i++) {
+      for (let i = 0; i < 44; i++) {
         const t = Math.random(); // depth: 0 far, 1 near
         const size = Math.round(9 + t * 11);
-        const dur = 7.5 - t * 2.3;
-        const op = 0.65 + (0.3 + t * 0.7) * 0.1;
+        const dur = 6.6 - t * 2.3;
+        const op = 0.62 + (0.3 + t * 0.7) * 0.33;
         const swayDur = 1.2 + Math.random() * 0.9;
-        const delay = 0 + Math.random() * 1.6;
+        const delay = 0 + Math.random() * 1.1;
         const angle = Math.random() * 360;
         const distance = 20 + Math.random() * 22;
-        const color = 'var(--signal-contrast)';
-        const colorMid = 'var(--signal)';
-        const colorEnd = colorMid;
+        const color = 'var(--signal)';
+        const colorMid = 'var(--signal-contrast)';
+        const colorEnd = 'var(--signal)';
+        const glowColor = '#4eb9ef';
+        const glowColorMid = '#754fde';
+        const glowColorEnd = '#c50d6f';
         b1.push({
           id: burstId++,
           x: 4 + Math.random() * 92,
@@ -492,17 +496,20 @@
           color,
           colorMid,
           colorEnd,
+          glowColor,
+          glowColorMid,
+          glowColorEnd,
           delay,
           dur,
           op,
-          inDur: +(dur * 0.39).toFixed(3),
-          outDelay: +(delay + dur * 0.59).toFixed(3),
-          outDur: +(dur * 0.41).toFixed(3),
+          inDur: +(dur * 0.05).toFixed(3),
+          outDelay: +(delay + dur * 0.78).toFixed(3),
+          outDur: +(dur * 0.22).toFixed(3),
           envMidDur: +(dur * 0.46).toFixed(3),
           envEndDelay: +(delay + dur * 0.46).toFixed(3),
           envEndDur: +(dur * 0.54).toFixed(3),
-          rotEnd: (Math.random() < 0.5 ? -1 : 1) * 129 * dur,
-          swayAmp: 9.6 + Math.random() * 6.4,
+          rotEnd: (Math.random() < 0.5 ? -1 : 1) * 117 * dur,
+          swayAmp: 2.4 + Math.random() * 1.6,
           swayDur,
           swayPhase: Math.random() * swayDur,
           tx: `${(Math.cos(angle * Math.PI / 180) * distance).toFixed(1)}vmin`,
@@ -513,7 +520,7 @@
       clearTimeout(soft_wishTimer);
       soft_wishTimer = setTimeout(() => {
         soft_wish = [];
-      }, 9500);
+      }, 8100);
     } else if (type === 'tungsten_strike') {
       strikeTimers.forEach(clearTimeout);
       // Drop the node first so a rapid re-fire restarts the CSS animations.
@@ -738,15 +745,17 @@
   {#each soft_wish as p (p.id)}
     <span
       class="soft_wish"
-      style="--size:{p.size}px; --dur:{p.dur}s; --delay:{p.delay}s; --op:{p.op}; --indur:{p.inDur}s; --outdelay:{p.outDelay}s; --outdur:{p.outDur}s; --envmiddur:{p.envMidDur}s; --envenddelay:{p.envEndDelay}s; --envenddur:{p.envEndDur}s; --tx:{p.tx}; --ty:{p.ty}; --s0:0.3; --sm:1.45; --s1:0.72; --c0:{p.color}; --cm:{p.colorMid}; --c1:{p.colorEnd}; --sway:{p.swayAmp}px; --swaydur:{p.swayDur}s; --swayphase:{p.swayPhase}s; --rot:{p.rotEnd}deg;"
+      style="--size:{p.size}px; --dur:{p.dur}s; --delay:{p.delay}s; --op:{p.op}; --indur:{p.inDur}s; --outdelay:{p.outDelay}s; --outdur:{p.outDur}s; --envmiddur:{p.envMidDur}s; --envenddelay:{p.envEndDelay}s; --envenddur:{p.envEndDur}s; --tx:{p.tx}; --ty:{p.ty}; --s0:0.3; --sm:2.5; --s1:0.72; --c0:{p.color}; --cm:{p.colorMid}; --c1:{p.colorEnd}; --gb0:13px; --gbm:9px; --gb1:6px; --fgc0:{p.glowColor}; --fgcm:{p.glowColorMid}; --fgc1:{p.glowColorEnd}; --sway:{p.swayAmp}px; --swaydur:{p.swayDur}s; --swayphase:{p.swayPhase}s; --rot:{p.rotEnd}deg;"
     >
     <span class="soft_wish-scale">
       <span class="soft_wish-color">
         <span class="soft_wish-sway">
-          <span class="soft_wish-shape" style="--rim:6px;">
+          <span class="soft_wish-glow">
+            <span class="soft_wish-shape">
             <svg viewBox="0 0 24 24" width={p.size} height={p.size} style="display:block;">
-              <path fill="currentColor" d="M12 23 L10.7 12 L12 1 L13.3 12 Z M21.5 17.5 L11.4 13.1 L2.5 6.5 L12.7 10.9 Z M2.5 17.5 L11.4 10.9 L21.5 6.5 L12.7 13.1 Z" />
+              <path fill="currentColor" d="M12 0 C13 7 17 11 24 12 C17 13 13 17 12 24 C11 17 7 13 0 12 C7 11 11 7 12 0 Z" />
             </svg>
+            </span>
           </span>
         </span>
       </span>
@@ -1194,7 +1203,7 @@
     margin-left: calc(var(--size) / -2);
     top: 50%; left: 50%; margin-top: calc(var(--size) / -2);
     --s0: 0.3;
-    --sm: 1.45;
+    --sm: 2.5;
     --s1: 0.72;
     animation:
       soft_wish-travel-pos var(--dur) cubic-bezier(0.2, 0.7, 0.3, 1) var(--delay) both,
@@ -1214,16 +1223,16 @@
       soft_wish-color-a var(--envmiddur) linear var(--delay) both,
       soft_wish-color-b var(--envenddur) linear var(--envenddelay) forwards;
   }
+  .soft_wish-glow {
+    display: block;
+    filter: drop-shadow(0 0 var(--gb0) var(--gc0, var(--fgc0)));
+    animation:
+      soft_wish-glow-a var(--envmiddur) linear var(--delay) both,
+      soft_wish-glow-b var(--envenddur) linear var(--envenddelay) forwards;
+  }
   .soft_wish-shape {
     display: block;
     animation: soft_wish-spin var(--dur) linear var(--delay) both;
-  }
-  /* adaptive readability rim: light on dark themes, soft dark on light */
-  :global([data-theme='dark']) .soft_wish-shape {
-    filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.6)) drop-shadow(0 0 var(--rim, 6px) rgba(255, 255, 255, 0.35));
-  }
-  :global([data-theme='light']) .soft_wish-shape {
-    filter: drop-shadow(0 0 var(--rim, 6px) rgba(40, 30, 30, 0.32));
   }
   @keyframes soft_wish-travel {
     from { transform: translate(0, 0) scale(var(--s0, 1)); }
@@ -1258,6 +1267,14 @@
   @keyframes soft_wish-color-b {
     from { color: var(--cm); }
     to { color: var(--c1); }
+  }
+  @keyframes soft_wish-glow-a {
+    from { filter: drop-shadow(0 0 var(--gb0) var(--gc0, var(--fgc0))); }
+    to { filter: drop-shadow(0 0 var(--gbm) var(--gcm, var(--fgcm))); }
+  }
+  @keyframes soft_wish-glow-b {
+    from { filter: drop-shadow(0 0 var(--gbm) var(--gcm, var(--fgcm))); }
+    to { filter: drop-shadow(0 0 var(--gb1) var(--gc1, var(--fgc1))); }
   }
   .soft_wish-sway {
     display: block;
