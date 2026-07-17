@@ -1,4 +1,4 @@
-import type { ShapeKind } from './shapes';
+import type { ShapeKind, CustomPathPart } from './shapes';
 
 // The parametric model of a particle-gesture react — the family that covers
 // black_hearts, sparks, liquid drift, cherry_blossoms, convergence, etc. One-off set pieces
@@ -11,6 +11,8 @@ import type { ShapeKind } from './shapes';
 export type Direction = 'fall' | 'rise' | 'burst' | 'fountain' | 'converge';
 export type ColorMode = 'fixed' | 'signal' | 'contrast';
 export type ColorStopMode = ColorMode | 'hold';
+export type GlowColorMode = 'auto' | 'fixed';
+export type GlowColorStopMode = GlowColorMode | 'hold';
 export type EaseKind = 'linear' | 'easeIn' | 'easeOut' | 'softInOut' | 'overshoot';
 
 // Named travel easings, each with the habit it teaches. `pts` are the
@@ -66,6 +68,9 @@ export interface LayerConfig {
 
   shape: ShapeKind;
   customPath: string;
+  customViewBox: string;
+  customPaths: CustomPathPart[];
+  customShapeName: string;
   sizeMin: number;
   sizeMax: number; // px
   // Coherent randomness: sample one depth per particle and derive size (big =
@@ -90,7 +95,7 @@ export interface LayerConfig {
   scaleMid: number;
   scaleTo: number;
   sizeEnvelope: boolean; // false preserves the original single from→to scale
-  envelopeMidPct: number; // shared size/colour middle stop, % of travel
+  envelopeMidPct: number; // shared size/colour/glow middle stop, % of travel
 
   spin: boolean;
   rotMax: number; // deg/sec magnitude (rotation rate)
@@ -107,8 +112,18 @@ export interface LayerConfig {
   // rim (light rim on dark themes, soft dark rim on light) — the trick that
   // keeps a dark particle visible on dark skies, like the shipped black hearts.
   glowMode: 'none' | 'fixed' | 'adaptive';
-  glowBlur: number; // px halo strength (fixed + adaptive)
-  glowColor: string; // hex, or 'auto' to derive from the particle fill (fixed only)
+  glowBlur: number; // px halo strength at the start (fixed + adaptive)
+  glowBlurMid: number;
+  glowBlurEnd: number;
+  glowEnvelope: boolean;
+  // `glowColor` is retained as a compatibility mirror for old drafts.
+  glowColor: string;
+  glowColorMode: GlowColorMode;
+  glowColors: string[];
+  glowColorMidMode: GlowColorStopMode;
+  glowColorsMid: string[];
+  glowColorEndMode: GlowColorStopMode;
+  glowColorsEnd: string[];
 }
 
 export interface ReactConfig {
@@ -129,6 +144,9 @@ export interface Particle {
   color: string;
   colorMid: string;
   colorEnd: string;
+  glowColor: string;
+  glowColorMid: string;
+  glowColorEnd: string;
   delay: number; // includes the layer delay
   dur: number;
   op: number;
@@ -171,6 +189,25 @@ export function fillColors(layer: LayerConfig): [string, string, string] {
   return [start, middle, end];
 }
 
+function pickGlowColor(mode: GlowColorMode, colors: string[], fill: string): string {
+  if (mode === 'auto') return fill;
+  return colors.length ? colors[Math.floor(Math.random() * colors.length)] : '#ffffff';
+}
+
+export function fillGlowColors(
+  layer: LayerConfig,
+  fills: [string, string, string],
+): [string, string, string] {
+  const start = pickGlowColor(layer.glowColorMode, layer.glowColors, fills[0]);
+  const middle = layer.glowColorMidMode === 'hold'
+    ? start
+    : pickGlowColor(layer.glowColorMidMode, layer.glowColorsMid, fills[1]);
+  const end = layer.glowColorEndMode === 'hold'
+    ? middle
+    : pickGlowColor(layer.glowColorEndMode, layer.glowColorsEnd, fills[2]);
+  return [start, middle, end];
+}
+
 let seq = 0;
 export function spawnLayer(layer: LayerConfig): Particle[] {
   const out: Particle[] = [];
@@ -195,7 +232,9 @@ export function spawnLayer(layer: LayerConfig): Particle[] {
       : rand(20, 42);
     const fromAngle = rand(0, 360);
     const fromDistance = rand(28, 68);
-    const [color, colorMid, colorEnd] = fillColors(layer);
+    const fills = fillColors(layer);
+    const [color, colorMid, colorEnd] = fills;
+    const [glowColor, glowColorMid, glowColorEnd] = fillGlowColors(layer, fills);
     out.push({
       id: seq++,
       x: rand(4, 96),
@@ -203,6 +242,9 @@ export function spawnLayer(layer: LayerConfig): Particle[] {
       color,
       colorMid,
       colorEnd,
+      glowColor,
+      glowColorMid,
+      glowColorEnd,
       delay,
       dur,
       op,
@@ -253,6 +295,9 @@ export const DEFAULT_LAYER: LayerConfig = {
   travelEase: 'linear',
   shape: 'heart',
   customPath: '',
+  customViewBox: '0 0 24 24',
+  customPaths: [],
+  customShapeName: '',
   sizeMin: 8,
   sizeMax: 24,
   depthLink: false,
@@ -281,7 +326,16 @@ export const DEFAULT_LAYER: LayerConfig = {
   focusRadius: 10,
   glowMode: 'none',
   glowBlur: 6,
+  glowBlurMid: 6,
+  glowBlurEnd: 6,
+  glowEnvelope: false,
   glowColor: 'auto',
+  glowColorMode: 'auto',
+  glowColors: ['#ffffff'],
+  glowColorMidMode: 'hold',
+  glowColorsMid: ['#ffffff'],
+  glowColorEndMode: 'hold',
+  glowColorsEnd: ['#ffffff'],
 };
 
 export const DEFAULT_CONFIG: ReactConfig = {
@@ -293,6 +347,10 @@ export const DEFAULT_CONFIG: ReactConfig = {
     colors: [...DEFAULT_LAYER.colors],
     colorsMid: [...DEFAULT_LAYER.colorsMid],
     colorsEnd: [...DEFAULT_LAYER.colorsEnd],
+    glowColors: [...DEFAULT_LAYER.glowColors],
+    glowColorsMid: [...DEFAULT_LAYER.glowColorsMid],
+    glowColorsEnd: [...DEFAULT_LAYER.glowColorsEnd],
+    customPaths: DEFAULT_LAYER.customPaths.map((part) => ({ ...part })),
   }],
 };
 
@@ -303,6 +361,10 @@ export function newLayer(n: number): LayerConfig {
     colors: [...DEFAULT_LAYER.colors],
     colorsMid: [...DEFAULT_LAYER.colorsMid],
     colorsEnd: [...DEFAULT_LAYER.colorsEnd],
+    glowColors: [...DEFAULT_LAYER.glowColors],
+    glowColorsMid: [...DEFAULT_LAYER.glowColorsMid],
+    glowColorsEnd: [...DEFAULT_LAYER.glowColorsEnd],
+    customPaths: DEFAULT_LAYER.customPaths.map((part) => ({ ...part })),
   };
 }
 
@@ -313,13 +375,7 @@ export function migrateConfig(raw: any): ReactConfig {
   if (!raw || typeof raw !== 'object') return { ...DEFAULT_CONFIG, layers: [newLayer(1)] };
   if (Array.isArray(raw.layers)) {
     const layers = raw.layers.length
-      ? raw.layers.map((l: any, i: number) => ({
-          ...newLayer(i + 1),
-          ...l,
-          colors: [...(l.colors ?? DEFAULT_LAYER.colors)],
-          colorsMid: [...(l.colorsMid ?? DEFAULT_LAYER.colorsMid)],
-          colorsEnd: [...(l.colorsEnd ?? DEFAULT_LAYER.colorsEnd)],
-        }))
+      ? raw.layers.map((l: any, i: number) => migrateLayer(l, i + 1))
       : [newLayer(1)];
     return { id: raw.id ?? 'my_react', label: raw.label ?? 'My React', register: raw.register ?? '', layers };
   }
@@ -328,16 +384,33 @@ export function migrateConfig(raw: any): ReactConfig {
   // v1 bursts had a hardcoded decelerate bezier + 0.3 grow-in
   const wasBurst = emitter.direction === 'burst';
   const layer: LayerConfig = {
-    ...DEFAULT_LAYER,
-    ...emitter,
-    colors: [...(emitter.colors ?? DEFAULT_LAYER.colors)],
-    colorsMid: [...(emitter.colorsMid ?? DEFAULT_LAYER.colorsMid)],
-    colorsEnd: [...(emitter.colorsEnd ?? DEFAULT_LAYER.colorsEnd)],
+    ...migrateLayer(emitter, 1),
     name: 'Layer 1',
     travelEase: wasBurst ? 'easeOut' : 'linear',
     scaleFrom: wasBurst ? 0.3 : 1,
   };
   return { id: id ?? 'my_react', label: label ?? 'My React', register: register ?? '', layers: [layer] };
+}
+
+function migrateLayer(l: any, n: number): LayerConfig {
+  const legacyGlowColor = typeof l.glowColor === 'string' ? l.glowColor : DEFAULT_LAYER.glowColor;
+  const glowColorMode: GlowColorMode = l.glowColorMode
+    ?? (legacyGlowColor === 'auto' ? 'auto' : 'fixed');
+  const glowColors = l.glowColors
+    ?? (legacyGlowColor !== 'auto' ? [legacyGlowColor] : DEFAULT_LAYER.glowColors);
+  return {
+    ...newLayer(n),
+    ...l,
+    glowColorMode,
+    glowColor: glowColorMode === 'auto' ? 'auto' : (glowColors[0] ?? '#ffffff'),
+    colors: [...(l.colors ?? DEFAULT_LAYER.colors)],
+    colorsMid: [...(l.colorsMid ?? DEFAULT_LAYER.colorsMid)],
+    colorsEnd: [...(l.colorsEnd ?? DEFAULT_LAYER.colorsEnd)],
+    glowColors: [...glowColors],
+    glowColorsMid: [...(l.glowColorsMid ?? DEFAULT_LAYER.glowColorsMid)],
+    glowColorsEnd: [...(l.glowColorsEnd ?? DEFAULT_LAYER.glowColorsEnd)],
+    customPaths: (l.customPaths ?? DEFAULT_LAYER.customPaths).map((part: CustomPathPart) => ({ ...part })),
+  };
 }
 
 // Starting points that mirror shipped reacts, so there's something alive on
@@ -387,6 +460,8 @@ export const PRESETS: Record<string, ReactConfig> = {
       glowMode: 'fixed',
       glowBlur: 8,
       glowColor: '#ffcde4',
+      glowColorMode: 'fixed',
+      glowColors: ['#ffcde4'],
     },
   ),
   liquid_hearts: preset(
@@ -805,6 +880,8 @@ export const PRESETS: Record<string, ReactConfig> = {
       glowMode: 'fixed',
       glowBlur: 3,
       glowColor: '#ffd98a',
+      glowColorMode: 'fixed',
+      glowColors: ['#ffd98a'],
     },
   ),
 };

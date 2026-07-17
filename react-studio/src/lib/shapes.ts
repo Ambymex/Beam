@@ -20,7 +20,14 @@ export interface ShapeDef {
   render: 'path' | 'css';
   viewBox?: string;
   d?: string; // path data (render === 'path')
+  paths?: CustomPathPart[]; // imported SVGs may contain several transformed paths
   radius?: string; // border-radius (render === 'css')
+}
+
+export interface CustomPathPart {
+  d: string;
+  transform?: string;
+  fillRule?: 'nonzero' | 'evenodd';
 }
 
 // house heart + 4-point champagne star, verbatim from CompanionReacts.svelte

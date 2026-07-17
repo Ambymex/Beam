@@ -41,17 +41,19 @@ npm run dev      # opens on port 5210 with the planner's live dev server family
 3. Tune the **parametric controls** on the left — emission (direction
    including *fountain* arcs and scatter-to-focus *convergence*, count,
    trickle, delay, travel **easing curves** with teach notes), particle
-   (12 shapes + custom paths, size, **depth link**, start colour), motion
-   (spin, flutter), **change over time** (three-point size + colour envelopes
-   sharing one middle beat), look (opacity, **fade envelope**, glow).
+   (12 shapes + custom shapes drawn on the grid or **imported from Krita as
+   SVG**, size, **depth link**, start colour), motion
+   (spin, flutter), **change over time** (three-point size + colour envelopes),
+   look (opacity, **fade envelope**, expandable glow-colour palettes and
+   three-point glow strength). Size, colour and glow share one middle beat.
 4. Watch the **Coach** under the stage — ten live animation-habit principles
    (vary the speeds, trickle the entrance, never pop, restraint, big things
    move slow, coherent depth, easing tells the physics, hero + support, calm
    hands, intentional change). Nudges name the layer and explain the why;
    they're principles, not rules.
 5. The **perf meter** shows live DOM nodes + fps — everything the studio
-   emits keeps movement on `transform`/`opacity`; colour envelopes deliberately
-   repaint their shapes, so the meter lets you feel the cost rather than hide
+   emits keeps movement on `transform`/`opacity`; colour and glow envelopes
+   deliberately repaint, so the meter lets you feel the cost rather than hide
    it. Restraint still matters at high counts.
 6. Hit **Export code** and **Copy all**. The output has six clearly-labelled
    parts; paste each into its home in `CompanionReacts.svelte`, plus the
@@ -67,8 +69,14 @@ cherry blossoms, drifting petals, champagne, focused formations). One-off set pi
 aren't parametric and are hand-built in the app; the studio deliberately
 doesn't try to model them.
 
-Notes: old drafts load unchanged: missing envelope fields migrate to a held
-colour and the original single `scaleFrom → scaleTo` motion. The
+Notes: old drafts load unchanged: missing envelope fields migrate to held
+colour/glow and the original single `scaleFrom → scaleTo` motion. The
 studio renders the *base* react; the app occasionally adds theme-specific
 touches by hand. Exported ids should be unique — rename before export to
 avoid colliding with a shipped react.
+
+For imported shapes, select the vector layer in Krita and use **Layer →
+Import/Export → Save Vector Layer as SVG**. Studio preserves the SVG `viewBox`,
+visible paths, nested transforms and even-odd fill rules; the react's animated
+colour replaces the artwork's original paint. Convert non-path vector objects
+to paths first if the import reports that none were found.

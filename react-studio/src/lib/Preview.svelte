@@ -5,7 +5,7 @@
   // This component is the REFERENCE the exported code reproduces.
   import { onMount, onDestroy } from 'svelte';
   import { THEME_ORDER, THEME_LABELS, currentTheme, canopyFor } from './theme';
-  import { SHAPES } from './shapes';
+  import { SHAPES, type ShapeDef, type CustomPathPart } from './shapes';
   import { spawnAll, lifeMs, EASES, type ReactConfig, type LayerConfig, type Particle } from './reactConfig';
 
   export let config: ReactConfig;
@@ -27,12 +27,25 @@
   $: rate = slowMo ? 0.25 : 1;
   $: repainting = config.layers.some(
     (layer) => layer.colorMidMode !== 'hold' || layer.colorEndMode !== 'hold'
+      || (layer.glowMode !== 'none' && (
+        layer.glowEnvelope
+        || (layer.glowMode === 'fixed' && (layer.glowColorMidMode !== 'hold' || layer.glowColorEndMode !== 'hold'))
+      ))
   );
 
-  function shapeDefFor(layer: LayerConfig) {
+  function shapeDefFor(layer: LayerConfig): ShapeDef {
     return layer.shape === 'custom'
-      ? { render: 'path' as const, viewBox: '0 0 24 24', d: layer.customPath || SHAPES.heart.d }
+      ? {
+          render: 'path',
+          viewBox: layer.customViewBox || '0 0 24 24',
+          d: layer.customPath || SHAPES.heart.d,
+          paths: layer.customPaths.length ? layer.customPaths : undefined,
+        }
       : SHAPES[layer.shape];
+  }
+
+  function pathParts(sd: ShapeDef): CustomPathPart[] {
+    return sd.paths?.length ? sd.paths : [{ d: sd.d ?? '' }];
   }
 
   // every animation the react owns (canopies are outside layerHost on purpose)
@@ -154,12 +167,6 @@
       return `${(Math.sin((p.angle * Math.PI) / 180) * p.distance * 0.7).toFixed(1)}vmin`;
     return `${(Math.sin((p.angle * Math.PI) / 180) * p.distance * 0.7 + 8).toFixed(1)}vmin`;
   }
-  // Fixed glow only; the adaptive rim is applied by theme-keyed global CSS.
-  function glow(layer: LayerConfig, p: Particle): string {
-    if (layer.glowMode !== 'fixed' || !layer.glowBlur) return 'none';
-    const c = layer.glowColor === 'auto' ? 'currentColor' : layer.glowColor;
-    return `drop-shadow(0 0 ${layer.glowBlur}px ${c})`;
-  }
 </script>
 
 <div class="preview">
@@ -211,6 +218,9 @@
           class="react-layer {layer.direction}"
           class:size-envelope={layer.sizeEnvelope}
           class:color-envelope={layer.colorMidMode !== 'hold' || layer.colorEndMode !== 'hold'}
+          class:fixed-glow={layer.glowMode === 'fixed'}
+          class:adaptive-glow={layer.glowMode === 'adaptive'}
+          class:glow-envelope={layer.glowMode !== 'none' && (layer.glowEnvelope || (layer.glowMode === 'fixed' && (layer.glowColorMidMode !== 'hold' || layer.glowColorEndMode !== 'hold')))}
         >
           {#each particleSets[li] ?? [] as p (p.id)}
             <span
@@ -221,6 +231,8 @@
                 --envmiddur:{p.envMidDur.toFixed(3)}s; --envenddelay:{p.envEndDelay.toFixed(3)}s; --envenddur:{p.envEndDur.toFixed(3)}s;
                 --tx:{tx(layer, p)}; --ty:{ty(layer, p)}; --s0:{layer.scaleFrom}; --sm:{layer.scaleMid}; --s1:{layer.scaleTo};
                 --c0:{p.color}; --cm:{p.colorMid}; --c1:{p.colorEnd};
+                --gb0:{layer.glowBlur}px; --gbm:{layer.glowEnvelope ? layer.glowBlurMid : layer.glowBlur}px; --gb1:{layer.glowEnvelope ? layer.glowBlurEnd : layer.glowBlur}px;
+                --fgc0:{p.glowColor}; --fgcm:{p.glowColorMid}; --fgc1:{p.glowColorEnd};
                 --ease:{EASES[layer.travelEase].css};
                 --sway:{p.swayAmp}px; --swaydur:{p.swayDur}s; --swayphase:{p.swayPhase}s;
                 --rot:{p.rotEnd}deg; --apex:{p.apex.toFixed(1)}vh;
@@ -232,21 +244,26 @@
                 <span class="p-scale">
                   <span class="p-color">
                     <span class="p-sway">
-                      <span
-                        class="p-shape"
-                        class:adaptive={layer.glowMode === 'adaptive'}
-                        style="{layer.glowMode === 'fixed' ? `filter:${glow(layer, p)};` : ''} --rim:{layer.glowBlur}px;"
-                      >
-                        {#if sd.render === 'path'}
-                          <svg viewBox={sd.viewBox} width={p.size} height={p.size} style="display:block;">
-                            <path fill="currentColor" d={sd.d} />
-                          </svg>
-                        {:else}
-                          <span
-                            class="css-shape"
-                            style="width:{p.size}px; height:{p.size}px; background:currentColor; border-radius:{sd.radius};"
-                          ></span>
-                        {/if}
+                      <span class="p-glow">
+                        <span class="p-shape" class:adaptive={layer.glowMode === 'adaptive'}>
+                          {#if sd.render === 'path'}
+                            <svg viewBox={sd.viewBox} width={p.size} height={p.size} style="display:block;">
+                              {#each pathParts(sd) as part}
+                                <path
+                                  fill="currentColor"
+                                  d={part.d}
+                                  transform={part.transform || undefined}
+                                  fill-rule={part.fillRule || undefined}
+                                />
+                              {/each}
+                            </svg>
+                          {:else}
+                            <span
+                              class="css-shape"
+                              style="width:{p.size}px; height:{p.size}px; background:currentColor; border-radius:{sd.radius};"
+                            ></span>
+                          {/if}
+                        </span>
                       </span>
                     </span>
                   </span>
@@ -278,10 +295,10 @@
       />
       <span class="scrub-t">{scrubbing ? (scrubT / 1000).toFixed(2) + 's' : (life / 1000).toFixed(1) + 's total'}</span>
     </div>
-    <div class="meter" title="Movement stays on transform/opacity. Colour envelopes intentionally repaint their shapes, so watch fps as you raise the count.">
+    <div class="meter" title="Movement stays on transform/opacity. Colour and glow envelopes intentionally repaint, so watch fps as you raise the count.">
       <span>{domNodes} nodes</span>
       <span class:good={fps >= 55} class:rough={fps < 45}>{scrubbing ? '—' : fps} fps</span>
-      <span class="law">{repainting ? 'colour repaint · motion composited' : 'transform/opacity motion ✓'}</span>
+      <span class="law">{repainting ? 'colour/glow repaint · motion composited' : 'transform/opacity motion ✓'}</span>
     </div>
   </div>
 </div>
@@ -403,7 +420,8 @@
 
   /* ---- particle skeleton: .p travels + fades, .p-arc is the fountain's Y
      axis, .p-scale changes size, .p-color changes colour, .p-sway flutters,
-     .p-shape spins. Motion and size stay on transform/opacity; colour repaints. ---- */
+     .p-glow carries the halo and .p-shape spins. Motion and size stay on
+     transform/opacity; colour and animated glow repaint. ---- */
   .p {
     position: absolute;
     width: var(--size);
@@ -483,7 +501,8 @@
 
   .p-scale,
   .p-color,
-  .p-sway {
+  .p-sway,
+  .p-glow {
     display: block;
   }
   .react-layer.size-envelope .p-scale {
@@ -520,6 +539,33 @@
     from { transform: translateX(calc(-1 * var(--sway))); }
     to { transform: translateX(var(--sway)); }
   }
+  .react-layer.fixed-glow .p-glow,
+  .react-layer.adaptive-glow .p-glow {
+    filter: drop-shadow(0 0 var(--gb0) var(--gc0, var(--fgc0)));
+  }
+  .react-layer.glow-envelope .p-glow {
+    animation:
+      s-glow-a var(--envmiddur) linear var(--delay) both,
+      s-glow-b var(--envenddur) linear var(--envenddelay) forwards;
+  }
+  @keyframes s-glow-a {
+    from { filter: drop-shadow(0 0 var(--gb0) var(--gc0, var(--fgc0))); }
+    to { filter: drop-shadow(0 0 var(--gbm) var(--gcm, var(--fgcm))); }
+  }
+  @keyframes s-glow-b {
+    from { filter: drop-shadow(0 0 var(--gbm) var(--gcm, var(--fgcm))); }
+    to { filter: drop-shadow(0 0 var(--gb1) var(--gc1, var(--fgc1))); }
+  }
+  :global([data-theme='dark']) .react-layer.adaptive-glow .p-glow {
+    --gc0: rgba(255, 255, 255, 0.35);
+    --gcm: rgba(255, 255, 255, 0.35);
+    --gc1: rgba(255, 255, 255, 0.35);
+  }
+  :global([data-theme='light']) .react-layer.adaptive-glow .p-glow {
+    --gc0: rgba(40, 30, 30, 0.32);
+    --gcm: rgba(40, 30, 30, 0.32);
+    --gc1: rgba(40, 30, 30, 0.32);
+  }
   .p-shape {
     display: block;
     animation: s-spin var(--dur) linear var(--delay) both;
@@ -527,10 +573,7 @@
   /* adaptive readability rim: light on dark skies, soft dark on light — the
      data-theme selector is global (set on <html>), the shape class stays scoped */
   :global([data-theme='dark']) .p-shape.adaptive {
-    filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.6)) drop-shadow(0 0 var(--rim, 6px) rgba(255, 255, 255, 0.35));
-  }
-  :global([data-theme='light']) .p-shape.adaptive {
-    filter: drop-shadow(0 0 var(--rim, 6px) rgba(40, 30, 30, 0.32));
+    filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.6));
   }
   @keyframes s-spin {
     from { transform: rotate(0deg); }

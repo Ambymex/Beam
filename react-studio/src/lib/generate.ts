@@ -5,16 +5,27 @@
 // v2 layout: one shared particle interface + shared keyframes per react;
 // each layer gets its own array (`${id}_l1`…), base class (`.${id}-l1`) with
 // its scale/ease baked in, and its own block in the fire() branch.
-import { SHAPES, type ShapeDef } from './shapes';
-import { EASES, type ReactConfig, type LayerConfig, type ColorMode } from './reactConfig';
+import { SHAPES, type ShapeDef, type CustomPathPart } from './shapes';
+import { EASES, type ReactConfig, type LayerConfig, type ColorMode, type GlowColorMode } from './reactConfig';
 
 const n = (x: number) => Number(x.toFixed(3)).toString();
 
 function shapeDef(layer: LayerConfig): ShapeDef {
   if (layer.shape === 'custom') {
-    return { render: 'path', viewBox: '0 0 24 24', d: layer.customPath || SHAPES.heart.d };
+    return {
+      render: 'path',
+      viewBox: layer.customViewBox || '0 0 24 24',
+      d: layer.customPath || SHAPES.heart.d,
+      paths: layer.customPaths.length ? layer.customPaths : undefined,
+    };
   }
   return SHAPES[layer.shape];
+}
+
+const attr = (value: string) => value.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+
+function pathParts(sd: ShapeDef): CustomPathPart[] {
+  return sd.paths?.length ? sd.paths : [{ d: sd.d ?? '' }];
 }
 
 // per-particle colour expression, evaluated in the generated fire()
@@ -26,10 +37,11 @@ function colorExpr(mode: ColorMode, colors: string[]): string {
   return `[${arr}][Math.floor(Math.random() * ${colors.length})]`;
 }
 
-// per-particle fixed glow, evaluated in fire() (only when glowMode === 'fixed')
-function glowExpr(layer: LayerConfig): string {
-  if (layer.glowColor === 'auto') return `'drop-shadow(0 0 ${layer.glowBlur}px currentColor)'`;
-  return `'drop-shadow(0 0 ${layer.glowBlur}px ${layer.glowColor})'`;
+function glowColorExpr(mode: GlowColorMode, colors: string[], fillName: string): string {
+  if (mode === 'auto') return fillName;
+  if (colors.length === 1) return `'${colors[0]}'`;
+  const arr = colors.map((c) => `'${c}'`).join(', ');
+  return `[${arr}][Math.floor(Math.random() * ${colors.length})]`;
 }
 
 function txExpr(layer: LayerConfig): string {
@@ -60,12 +72,17 @@ export function generate(cfg: ReactConfig): Generated {
   const id = cfg.id || 'my_react';
   const Cap = id.replace(/(^|_)([a-z])/g, (_, __, c) => c.toUpperCase());
   const layers = cfg.layers;
-  const anyFixedGlow = layers.some((l) => l.glowMode === 'fixed');
   const anyFountain = layers.some((l) => l.direction === 'fountain');
   const anyConverge = layers.some((l) => l.direction === 'converge');
   const anySizeEnvelope = layers.some((l) => l.sizeEnvelope);
   const anyColorEnvelope = layers.some(
     (l) => l.colorMidMode !== 'hold' || l.colorEndMode !== 'hold',
+  );
+  const anyGlowEnvelope = layers.some(
+    (l) => l.glowMode !== 'none' && (
+      l.glowEnvelope
+      || (l.glowMode === 'fixed' && (l.glowColorMidMode !== 'hold' || l.glowColorEndMode !== 'hold'))
+    ),
   );
   const lifeMs = Math.round(
     Math.max(...layers.map((l) => l.layerDelay + l.spawnWindow + l.durMax)) * 1000 + 400,
@@ -77,11 +94,12 @@ export function generate(cfg: ReactConfig): Generated {
 
   const script = `  // ${cfg.label} — ${cfg.register}
   interface ${Cap}P {
-    id: number; x: number; size: number; color: string; colorMid: string; colorEnd: string; delay: number;
+    id: number; x: number; size: number; color: string; colorMid: string; colorEnd: string;
+    glowColor: string; glowColorMid: string; glowColorEnd: string; delay: number;
     dur: number; op: number; inDur: number; outDelay: number; outDur: number;
     envMidDur: number; envEndDelay: number; envEndDur: number;
     rotEnd: number; swayAmp: number; swayDur: number; swayPhase: number;
-    tx: string; ty: string;${anyFountain ? ' apex: number;' : ''}${anyConverge ? ' fromX: number; fromY: number;' : ''}${anyFixedGlow ? ' glow: string;' : ''}
+    tx: string; ty: string;${anyFountain ? ' apex: number;' : ''}${anyConverge ? ' fromX: number; fromY: number;' : ''}
   }
 ${arrayNames.map((a) => `  let ${a}: ${Cap}P[] = [];`).join('\n')}
   let ${id}Timer: ReturnType<typeof setTimeout>;`;
@@ -94,7 +112,6 @@ ${arrayNames.map((a) => `  let ${a}: ${Cap}P[] = [];`).join('\n')}
       const swayRange = l.swayMax - l.swayMin;
       const sizeRange = l.sizeMax - l.sizeMin;
       const opRange = l.opacityMax - l.opacityMin;
-      const fixedGlow = l.glowMode === 'fixed';
       // depth-linked: one sample drives size/speed/opacity; else independent
       const sampled = l.depthLink
         ? `const t = Math.random(); // depth: 0 far, 1 near
@@ -125,6 +142,9 @@ ${arrayNames.map((a) => `  let ${a}: ${Cap}P[] = [];`).join('\n')}
         const color = ${colorExpr(l.colorMode, l.colors)};
         const colorMid = ${l.colorMidMode === 'hold' ? 'color' : colorExpr(l.colorMidMode, l.colorsMid)};
         const colorEnd = ${l.colorEndMode === 'hold' ? 'colorMid' : colorExpr(l.colorEndMode, l.colorsEnd)};
+        const glowColor = ${l.glowMode === 'fixed' ? glowColorExpr(l.glowColorMode, l.glowColors, 'color') : 'color'};
+        const glowColorMid = ${l.glowMode === 'fixed' ? (l.glowColorMidMode === 'hold' ? 'glowColor' : glowColorExpr(l.glowColorMidMode, l.glowColorsMid, 'colorMid')) : 'colorMid'};
+        const glowColorEnd = ${l.glowMode === 'fixed' ? (l.glowColorEndMode === 'hold' ? 'glowColorMid' : glowColorExpr(l.glowColorEndMode, l.glowColorsEnd, 'colorEnd')) : 'colorEnd'};
         b${k + 1}.push({
           id: burstId++,
           x: 4 + Math.random() * 92,
@@ -132,6 +152,9 @@ ${arrayNames.map((a) => `  let ${a}: ${Cap}P[] = [];`).join('\n')}
           color,
           colorMid,
           colorEnd,
+          glowColor,
+          glowColorMid,
+          glowColorEnd,
           delay,
           dur,
           op,
@@ -146,7 +169,7 @@ ${arrayNames.map((a) => `  let ${a}: ${Cap}P[] = [];`).join('\n')}
           swayDur,
           swayPhase: Math.random() * swayDur,
           tx: ${txExpr(l)},
-          ty: ${tyExpr(l)},${anyFountain ? `\n          apex: ${l.direction === 'fountain' ? `${n(l.arcApex * 0.7)} + Math.random() * ${n(l.arcApex * 0.3)}` : '0'},` : ''}${anyConverge ? `\n          fromX: ${l.direction === 'converge' ? 'Math.cos(fromAngle * Math.PI / 180) * fromDistance' : '0'},\n          fromY: ${l.direction === 'converge' ? 'Math.sin(fromAngle * Math.PI / 180) * fromDistance * 0.7' : '0'},` : ''}${anyFixedGlow ? `\n          glow: ${fixedGlow ? glowExpr(l) : `''`},` : ''}
+          ty: ${tyExpr(l)},${anyFountain ? `\n          apex: ${l.direction === 'fountain' ? `${n(l.arcApex * 0.7)} + Math.random() * ${n(l.arcApex * 0.3)}` : '0'},` : ''}${anyConverge ? `\n          fromX: ${l.direction === 'converge' ? 'Math.cos(fromAngle * Math.PI / 180) * fromDistance' : '0'},\n          fromY: ${l.direction === 'converge' ? 'Math.sin(fromAngle * Math.PI / 180) * fromDistance * 0.7' : '0'},` : ''}
         });
       }
       ${arr} = b${k + 1};`;
@@ -167,24 +190,20 @@ ${arrayNames.map((a) => `        ${a} = [];`).join('\n')}
       const arr = arrayNames[k];
       const cls = layers.length === 1 ? id : `${id}-l${k + 1}`;
       const sd = shapeDef(l);
-      const fixedGlow = l.glowMode === 'fixed';
-      const adaptiveGlow = l.glowMode === 'adaptive';
-      const shapeAttr = fixedGlow
-        ? ` style="filter:{p.glow};"`
-        : adaptiveGlow
-          ? ` style="--rim:${n(l.glowBlur)}px;"`
-          : '';
       const shapeInner =
         sd.render === 'path'
-          ? `            <svg viewBox="${sd.viewBox}" width={p.size} height={p.size} style="display:block;">
-              <path fill="currentColor" d="${sd.d}" />
+          ? `            <svg viewBox="${attr(sd.viewBox ?? '0 0 24 24')}" width={p.size} height={p.size} style="display:block;">
+${pathParts(sd).map((part) => `              <path fill="currentColor" d="${attr(part.d)}"${part.transform ? ` transform="${attr(part.transform)}"` : ''}${part.fillRule ? ` fill-rule="${part.fillRule}"` : ''} />`).join('\n')}
             </svg>`
           : `            <span style="display:block; width:{p.size}px; height:{p.size}px; background:currentColor; border-radius:${sd.radius};"></span>`;
-      const shapeMarkup = `          <span class="${cls}-shape"${shapeAttr}>
+      const shapeMarkup = `            <span class="${cls}-shape">
 ${shapeInner}
+            </span>`;
+      const glowMarkup = `          <span class="${cls}-glow">
+${shapeMarkup}
           </span>`;
       const swayMarkup = `        <span class="${id}-sway">
-${shapeMarkup}
+${glowMarkup}
         </span>`;
       const colorMarkup = `      <span class="${cls}-color">
 ${swayMarkup}
@@ -205,7 +224,7 @@ ${scaleMarkup}
   {#each ${arr} as p (p.id)}
     <span
       class="${cls}"
-      style="${leftAttr}--size:{p.size}px; --dur:{p.dur}s; --delay:{p.delay}s; --op:{p.op}; --indur:{p.inDur}s; --outdelay:{p.outDelay}s; --outdur:{p.outDur}s; --envmiddur:{p.envMidDur}s; --envenddelay:{p.envEndDelay}s; --envenddur:{p.envEndDur}s; --tx:{p.tx}; --ty:{p.ty}; --s0:${n(l.scaleFrom)}; --sm:${n(l.scaleMid)}; --s1:${n(l.scaleTo)}; --c0:{p.color}; --cm:{p.colorMid}; --c1:{p.colorEnd}; --sway:{p.swayAmp}px; --swaydur:{p.swayDur}s; --swayphase:{p.swayPhase}s; --rot:{p.rotEnd}deg;${apexVar}${convergeVars}"
+      style="${leftAttr}--size:{p.size}px; --dur:{p.dur}s; --delay:{p.delay}s; --op:{p.op}; --indur:{p.inDur}s; --outdelay:{p.outDelay}s; --outdur:{p.outDur}s; --envmiddur:{p.envMidDur}s; --envenddelay:{p.envEndDelay}s; --envenddur:{p.envEndDur}s; --tx:{p.tx}; --ty:{p.ty}; --s0:${n(l.scaleFrom)}; --sm:${n(l.scaleMid)}; --s1:${n(l.scaleTo)}; --c0:{p.color}; --cm:{p.colorMid}; --c1:{p.colorEnd}; --gb0:${n(l.glowBlur)}px; --gbm:${n(l.glowEnvelope ? l.glowBlurMid : l.glowBlur)}px; --gb1:${n(l.glowEnvelope ? l.glowBlurEnd : l.glowBlur)}px; --fgc0:{p.glowColor}; --fgcm:{p.glowColorMid}; --fgc1:{p.glowColorEnd}; --sway:{p.swayAmp}px; --swaydur:{p.swayDur}s; --swayphase:{p.swayPhase}s; --rot:{p.rotEnd}deg;${apexVar}${convergeVars}"
     >
 ${inner}
     </span>
@@ -224,6 +243,11 @@ ${inner}
             ? 'top: 50%; left: 50%; margin-top: calc(var(--size) / -2);'
             : 'bottom: calc(-1 * var(--size) - 10px);'; // rise + fountain
       const adaptiveGlow = l.glowMode === 'adaptive';
+      const hasGlow = l.glowMode !== 'none';
+      const glowEnvelope = hasGlow && (
+        l.glowEnvelope
+        || (l.glowMode === 'fixed' && (l.glowColorMidMode !== 'hold' || l.glowColorEndMode !== 'hold'))
+      );
       const travelAnim = l.sizeEnvelope
         ? l.direction === 'converge' ? `${id}-converge-pos` : `${id}-travel-pos`
         : l.direction === 'converge' ? `${id}-converge` : `${id}-travel`;
@@ -242,6 +266,37 @@ ${inner}
         : '';
       const spinAnim = l.spin
         ? `\n    animation: ${id}-spin var(--dur) linear var(--delay) both;`
+        : '';
+      const glowAnim = glowEnvelope
+        ? `
+    animation:
+      ${id}-glow-a var(--envmiddur) linear var(--delay) both,
+      ${id}-glow-b var(--envenddur) linear var(--envenddelay) forwards;`
+        : '';
+      const glowCss = hasGlow
+        ? `
+  .${cls}-glow {
+    display: block;
+    filter: drop-shadow(0 0 var(--gb0) var(--gc0, var(--fgc0)));${glowAnim}
+  }`
+        : `
+  .${cls}-glow { display: block; }`;
+      const adaptiveCss = adaptiveGlow
+        ? `
+  /* adaptive readability halo: light on dark themes, soft dark on light */
+  :global([data-theme='dark']) .${cls}-glow {
+    --gc0: rgba(255, 255, 255, 0.35);
+    --gcm: rgba(255, 255, 255, 0.35);
+    --gc1: rgba(255, 255, 255, 0.35);
+  }
+  :global([data-theme='light']) .${cls}-glow {
+    --gc0: rgba(40, 30, 30, 0.32);
+    --gcm: rgba(40, 30, 30, 0.32);
+    --gc1: rgba(40, 30, 30, 0.32);
+  }
+  :global([data-theme='dark']) .${cls}-shape {
+    filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.6));
+  }`
         : '';
       return `  /* layer ${k + 1}: ${l.name} */
   .${cls} {
@@ -264,21 +319,10 @@ ${inner}
   .${cls}-color {
     display: block;
     color: var(--c0);${colorAnim}
-  }
+  }${glowCss}
   .${cls}-shape {
     display: block;${spinAnim}
-  }${
-    adaptiveGlow
-      ? `
-  /* adaptive readability rim: light on dark themes, soft dark on light */
-  :global([data-theme='dark']) .${cls}-shape {
-    filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.6)) drop-shadow(0 0 var(--rim, 6px) rgba(255, 255, 255, 0.35));
-  }
-  :global([data-theme='light']) .${cls}-shape {
-    filter: drop-shadow(0 0 var(--rim, 6px) rgba(40, 30, 30, 0.32));
-  }`
-      : ''
-  }`;
+  }${adaptiveCss}`;
     })
     .join('\n');
 
@@ -338,6 +382,18 @@ ${inner}
   }`
     : '';
 
+  const glowEnvelopeCss = anyGlowEnvelope
+    ? `
+  @keyframes ${id}-glow-a {
+    from { filter: drop-shadow(0 0 var(--gb0) var(--gc0, var(--fgc0))); }
+    to { filter: drop-shadow(0 0 var(--gbm) var(--gcm, var(--fgcm))); }
+  }
+  @keyframes ${id}-glow-b {
+    from { filter: drop-shadow(0 0 var(--gbm) var(--gcm, var(--fgcm))); }
+    to { filter: drop-shadow(0 0 var(--gb1) var(--gc1, var(--fgc1))); }
+  }`
+    : '';
+
   const css = `${layerCss}
   @keyframes ${id}-travel {
     from { transform: translate(0, 0) scale(var(--s0, 1)); }
@@ -352,7 +408,7 @@ ${inner}
   @keyframes ${id}-out {
     from { opacity: var(--op); }
     to { opacity: 0; }
-  }${arcCss}${convergeCss}${sizeEnvelopeCss}${colorEnvelopeCss}
+  }${arcCss}${convergeCss}${sizeEnvelopeCss}${colorEnvelopeCss}${glowEnvelopeCss}
   .${id}-sway {
     display: block;
     animation: ${id}-sway var(--swaydur) ease-in-out calc(-1 * var(--swayphase)) infinite alternate;

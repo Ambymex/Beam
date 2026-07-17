@@ -11,7 +11,14 @@
   $: if (active >= config.layers.length) active = config.layers.length - 1;
   $: layer = config.layers[active];
 
-  const bump = () => (config = config);
+  const bump = () => {
+    // Keep the old single-colour field meaningful for saved drafts made by
+    // earlier Studio versions.
+    layer.glowColor = layer.glowColorMode === 'auto'
+      ? 'auto'
+      : (layer.glowColors[0] ?? '#ffffff');
+    config = config;
+  };
 
   function loadPreset(key: string) {
     config = migrateConfig(PRESETS[key]);
@@ -32,6 +39,10 @@
       colors: [...layer.colors],
       colorsMid: [...layer.colorsMid],
       colorsEnd: [...layer.colorsEnd],
+      glowColors: [...layer.glowColors],
+      glowColorsMid: [...layer.glowColorsMid],
+      glowColorsEnd: [...layer.glowColorsEnd],
+      customPaths: layer.customPaths.map((part) => ({ ...part })),
     };
     config.layers = [...config.layers.slice(0, active + 1), copy, ...config.layers.slice(active + 1)];
     active = active + 1;
@@ -66,6 +77,18 @@
   }
   function removeEndColor(i: number) {
     layer.colorsEnd = layer.colorsEnd.filter((_, j) => j !== i);
+    bump();
+  }
+  function addGlowColor(stop: 'start' | 'middle' | 'end') {
+    if (stop === 'start') layer.glowColors = [...layer.glowColors, '#ffffff'];
+    if (stop === 'middle') layer.glowColorsMid = [...layer.glowColorsMid, '#ffffff'];
+    if (stop === 'end') layer.glowColorsEnd = [...layer.glowColorsEnd, '#ffffff'];
+    bump();
+  }
+  function removeGlowColor(stop: 'start' | 'middle' | 'end', i: number) {
+    if (stop === 'start') layer.glowColors = layer.glowColors.filter((_, j) => j !== i);
+    if (stop === 'middle') layer.glowColorsMid = layer.glowColorsMid.filter((_, j) => j !== i);
+    if (stop === 'end') layer.glowColorsEnd = layer.glowColorsEnd.filter((_, j) => j !== i);
     bump();
   }
   // keep the id a safe snake_case identifier as they type
@@ -234,8 +257,16 @@
     </label>
     {#if layer.shape === 'custom'}
       <div class="field col">
-        <span>Custom shape (24×24 grid)</span>
-        <CustomShape bind:path={layer.customPath} on:change={bump} />
+        <span>Custom shape</span>
+        {#key active}
+          <CustomShape
+            bind:path={layer.customPath}
+            bind:viewBox={layer.customViewBox}
+            bind:paths={layer.customPaths}
+            bind:sourceName={layer.customShapeName}
+            on:change={bump}
+          />
+        {/key}
       </div>
     {/if}
     <div class="pair">
@@ -310,7 +341,7 @@
 
   <section>
     <h3>Change over time · {layer.name}</h3>
-    <p class="hint">Size and colour share one middle beat, so a bloom or colour-turn reads as a single thought rather than two unrelated effects.</p>
+    <p class="hint">Size, colour and glow share one middle beat, so a bloom or colour-turn reads as a single thought rather than unrelated effects.</p>
     <label class="field check">
       <input type="checkbox" bind:checked={layer.sizeEnvelope} on:change={bump} />
       <span>Three-point size envelope</span>
@@ -389,7 +420,7 @@
       </div>
     {/if}
 
-    {#if layer.sizeEnvelope || layer.colorMidMode !== 'hold' || layer.colorEndMode !== 'hold'}
+    {#if layer.sizeEnvelope || layer.colorMidMode !== 'hold' || layer.colorEndMode !== 'hold' || layer.glowEnvelope || (layer.glowMode === 'fixed' && (layer.glowColorMidMode !== 'hold' || layer.glowColorEndMode !== 'hold'))}
       <label class="field">
         <span>Middle arrives <b>{layer.envelopeMidPct}%</b></span>
         <input type="range" min="10" max="90" bind:value={layer.envelopeMidPct} on:input={bump} />
@@ -440,25 +471,96 @@
       </select>
     </label>
     {#if layer.glowMode !== 'none'}
-      <label class="field">
-        <span>Glow strength <b>{layer.glowBlur}px</b></span>
-        <input type="range" min="1" max="16" bind:value={layer.glowBlur} on:input={bump} />
+      <label class="field check">
+        <input type="checkbox" bind:checked={layer.glowEnvelope} on:change={bump} />
+        <span>Three-point glow strength</span>
       </label>
+      {#if layer.glowEnvelope}
+        <div class="triple">
+          <label class="field">
+            <span>Start <b>{layer.glowBlur}px</b></span>
+            <input type="range" min="0" max="24" bind:value={layer.glowBlur} on:input={bump} />
+          </label>
+          <label class="field">
+            <span>Middle <b>{layer.glowBlurMid}px</b></span>
+            <input type="range" min="0" max="24" bind:value={layer.glowBlurMid} on:input={bump} />
+          </label>
+          <label class="field">
+            <span>End <b>{layer.glowBlurEnd}px</b></span>
+            <input type="range" min="0" max="24" bind:value={layer.glowBlurEnd} on:input={bump} />
+          </label>
+        </div>
+      {:else}
+        <label class="field">
+          <span>Glow strength <b>{layer.glowBlur}px</b></span>
+          <input type="range" min="0" max="24" bind:value={layer.glowBlur} on:input={bump} />
+        </label>
+      {/if}
     {/if}
     {#if layer.glowMode === 'fixed'}
-      <label class="field check">
-        <input
-          type="checkbox"
-          checked={layer.glowColor === 'auto'}
-          on:change={(e) => { layer.glowColor = e.currentTarget.checked ? 'auto' : '#ffffff'; bump(); }}
-        />
-        <span>Auto glow colour (follows the particle)</span>
+      <label class="field">
+        <span>Start glow colour</span>
+        <select bind:value={layer.glowColorMode} on:change={bump}>
+          <option value="auto">Follow particle</option>
+          <option value="fixed">Fixed colour(s)</option>
+        </select>
       </label>
-      {#if layer.glowColor !== 'auto'}
-        <label class="field">
-          <span>Glow colour</span>
-          <input type="color" bind:value={layer.glowColor} on:input={bump} />
-        </label>
+      {#if layer.glowColorMode === 'fixed'}
+        <div class="colors">
+          {#each layer.glowColors as c, i}
+            <div class="color-chip">
+              <input type="color" bind:value={layer.glowColors[i]} on:input={bump} />
+              {#if layer.glowColors.length > 1}
+                <button class="x" on:click={() => removeGlowColor('start', i)} aria-label="Remove start glow colour">✕</button>
+              {/if}
+            </div>
+          {/each}
+          <button class="add-color" on:click={() => addGlowColor('start')} title="Add a start glow colour">＋</button>
+        </div>
+      {/if}
+
+      <label class="field">
+        <span>Middle glow colour</span>
+        <select bind:value={layer.glowColorMidMode} on:change={bump}>
+          <option value="hold">Hold start</option>
+          <option value="auto">Follow particle</option>
+          <option value="fixed">Fixed colour(s)</option>
+        </select>
+      </label>
+      {#if layer.glowColorMidMode === 'fixed'}
+        <div class="colors">
+          {#each layer.glowColorsMid as c, i}
+            <div class="color-chip">
+              <input type="color" bind:value={layer.glowColorsMid[i]} on:input={bump} />
+              {#if layer.glowColorsMid.length > 1}
+                <button class="x" on:click={() => removeGlowColor('middle', i)} aria-label="Remove middle glow colour">✕</button>
+              {/if}
+            </div>
+          {/each}
+          <button class="add-color" on:click={() => addGlowColor('middle')} title="Add a middle glow colour">＋</button>
+        </div>
+      {/if}
+
+      <label class="field">
+        <span>End glow colour</span>
+        <select bind:value={layer.glowColorEndMode} on:change={bump}>
+          <option value="hold">Hold middle</option>
+          <option value="auto">Follow particle</option>
+          <option value="fixed">Fixed colour(s)</option>
+        </select>
+      </label>
+      {#if layer.glowColorEndMode === 'fixed'}
+        <div class="colors">
+          {#each layer.glowColorsEnd as c, i}
+            <div class="color-chip">
+              <input type="color" bind:value={layer.glowColorsEnd[i]} on:input={bump} />
+              {#if layer.glowColorsEnd.length > 1}
+                <button class="x" on:click={() => removeGlowColor('end', i)} aria-label="Remove end glow colour">✕</button>
+              {/if}
+            </div>
+          {/each}
+          <button class="add-color" on:click={() => addGlowColor('end')} title="Add an end glow colour">＋</button>
+        </div>
       {/if}
     {/if}
     {#if layer.glowMode === 'adaptive'}
@@ -605,16 +707,6 @@
   }
   .field textarea { resize: vertical; }
   .field.check input { width: auto; accent-color: var(--signal); }
-  .field input[type='color'] {
-    flex: 0 0 auto;
-    width: 44px;
-    height: 28px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: none;
-    cursor: pointer;
-    padding: 2px;
-  }
   .pair { display: flex; gap: 10px; }
   .pair .field { flex: 1 1 0; flex-direction: column; align-items: stretch; gap: 4px; }
   .pair .field input[type='range'] { max-width: none; }
