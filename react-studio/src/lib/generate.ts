@@ -389,7 +389,8 @@ ${markup}
 /* 5 — CSS (inside <style>) */
 ${css}
 
-/* 6 — companion prompt line (REACTS section of ChatCompanion.svelte) */
+/* 6 — roster entry (src/lib/reactRoster.ts — perennial, or add
+   when: { seasons: […] } / { themes: […] } for a guest star) */
 ${prompt}
 `;
 

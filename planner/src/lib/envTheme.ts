@@ -6,6 +6,7 @@ const PALETTES = PALETTES_JSON as Record<string, Record<string, string>>;
 
 export interface EnvThemeState {
   themeName: string;
+  activePal: string; // the palette KEY in force (incl. overrides): 'storm', 'sweet', 'night_full', 'custom'…
   solarPhase: string;
   lunarPhase: string;
   lunarPhaseName: string;
@@ -24,6 +25,7 @@ export interface EnvThemeState {
 
 const DEFAULT_STATE: EnvThemeState = {
   themeName: 'day',
+  activePal: 'day',
   solarPhase: 'day',
   lunarPhase: 'new',
   lunarPhaseName: 'New Moon',
@@ -295,6 +297,7 @@ export function updateTheme() {
   
   envThemeState.set({
     themeName,
+    activePal,
     solarPhase,
     lunarPhase: lunar.id,
     lunarPhaseName: lunar.name,

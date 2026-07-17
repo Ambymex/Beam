@@ -160,9 +160,16 @@ merges, pools), `cherry_blossoms` (playful cuteness — puff + flutter),
 works).
 
 All reacts are **pure CSS kinetics** (transform/opacity, GPU-composited),
-choreographed not simulated, self-removing from the DOM. Adding one touches:
-`REACT_IDS`, state+interface, a `fire()` branch, markup, CSS — plus the
-schema line and REACTS register description in ChatCompanion's prompt. A
+choreographed not simulated, self-removing from the DOM. **Armoury vs
+loadout (2026-07-17)**: `REACT_IDS` is the armoury — everything BUILT, the
+render-safety whitelist, never shrinks. **`src/lib/reactRoster.ts` is the
+loadout** — what the prompt advertises each turn: perennials always,
+guest stars by season (southern hemisphere) and/or active theme palette.
+Register lines live in the roster now, NOT in ChatCompanion's prompt text
+(the prompt splices `reactSchemaUnion()`/`reactRegisterLines()` per turn).
+Adding a react touches: `REACT_IDS`, state+interface, a `fire()` branch,
+markup, CSS — plus ONE roster entry (omit `when` = perennial). Keep the
+advertised loadout ~8–12. A
 react is **earned**; the prompt teaches restraint. The easiest path: build it
 in **React Studio**, Export code, paste the six labelled sections. (Since
 2026-07-10 the studio does multi-layer reacts, easing curves, fade/scale
@@ -277,7 +284,9 @@ and would merge into her chat). A FK error from `schedule-push` with a fake
 install_id = deployed and healthy.
 
 **Add a react** — React Studio → Export → paste 6 sections; or hand-write
-following any existing react. Always: whitelist + prompt register line.
+following any existing react. Always: whitelist (`REACT_IDS`) + a roster
+entry in `reactRoster.ts` (perennial, or `when: { seasons/themes }` for a
+guest star).
 
 **Add a theme** — `themes.json` entry (copy `day`'s key set; keep rgba format
 on surfaces; dark themes need `--app-bg` luminance < 0.45), dropdown option in
