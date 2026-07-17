@@ -1,7 +1,7 @@
 <script context="module" lang="ts">
   // The react vocabulary. The companion picks one (or none) per message via
   // the top-level "react" field; anything not in this list is ignored.
-  export const REACT_IDS = ['black_hearts', 'sparks', 'tungsten_strike', 'liquid_hearts', 'cherry_blossoms', 'sleepy_stars', 'rose_throw'];
+  export const REACT_IDS = ['black_hearts', 'sparks', 'tungsten_strike', 'liquid_hearts', 'cherry_blossoms', 'sleepy_stars', 'rose_throw', 'soft_wish'];
 </script>
 
 <script lang="ts">
@@ -197,6 +197,17 @@
   let rose_throw_l1: RoseThrowP[] = [];
   let rose_throw_l2: RoseThrowP[] = [];
   let rose_throwTimer: ReturnType<typeof setTimeout>;
+
+  // Soft Wish — Like a dandelion blown onto, carrying a wish on the wind
+  interface SoftWishP {
+    id: number; x: number; size: number; color: string; colorMid: string; colorEnd: string; delay: number;
+    dur: number; op: number; inDur: number; outDelay: number; outDur: number;
+    envMidDur: number; envEndDelay: number; envEndDur: number;
+    rotEnd: number; swayAmp: number; swayDur: number; swayPhase: number;
+    tx: string; ty: string;
+  }
+  let soft_wish: SoftWishP[] = [];
+  let soft_wishTimer: ReturnType<typeof setTimeout>;
 
   function pickBlossomSize(): number {
     // 60–75% of the ~13px ambient petal — delicate, not aggressive
@@ -443,6 +454,50 @@
         rose_throw_l1 = [];
         rose_throw_l2 = [];
       }, 5800);
+    } else if (type === 'soft_wish') {
+      // layer 1: Layer 1
+      const b1: SoftWishP[] = [];
+      for (let i = 0; i < 48; i++) {
+        const t = Math.random(); // depth: 0 far, 1 near
+        const size = Math.round(9 + t * 11);
+        const dur = 7.5 - t * 2.3;
+        const op = 0.65 + (0.3 + t * 0.7) * 0.1;
+        const swayDur = 1.2 + Math.random() * 0.9;
+        const delay = 0 + Math.random() * 1.6;
+        const angle = Math.random() * 360;
+        const distance = 20 + Math.random() * 22;
+        const color = 'var(--signal-contrast)';
+        const colorMid = 'var(--signal)';
+        const colorEnd = colorMid;
+        b1.push({
+          id: burstId++,
+          x: 4 + Math.random() * 92,
+          size,
+          color,
+          colorMid,
+          colorEnd,
+          delay,
+          dur,
+          op,
+          inDur: +(dur * 0.39).toFixed(3),
+          outDelay: +(delay + dur * 0.59).toFixed(3),
+          outDur: +(dur * 0.41).toFixed(3),
+          envMidDur: +(dur * 0.46).toFixed(3),
+          envEndDelay: +(delay + dur * 0.46).toFixed(3),
+          envEndDur: +(dur * 0.54).toFixed(3),
+          rotEnd: (Math.random() < 0.5 ? -1 : 1) * 129 * dur,
+          swayAmp: 9.6 + Math.random() * 6.4,
+          swayDur,
+          swayPhase: Math.random() * swayDur,
+          tx: `${(Math.cos(angle * Math.PI / 180) * distance).toFixed(1)}vmin`,
+          ty: `${(Math.sin(angle * Math.PI / 180) * distance * 0.7 + 8).toFixed(1)}vmin`,
+        });
+      }
+      soft_wish = b1;
+      clearTimeout(soft_wishTimer);
+      soft_wishTimer = setTimeout(() => {
+        soft_wish = [];
+      }, 9500);
     } else if (type === 'tungsten_strike') {
       strikeTimers.forEach(clearTimeout);
       // Drop the node first so a rapid re-fire restarts the CSS animations.
@@ -630,6 +685,26 @@
           </span>
         </span>
       </span>
+    </span>
+  {/each}
+
+  <!-- Soft Wish, layer 1: Layer 1 -->
+  {#each soft_wish as p (p.id)}
+    <span
+      class="soft_wish"
+      style="--size:{p.size}px; --dur:{p.dur}s; --delay:{p.delay}s; --op:{p.op}; --indur:{p.inDur}s; --outdelay:{p.outDelay}s; --outdur:{p.outDur}s; --envmiddur:{p.envMidDur}s; --envenddelay:{p.envEndDelay}s; --envenddur:{p.envEndDur}s; --tx:{p.tx}; --ty:{p.ty}; --s0:0.3; --sm:1.45; --s1:0.72; --c0:{p.color}; --cm:{p.colorMid}; --c1:{p.colorEnd}; --sway:{p.swayAmp}px; --swaydur:{p.swayDur}s; --swayphase:{p.swayPhase}s; --rot:{p.rotEnd}deg;"
+    >
+    <span class="soft_wish-scale">
+      <span class="soft_wish-color">
+        <span class="soft_wish-sway">
+          <span class="soft_wish-shape" style="--rim:6px;">
+            <svg viewBox="0 0 24 24" width={p.size} height={p.size} style="display:block;">
+              <path fill="currentColor" d="M12 23 L10.7 12 L12 1 L13.3 12 Z M21.5 17.5 L11.4 13.1 L2.5 6.5 L12.7 10.9 Z M2.5 17.5 L11.4 10.9 L21.5 6.5 L12.7 13.1 Z" />
+            </svg>
+          </span>
+        </span>
+      </span>
+    </span>
     </span>
   {/each}
 </div>
@@ -1061,6 +1136,92 @@
     to { transform: translateX(var(--sway)); }
   }
   @keyframes rose_throw-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(var(--rot)); }
+  }
+
+  /* layer 1: Layer 1 */
+  .soft_wish {
+    position: absolute;
+    width: var(--size);
+    height: var(--size);
+    margin-left: calc(var(--size) / -2);
+    top: 50%; left: 50%; margin-top: calc(var(--size) / -2);
+    --s0: 0.3;
+    --sm: 1.45;
+    --s1: 0.72;
+    animation:
+      soft_wish-travel-pos var(--dur) cubic-bezier(0.2, 0.7, 0.3, 1) var(--delay) both,
+      soft_wish-in var(--indur) linear var(--delay) both,
+      soft_wish-out var(--outdur) linear var(--outdelay) forwards;
+  }
+  .soft_wish-scale {
+    display: block;
+    animation:
+      soft_wish-scale-a var(--envmiddur) cubic-bezier(0.2, 0.7, 0.3, 1) var(--delay) both,
+      soft_wish-scale-b var(--envenddur) cubic-bezier(0.2, 0.7, 0.3, 1) var(--envenddelay) forwards;
+  }
+  .soft_wish-color {
+    display: block;
+    color: var(--c0);
+    animation:
+      soft_wish-color-a var(--envmiddur) linear var(--delay) both,
+      soft_wish-color-b var(--envenddur) linear var(--envenddelay) forwards;
+  }
+  .soft_wish-shape {
+    display: block;
+    animation: soft_wish-spin var(--dur) linear var(--delay) both;
+  }
+  /* adaptive readability rim: light on dark themes, soft dark on light */
+  :global([data-theme='dark']) .soft_wish-shape {
+    filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.6)) drop-shadow(0 0 var(--rim, 6px) rgba(255, 255, 255, 0.35));
+  }
+  :global([data-theme='light']) .soft_wish-shape {
+    filter: drop-shadow(0 0 var(--rim, 6px) rgba(40, 30, 30, 0.32));
+  }
+  @keyframes soft_wish-travel {
+    from { transform: translate(0, 0) scale(var(--s0, 1)); }
+    to { transform: translate(var(--tx), var(--ty)) scale(var(--s1, 1)); }
+  }
+  /* fade envelope: rise to --op over --indur, hold, fall over --outdur.
+     soft_wish-out has NO backwards fill — soft_wish-in owns the early frames. */
+  @keyframes soft_wish-in {
+    from { opacity: 0; }
+    to { opacity: var(--op); }
+  }
+  @keyframes soft_wish-out {
+    from { opacity: var(--op); }
+    to { opacity: 0; }
+  }
+  @keyframes soft_wish-travel-pos {
+    from { transform: translate(0, 0); }
+    to { transform: translate(var(--tx), var(--ty)); }
+  }
+  @keyframes soft_wish-scale-a {
+    from { transform: scale(var(--s0, 1)); }
+    to { transform: scale(var(--sm, 1)); }
+  }
+  @keyframes soft_wish-scale-b {
+    from { transform: scale(var(--sm, 1)); }
+    to { transform: scale(var(--s1, 1)); }
+  }
+  @keyframes soft_wish-color-a {
+    from { color: var(--c0); }
+    to { color: var(--cm); }
+  }
+  @keyframes soft_wish-color-b {
+    from { color: var(--cm); }
+    to { color: var(--c1); }
+  }
+  .soft_wish-sway {
+    display: block;
+    animation: soft_wish-sway var(--swaydur) ease-in-out calc(-1 * var(--swayphase)) infinite alternate;
+  }
+  @keyframes soft_wish-sway {
+    from { transform: translateX(calc(-1 * var(--sway))); }
+    to { transform: translateX(var(--sway)); }
+  }
+  @keyframes soft_wish-spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(var(--rot)); }
   }
