@@ -215,6 +215,33 @@ export function coach(cfg: ReactConfig): CoachNote[] {
     );
   }
 
+  // 10 — change with intention. Static colour/size is a valid choice; once a
+  // layer changes, the shared middle stop should feel like phrasing, not an
+  // accidental jump crowded against one end of the timeline.
+  {
+    const changing = layers.filter(
+      (l) => l.sizeEnvelope || l.colorMidMode !== 'hold' || l.colorEndMode !== 'hold',
+    );
+    const crowded = changing.filter((l) => l.envelopeMidPct < 20 || l.envelopeMidPct > 80);
+    notes.push(
+      crowded.length
+        ? {
+            id: 'change',
+            title: 'Change with intention',
+            kind: 'tip',
+            note: `${crowded.map((l) => name(l, layers.indexOf(l))).join(', ')} puts its middle stop near an edge. That creates a deliberate snap; move it toward 40–60% if you meant the size and colour to breathe through two readable phases.`,
+          }
+        : {
+            id: 'change',
+            title: 'Change with intention',
+            kind: 'ok',
+            note: changing.length
+              ? 'Size and colour changes have room on both sides of their middle beat — the transformation reads as phrasing.'
+              : 'Size and colour stay stable by choice — motion does not need every available axis at once.',
+          },
+    );
+  }
+
   // nudges first, then tips, then satisfied principles
   const order = { nudge: 0, tip: 1, ok: 2 } as const;
   return notes.sort((a, b) => order[a.kind] - order[b.kind]);

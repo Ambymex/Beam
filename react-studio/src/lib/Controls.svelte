@@ -26,7 +26,13 @@
   }
   function duplicateLayer() {
     if (config.layers.length >= MAX_LAYERS) return;
-    const copy = { ...layer, name: `${layer.name} copy`, colors: [...layer.colors] };
+    const copy = {
+      ...layer,
+      name: `${layer.name} copy`,
+      colors: [...layer.colors],
+      colorsMid: [...layer.colorsMid],
+      colorsEnd: [...layer.colorsEnd],
+    };
     config.layers = [...config.layers.slice(0, active + 1), copy, ...config.layers.slice(active + 1)];
     active = active + 1;
     bump();
@@ -44,6 +50,22 @@
   }
   function removeColor(i: number) {
     layer.colors = layer.colors.filter((_, j) => j !== i);
+    bump();
+  }
+  function addMidColor() {
+    layer.colorsMid = [...layer.colorsMid, '#ffffff'];
+    bump();
+  }
+  function removeMidColor(i: number) {
+    layer.colorsMid = layer.colorsMid.filter((_, j) => j !== i);
+    bump();
+  }
+  function addEndColor() {
+    layer.colorsEnd = [...layer.colorsEnd, '#ffffff'];
+    bump();
+  }
+  function removeEndColor(i: number) {
+    layer.colorsEnd = layer.colorsEnd.filter((_, j) => j !== i);
     bump();
   }
   // keep the id a safe snake_case identifier as they type
@@ -234,7 +256,7 @@
       <p class="hint">One random depth per particle drives size, speed and opacity together — coherent variation reads as depth; independent randomness reads as noise.</p>
     {/if}
     <label class="field">
-      <span>Colour source</span>
+      <span>Start colour</span>
       <select bind:value={layer.colorMode} on:change={bump}>
         <option value="fixed">Fixed colour(s)</option>
         <option value="signal">Theme --signal</option>
@@ -284,16 +306,96 @@
         </label>
       </div>
     {/if}
-    <div class="pair">
+  </section>
+
+  <section>
+    <h3>Change over time · {layer.name}</h3>
+    <p class="hint">Size and colour share one middle beat, so a bloom or colour-turn reads as a single thought rather than two unrelated effects.</p>
+    <label class="field check">
+      <input type="checkbox" bind:checked={layer.sizeEnvelope} on:change={bump} />
+      <span>Three-point size envelope</span>
+    </label>
+    {#if layer.sizeEnvelope}
+      <div class="triple">
+        <label class="field">
+          <span>Start <b>{layer.scaleFrom.toFixed(2)}</b></span>
+          <input type="range" min="0.1" max="2.5" step="0.05" bind:value={layer.scaleFrom} on:input={bump} />
+        </label>
+        <label class="field">
+          <span>Middle <b>{layer.scaleMid.toFixed(2)}</b></span>
+          <input type="range" min="0.1" max="2.5" step="0.05" bind:value={layer.scaleMid} on:input={bump} />
+        </label>
+        <label class="field">
+          <span>End <b>{layer.scaleTo.toFixed(2)}</b></span>
+          <input type="range" min="0.1" max="2.5" step="0.05" bind:value={layer.scaleTo} on:input={bump} />
+        </label>
+      </div>
+    {:else}
+      <div class="pair">
+        <label class="field">
+          <span>Scale from <b>{layer.scaleFrom.toFixed(2)}</b></span>
+          <input type="range" min="0.1" max="2" step="0.05" bind:value={layer.scaleFrom} on:input={bump} />
+        </label>
+        <label class="field">
+          <span>Scale to <b>{layer.scaleTo.toFixed(2)}</b></span>
+          <input type="range" min="0.1" max="2" step="0.05" bind:value={layer.scaleTo} on:input={bump} />
+        </label>
+      </div>
+    {/if}
+
+    <label class="field">
+      <span>Middle colour</span>
+      <select bind:value={layer.colorMidMode} on:change={bump}>
+        <option value="hold">Hold start</option>
+        <option value="fixed">Fixed colour(s)</option>
+        <option value="signal">Theme --signal</option>
+        <option value="contrast">Theme --signal-contrast</option>
+      </select>
+    </label>
+    {#if layer.colorMidMode === 'fixed'}
+      <div class="colors">
+        {#each layer.colorsMid as c, i}
+          <div class="color-chip">
+            <input type="color" bind:value={layer.colorsMid[i]} on:input={bump} />
+            {#if layer.colorsMid.length > 1}
+              <button class="x" on:click={() => removeMidColor(i)} aria-label="Remove middle colour">✕</button>
+            {/if}
+          </div>
+        {/each}
+        <button class="add-color" on:click={addMidColor} title="Add a middle colour">＋</button>
+      </div>
+    {/if}
+
+    <label class="field">
+      <span>End colour</span>
+      <select bind:value={layer.colorEndMode} on:change={bump}>
+        <option value="hold">Hold middle</option>
+        <option value="fixed">Fixed colour(s)</option>
+        <option value="signal">Theme --signal</option>
+        <option value="contrast">Theme --signal-contrast</option>
+      </select>
+    </label>
+    {#if layer.colorEndMode === 'fixed'}
+      <div class="colors">
+        {#each layer.colorsEnd as c, i}
+          <div class="color-chip">
+            <input type="color" bind:value={layer.colorsEnd[i]} on:input={bump} />
+            {#if layer.colorsEnd.length > 1}
+              <button class="x" on:click={() => removeEndColor(i)} aria-label="Remove end colour">✕</button>
+            {/if}
+          </div>
+        {/each}
+        <button class="add-color" on:click={addEndColor} title="Add an end colour">＋</button>
+      </div>
+    {/if}
+
+    {#if layer.sizeEnvelope || layer.colorMidMode !== 'hold' || layer.colorEndMode !== 'hold'}
       <label class="field">
-        <span>Scale from <b>{layer.scaleFrom.toFixed(2)}</b></span>
-        <input type="range" min="0.1" max="2" step="0.05" bind:value={layer.scaleFrom} on:input={bump} />
+        <span>Middle arrives <b>{layer.envelopeMidPct}%</b></span>
+        <input type="range" min="10" max="90" bind:value={layer.envelopeMidPct} on:input={bump} />
       </label>
-      <label class="field">
-        <span>Scale to <b>{layer.scaleTo.toFixed(2)}</b></span>
-        <input type="range" min="0.1" max="2" step="0.05" bind:value={layer.scaleTo} on:input={bump} />
-      </label>
-    </div>
+      <p class="hint">The first phase ends here; the second phase uses the rest of the travel. Around 40–60% feels balanced, while early or late stops create a snap.</p>
+    {/if}
   </section>
 
   <section>
@@ -350,7 +452,7 @@
           checked={layer.glowColor === 'auto'}
           on:change={(e) => { layer.glowColor = e.currentTarget.checked ? 'auto' : '#ffffff'; bump(); }}
         />
-        <span>Auto glow colour (from particle fill)</span>
+        <span>Auto glow colour (follows the particle)</span>
       </label>
       {#if layer.glowColor !== 'auto'}
         <label class="field">
@@ -516,6 +618,9 @@
   .pair { display: flex; gap: 10px; }
   .pair .field { flex: 1 1 0; flex-direction: column; align-items: stretch; gap: 4px; }
   .pair .field input[type='range'] { max-width: none; }
+  .triple { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .triple .field { flex-direction: column; align-items: stretch; gap: 4px; }
+  .triple .field input[type='range'] { max-width: none; width: 100%; }
   .colors { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .color-chip { position: relative; }
   .color-chip input[type='color'] {

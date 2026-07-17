@@ -6,7 +6,7 @@
 // each layer gets its own array (`${id}_l1`…), base class (`.${id}-l1`) with
 // its scale/ease baked in, and its own block in the fire() branch.
 import { SHAPES, type ShapeDef } from './shapes';
-import { EASES, type ReactConfig, type LayerConfig } from './reactConfig';
+import { EASES, type ReactConfig, type LayerConfig, type ColorMode } from './reactConfig';
 
 const n = (x: number) => Number(x.toFixed(3)).toString();
 
@@ -18,17 +18,17 @@ function shapeDef(layer: LayerConfig): ShapeDef {
 }
 
 // per-particle colour expression, evaluated in the generated fire()
-function colorExpr(layer: LayerConfig): string {
-  if (layer.colorMode === 'signal') return `'var(--signal)'`;
-  if (layer.colorMode === 'contrast') return `'var(--signal-contrast)'`;
-  if (layer.colors.length === 1) return `'${layer.colors[0]}'`;
-  const arr = layer.colors.map((c) => `'${c}'`).join(', ');
-  return `[${arr}][Math.floor(Math.random() * ${layer.colors.length})]`;
+function colorExpr(mode: ColorMode, colors: string[]): string {
+  if (mode === 'signal') return `'var(--signal)'`;
+  if (mode === 'contrast') return `'var(--signal-contrast)'`;
+  if (colors.length === 1) return `'${colors[0]}'`;
+  const arr = colors.map((c) => `'${c}'`).join(', ');
+  return `[${arr}][Math.floor(Math.random() * ${colors.length})]`;
 }
 
 // per-particle fixed glow, evaluated in fire() (only when glowMode === 'fixed')
 function glowExpr(layer: LayerConfig): string {
-  if (layer.glowColor === 'auto') return `\`drop-shadow(0 0 ${layer.glowBlur}px \${color})\``;
+  if (layer.glowColor === 'auto') return `'drop-shadow(0 0 ${layer.glowBlur}px currentColor)'`;
   return `'drop-shadow(0 0 ${layer.glowBlur}px ${layer.glowColor})'`;
 }
 
@@ -63,6 +63,10 @@ export function generate(cfg: ReactConfig): Generated {
   const anyFixedGlow = layers.some((l) => l.glowMode === 'fixed');
   const anyFountain = layers.some((l) => l.direction === 'fountain');
   const anyConverge = layers.some((l) => l.direction === 'converge');
+  const anySizeEnvelope = layers.some((l) => l.sizeEnvelope);
+  const anyColorEnvelope = layers.some(
+    (l) => l.colorMidMode !== 'hold' || l.colorEndMode !== 'hold',
+  );
   const lifeMs = Math.round(
     Math.max(...layers.map((l) => l.layerDelay + l.spawnWindow + l.durMax)) * 1000 + 400,
   );
@@ -73,8 +77,9 @@ export function generate(cfg: ReactConfig): Generated {
 
   const script = `  // ${cfg.label} — ${cfg.register}
   interface ${Cap}P {
-    id: number; x: number; size: number; color: string; delay: number;
+    id: number; x: number; size: number; color: string; colorMid: string; colorEnd: string; delay: number;
     dur: number; op: number; inDur: number; outDelay: number; outDur: number;
+    envMidDur: number; envEndDelay: number; envEndDur: number;
     rotEnd: number; swayAmp: number; swayDur: number; swayPhase: number;
     tx: string; ty: string;${anyFountain ? ' apex: number;' : ''}${anyConverge ? ' fromX: number; fromY: number;' : ''}${anyFixedGlow ? ' glow: string;' : ''}
   }
@@ -117,18 +122,25 @@ ${arrayNames.map((a) => `  let ${a}: ${Cap}P[] = [];`).join('\n')}
         const fromDistance = 28 + Math.random() * 40;`
           : ''
       }
-        const color = ${colorExpr(l)};
+        const color = ${colorExpr(l.colorMode, l.colors)};
+        const colorMid = ${l.colorMidMode === 'hold' ? 'color' : colorExpr(l.colorMidMode, l.colorsMid)};
+        const colorEnd = ${l.colorEndMode === 'hold' ? 'colorMid' : colorExpr(l.colorEndMode, l.colorsEnd)};
         b${k + 1}.push({
           id: burstId++,
           x: 4 + Math.random() * 92,
           size,
           color,
+          colorMid,
+          colorEnd,
           delay,
           dur,
           op,
           inDur: +(dur * ${n(l.fadeInPct / 100)}).toFixed(3),
           outDelay: +(delay + dur * ${n(l.fadeOutPct / 100)}).toFixed(3),
           outDur: +(dur * ${n((100 - l.fadeOutPct) / 100)}).toFixed(3),
+          envMidDur: +(dur * ${n(l.envelopeMidPct / 100)}).toFixed(3),
+          envEndDelay: +(delay + dur * ${n(l.envelopeMidPct / 100)}).toFixed(3),
+          envEndDur: +(dur * ${n((100 - l.envelopeMidPct) / 100)}).toFixed(3),
           rotEnd: ${l.spin ? `(Math.random() < 0.5 ? -1 : 1) * ${n(l.rotMax)} * dur` : '0'},
           swayAmp: ${l.swayAmp ? `${n(l.swayAmp * 0.6)} + Math.random() * ${n(l.swayAmp * 0.4)}` : '0'},
           swayDur,
@@ -165,21 +177,27 @@ ${arrayNames.map((a) => `        ${a} = [];`).join('\n')}
       const shapeInner =
         sd.render === 'path'
           ? `            <svg viewBox="${sd.viewBox}" width={p.size} height={p.size} style="display:block;">
-              <path fill={p.color} d="${sd.d}" />
+              <path fill="currentColor" d="${sd.d}" />
             </svg>`
-          : `            <span style="display:block; width:{p.size}px; height:{p.size}px; background:{p.color}; border-radius:${sd.radius};"></span>`;
+          : `            <span style="display:block; width:{p.size}px; height:{p.size}px; background:currentColor; border-radius:${sd.radius};"></span>`;
       const shapeMarkup = `          <span class="${cls}-shape"${shapeAttr}>
 ${shapeInner}
           </span>`;
       const swayMarkup = `        <span class="${id}-sway">
 ${shapeMarkup}
         </span>`;
+      const colorMarkup = `      <span class="${cls}-color">
+${swayMarkup}
+      </span>`;
+      const scaleMarkup = `    <span class="${cls}-scale">
+${colorMarkup}
+    </span>`;
       const inner =
         l.direction === 'fountain'
-          ? `      <span class="${id}-arc">
-${swayMarkup}
-      </span>`
-          : swayMarkup;
+          ? `  <span class="${id}-arc">
+${scaleMarkup}
+  </span>`
+          : scaleMarkup;
       const leftAttr = l.direction === 'burst' || l.direction === 'converge' ? '' : 'left:{p.x}%; ';
       const apexVar = l.direction === 'fountain' ? ' --apex:{p.apex}vh;' : '';
       const convergeVars = l.direction === 'converge' ? ' --fx:{p.fromX}vmin; --fy:{p.fromY}vmin;' : '';
@@ -187,7 +205,7 @@ ${swayMarkup}
   {#each ${arr} as p (p.id)}
     <span
       class="${cls}"
-      style="${leftAttr}--size:{p.size}px; --dur:{p.dur}s; --delay:{p.delay}s; --op:{p.op}; --indur:{p.inDur}s; --outdelay:{p.outDelay}s; --outdur:{p.outDur}s; --tx:{p.tx}; --ty:{p.ty}; --sway:{p.swayAmp}px; --swaydur:{p.swayDur}s; --swayphase:{p.swayPhase}s; --rot:{p.rotEnd}deg;${apexVar}${convergeVars}"
+      style="${leftAttr}--size:{p.size}px; --dur:{p.dur}s; --delay:{p.delay}s; --op:{p.op}; --indur:{p.inDur}s; --outdelay:{p.outDelay}s; --outdur:{p.outDur}s; --envmiddur:{p.envMidDur}s; --envenddelay:{p.envEndDelay}s; --envenddur:{p.envEndDur}s; --tx:{p.tx}; --ty:{p.ty}; --s0:${n(l.scaleFrom)}; --sm:${n(l.scaleMid)}; --s1:${n(l.scaleTo)}; --c0:{p.color}; --cm:{p.colorMid}; --c1:{p.colorEnd}; --sway:{p.swayAmp}px; --swaydur:{p.swayDur}s; --swayphase:{p.swayPhase}s; --rot:{p.rotEnd}deg;${apexVar}${convergeVars}"
     >
 ${inner}
     </span>
@@ -206,7 +224,22 @@ ${inner}
             ? 'top: 50%; left: 50%; margin-top: calc(var(--size) / -2);'
             : 'bottom: calc(-1 * var(--size) - 10px);'; // rise + fountain
       const adaptiveGlow = l.glowMode === 'adaptive';
-      const travelAnim = l.direction === 'converge' ? `${id}-converge` : `${id}-travel`;
+      const travelAnim = l.sizeEnvelope
+        ? l.direction === 'converge' ? `${id}-converge-pos` : `${id}-travel-pos`
+        : l.direction === 'converge' ? `${id}-converge` : `${id}-travel`;
+      const colorEnvelope = l.colorMidMode !== 'hold' || l.colorEndMode !== 'hold';
+      const scaleAnim = l.sizeEnvelope
+        ? `
+    animation:
+      ${id}-scale-a var(--envmiddur) ${EASES[l.travelEase].css} var(--delay) both,
+      ${id}-scale-b var(--envenddur) ${EASES[l.travelEase].css} var(--envenddelay) forwards;`
+        : '';
+      const colorAnim = colorEnvelope
+        ? `
+    animation:
+      ${id}-color-a var(--envmiddur) linear var(--delay) both,
+      ${id}-color-b var(--envenddur) linear var(--envenddelay) forwards;`
+        : '';
       const spinAnim = l.spin
         ? `\n    animation: ${id}-spin var(--dur) linear var(--delay) both;`
         : '';
@@ -218,11 +251,19 @@ ${inner}
     margin-left: calc(var(--size) / -2);
     ${basePos}
     --s0: ${n(l.scaleFrom)};
+    --sm: ${n(l.scaleMid)};
     --s1: ${n(l.scaleTo)};
     animation:
       ${travelAnim} var(--dur) ${EASES[l.travelEase].css} var(--delay) both,
       ${id}-in var(--indur) linear var(--delay) both,
       ${id}-out var(--outdur) linear var(--outdelay) forwards;
+  }
+  .${cls}-scale {
+    display: block;${scaleAnim}
+  }
+  .${cls}-color {
+    display: block;
+    color: var(--c0);${colorAnim}
   }
   .${cls}-shape {
     display: block;${spinAnim}
@@ -265,6 +306,38 @@ ${inner}
   }`
     : '';
 
+  const sizeEnvelopeCss = anySizeEnvelope
+    ? `
+  @keyframes ${id}-travel-pos {
+    from { transform: translate(0, 0); }
+    to { transform: translate(var(--tx), var(--ty)); }
+  }${anyConverge ? `
+  @keyframes ${id}-converge-pos {
+    0% { transform: translate(var(--fx), var(--fy)); }
+    72%, 100% { transform: translate(var(--tx), var(--ty)); }
+  }` : ''}
+  @keyframes ${id}-scale-a {
+    from { transform: scale(var(--s0, 1)); }
+    to { transform: scale(var(--sm, 1)); }
+  }
+  @keyframes ${id}-scale-b {
+    from { transform: scale(var(--sm, 1)); }
+    to { transform: scale(var(--s1, 1)); }
+  }`
+    : '';
+
+  const colorEnvelopeCss = anyColorEnvelope
+    ? `
+  @keyframes ${id}-color-a {
+    from { color: var(--c0); }
+    to { color: var(--cm); }
+  }
+  @keyframes ${id}-color-b {
+    from { color: var(--cm); }
+    to { color: var(--c1); }
+  }`
+    : '';
+
   const css = `${layerCss}
   @keyframes ${id}-travel {
     from { transform: translate(0, 0) scale(var(--s0, 1)); }
@@ -279,7 +352,7 @@ ${inner}
   @keyframes ${id}-out {
     from { opacity: var(--op); }
     to { opacity: 0; }
-  }${arcCss}${convergeCss}
+  }${arcCss}${convergeCss}${sizeEnvelopeCss}${colorEnvelopeCss}
   .${id}-sway {
     display: block;
     animation: ${id}-sway var(--swaydur) ease-in-out calc(-1 * var(--swayphase)) infinite alternate;

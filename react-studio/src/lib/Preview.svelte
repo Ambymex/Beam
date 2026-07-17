@@ -25,6 +25,9 @@
   $: canopy = canopyFor($currentTheme);
   $: life = lifeMs(config);
   $: rate = slowMo ? 0.25 : 1;
+  $: repainting = config.layers.some(
+    (layer) => layer.colorMidMode !== 'hold' || layer.colorEndMode !== 'hold'
+  );
 
   function shapeDefFor(layer: LayerConfig) {
     return layer.shape === 'custom'
@@ -154,7 +157,7 @@
   // Fixed glow only; the adaptive rim is applied by theme-keyed global CSS.
   function glow(layer: LayerConfig, p: Particle): string {
     if (layer.glowMode !== 'fixed' || !layer.glowBlur) return 'none';
-    const c = layer.glowColor === 'auto' ? p.color : layer.glowColor;
+    const c = layer.glowColor === 'auto' ? 'currentColor' : layer.glowColor;
     return `drop-shadow(0 0 ${layer.glowBlur}px ${c})`;
   }
 </script>
@@ -204,14 +207,20 @@
     <div class="layer-host" bind:this={layerHost}>
       {#each config.layers as layer, li}
         {@const sd = shapeDefFor(layer)}
-        <div class="react-layer {layer.direction}">
+        <div
+          class="react-layer {layer.direction}"
+          class:size-envelope={layer.sizeEnvelope}
+          class:color-envelope={layer.colorMidMode !== 'hold' || layer.colorEndMode !== 'hold'}
+        >
           {#each particleSets[li] ?? [] as p (p.id)}
             <span
               class="p"
               style="
                 --size:{p.size}px; --dur:{p.dur}s; --delay:{p.delay}s; --op:{p.op};
                 --indur:{p.inDur.toFixed(3)}s; --outdelay:{p.outDelay.toFixed(3)}s; --outdur:{p.outDur.toFixed(3)}s;
-                --tx:{tx(layer, p)}; --ty:{ty(layer, p)}; --s0:{layer.scaleFrom}; --s1:{layer.scaleTo};
+                --envmiddur:{p.envMidDur.toFixed(3)}s; --envenddelay:{p.envEndDelay.toFixed(3)}s; --envenddur:{p.envEndDur.toFixed(3)}s;
+                --tx:{tx(layer, p)}; --ty:{ty(layer, p)}; --s0:{layer.scaleFrom}; --sm:{layer.scaleMid}; --s1:{layer.scaleTo};
+                --c0:{p.color}; --cm:{p.colorMid}; --c1:{p.colorEnd};
                 --ease:{EASES[layer.travelEase].css};
                 --sway:{p.swayAmp}px; --swaydur:{p.swayDur}s; --swayphase:{p.swayPhase}s;
                 --rot:{p.rotEnd}deg; --apex:{p.apex.toFixed(1)}vh;
@@ -220,22 +229,26 @@
               "
             >
               <span class="p-arc">
-                <span class="p-sway">
-                  <span
-                    class="p-shape"
-                    class:adaptive={layer.glowMode === 'adaptive'}
-                    style="{layer.glowMode === 'fixed' ? `filter:${glow(layer, p)};` : ''} --rim:{layer.glowBlur}px;"
-                  >
-                    {#if sd.render === 'path'}
-                      <svg viewBox={sd.viewBox} width={p.size} height={p.size} style="display:block;">
-                        <path fill={p.color} d={sd.d} />
-                      </svg>
-                    {:else}
+                <span class="p-scale">
+                  <span class="p-color">
+                    <span class="p-sway">
                       <span
-                        class="css-shape"
-                        style="width:{p.size}px; height:{p.size}px; background:{p.color}; border-radius:{sd.radius};"
-                      ></span>
-                    {/if}
+                        class="p-shape"
+                        class:adaptive={layer.glowMode === 'adaptive'}
+                        style="{layer.glowMode === 'fixed' ? `filter:${glow(layer, p)};` : ''} --rim:{layer.glowBlur}px;"
+                      >
+                        {#if sd.render === 'path'}
+                          <svg viewBox={sd.viewBox} width={p.size} height={p.size} style="display:block;">
+                            <path fill="currentColor" d={sd.d} />
+                          </svg>
+                        {:else}
+                          <span
+                            class="css-shape"
+                            style="width:{p.size}px; height:{p.size}px; background:currentColor; border-radius:{sd.radius};"
+                          ></span>
+                        {/if}
+                      </span>
+                    </span>
                   </span>
                 </span>
               </span>
@@ -265,10 +278,10 @@
       />
       <span class="scrub-t">{scrubbing ? (scrubT / 1000).toFixed(2) + 's' : (life / 1000).toFixed(1) + 's total'}</span>
     </div>
-    <div class="meter" title="Everything animates transform/opacity only, so the compositor does the work — watch fps hold as you raise the count.">
+    <div class="meter" title="Movement stays on transform/opacity. Colour envelopes intentionally repaint their shapes, so watch fps as you raise the count.">
       <span>{domNodes} nodes</span>
       <span class:good={fps >= 55} class:rough={fps < 45}>{scrubbing ? '—' : fps} fps</span>
-      <span class="law">transform/opacity only ✓</span>
+      <span class="law">{repainting ? 'colour repaint · motion composited' : 'transform/opacity motion ✓'}</span>
     </div>
   </div>
 </div>
@@ -389,7 +402,8 @@
   }
 
   /* ---- particle skeleton: .p travels + fades, .p-arc is the fountain's Y
-     axis, .p-sway flutters, .p-shape spins. All transform/opacity only. ---- */
+     axis, .p-scale changes size, .p-color changes colour, .p-sway flutters,
+     .p-shape spins. Motion and size stay on transform/opacity; colour repaints. ---- */
   .p {
     position: absolute;
     width: var(--size);
@@ -413,15 +427,35 @@
       s-in var(--indur) linear var(--delay) both,
       s-out var(--outdur) linear var(--outdelay) forwards;
   }
+  .react-layer.size-envelope:not(.converge) .p {
+    animation:
+      s-travel-pos var(--dur) var(--ease, linear) var(--delay) both,
+      s-in var(--indur) linear var(--delay) both,
+      s-out var(--outdur) linear var(--outdelay) forwards;
+  }
+  .react-layer.size-envelope.converge .p {
+    animation:
+      s-converge-pos var(--dur) var(--ease, linear) var(--delay) both,
+      s-in var(--indur) linear var(--delay) both,
+      s-out var(--outdur) linear var(--outdelay) forwards;
+  }
   @keyframes s-travel {
     from { transform: translate(0, 0) scale(var(--s0, 1)); }
     to { transform: translate(var(--tx), var(--ty)) scale(var(--s1, 1)); }
+  }
+  @keyframes s-travel-pos {
+    from { transform: translate(0, 0); }
+    to { transform: translate(var(--tx), var(--ty)); }
   }
   /* Convergence is phrased, not merely reversed: arrive by 72%, then let the
      resolved shape hold still while the fade envelope decides when it leaves. */
   @keyframes s-converge {
     0% { transform: translate(var(--fx), var(--fy)) scale(var(--s0, 1)); }
     72%, 100% { transform: translate(var(--tx), var(--ty)) scale(var(--s1, 1)); }
+  }
+  @keyframes s-converge-pos {
+    0% { transform: translate(var(--fx), var(--fy)); }
+    72%, 100% { transform: translate(var(--tx), var(--ty)); }
   }
   /* fade envelope: rise to --op over --indur, hold, fall over --outdur.
      s-out deliberately has NO backwards fill — s-in owns the early frames. */
@@ -447,8 +481,39 @@
     100% { transform: translateY(14vh); }
   }
 
+  .p-scale,
+  .p-color,
   .p-sway {
     display: block;
+  }
+  .react-layer.size-envelope .p-scale {
+    animation:
+      s-scale-a var(--envmiddur) var(--ease, linear) var(--delay) both,
+      s-scale-b var(--envenddur) var(--ease, linear) var(--envenddelay) forwards;
+  }
+  @keyframes s-scale-a {
+    from { transform: scale(var(--s0, 1)); }
+    to { transform: scale(var(--sm, 1)); }
+  }
+  @keyframes s-scale-b {
+    from { transform: scale(var(--sm, 1)); }
+    to { transform: scale(var(--s1, 1)); }
+  }
+  .p-color { color: var(--c0); }
+  .react-layer.color-envelope .p-color {
+    animation:
+      s-color-a var(--envmiddur) linear var(--delay) both,
+      s-color-b var(--envenddur) linear var(--envenddelay) forwards;
+  }
+  @keyframes s-color-a {
+    from { color: var(--c0); }
+    to { color: var(--cm); }
+  }
+  @keyframes s-color-b {
+    from { color: var(--cm); }
+    to { color: var(--c1); }
+  }
+  .p-sway {
     animation: s-sway var(--swaydur) ease-in-out calc(-1 * var(--swayphase)) infinite alternate;
   }
   @keyframes s-sway {

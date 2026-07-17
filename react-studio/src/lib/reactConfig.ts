@@ -10,6 +10,7 @@ import type { ShapeKind } from './shapes';
 
 export type Direction = 'fall' | 'rise' | 'burst' | 'fountain' | 'converge';
 export type ColorMode = 'fixed' | 'signal' | 'contrast';
+export type ColorStopMode = ColorMode | 'hold';
 export type EaseKind = 'linear' | 'easeIn' | 'easeOut' | 'softInOut' | 'overshoot';
 
 // Named travel easings, each with the habit it teaches. `pts` are the
@@ -74,6 +75,10 @@ export interface LayerConfig {
 
   colorMode: ColorMode; // fixed hex list, or theme --signal / --signal-contrast
   colors: string[]; // used when colorMode === 'fixed' (1+ for variation)
+  colorMidMode: ColorStopMode; // 'hold' inherits the previous colour stop
+  colorsMid: string[];
+  colorEndMode: ColorStopMode;
+  colorsEnd: string[];
 
   opacityMin: number;
   opacityMax: number;
@@ -82,7 +87,10 @@ export interface LayerConfig {
   fadeOutPct: number;
   // Scale over travel (grow-in / shrink-out).
   scaleFrom: number;
+  scaleMid: number;
   scaleTo: number;
+  sizeEnvelope: boolean; // false preserves the original single from→to scale
+  envelopeMidPct: number; // shared size/colour middle stop, % of travel
 
   spin: boolean;
   rotMax: number; // deg/sec magnitude (rotation rate)
@@ -119,12 +127,17 @@ export interface Particle {
   x: number; // spawn column %, for fall/rise/fountain
   size: number;
   color: string;
+  colorMid: string;
+  colorEnd: string;
   delay: number; // includes the layer delay
   dur: number;
   op: number;
   inDur: number; // fade envelope, seconds
   outDelay: number;
   outDur: number;
+  envMidDur: number; // shared size/colour first phase
+  envEndDelay: number;
+  envEndDur: number;
   rotEnd: number; // total deg over travel
   swayAmp: number;
   swayDur: number;
@@ -140,11 +153,22 @@ export interface Particle {
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
-export function fillColor(layer: LayerConfig): string {
-  if (layer.colorMode === 'signal') return 'var(--signal)';
-  if (layer.colorMode === 'contrast') return 'var(--signal-contrast)';
-  const c = layer.colors;
+function pickColor(mode: ColorMode, colors: string[]): string {
+  if (mode === 'signal') return 'var(--signal)';
+  if (mode === 'contrast') return 'var(--signal-contrast)';
+  const c = colors;
   return c.length ? c[Math.floor(Math.random() * c.length)] : '#ffffff';
+}
+
+export function fillColors(layer: LayerConfig): [string, string, string] {
+  const start = pickColor(layer.colorMode, layer.colors);
+  const middle = layer.colorMidMode === 'hold'
+    ? start
+    : pickColor(layer.colorMidMode, layer.colorsMid);
+  const end = layer.colorEndMode === 'hold'
+    ? middle
+    : pickColor(layer.colorEndMode, layer.colorsEnd);
+  return [start, middle, end];
 }
 
 let seq = 0;
@@ -171,17 +195,23 @@ export function spawnLayer(layer: LayerConfig): Particle[] {
       : rand(20, 42);
     const fromAngle = rand(0, 360);
     const fromDistance = rand(28, 68);
+    const [color, colorMid, colorEnd] = fillColors(layer);
     out.push({
       id: seq++,
       x: rand(4, 96),
       size,
-      color: fillColor(layer),
+      color,
+      colorMid,
+      colorEnd,
       delay,
       dur,
       op,
       inDur: (dur * layer.fadeInPct) / 100,
       outDelay: delay + (dur * layer.fadeOutPct) / 100,
       outDur: (dur * (100 - layer.fadeOutPct)) / 100,
+      envMidDur: (dur * layer.envelopeMidPct) / 100,
+      envEndDelay: delay + (dur * layer.envelopeMidPct) / 100,
+      envEndDur: (dur * (100 - layer.envelopeMidPct)) / 100,
       rotEnd: layer.spin ? (Math.random() < 0.5 ? -1 : 1) * layer.rotMax * dur : 0,
       swayAmp: layer.swayAmp ? rand(layer.swayAmp * 0.6, layer.swayAmp) : 0,
       swayDur,
@@ -228,12 +258,19 @@ export const DEFAULT_LAYER: LayerConfig = {
   depthLink: false,
   colorMode: 'fixed',
   colors: ['#0a0a0a'],
+  colorMidMode: 'hold',
+  colorsMid: ['#ffffff'],
+  colorEndMode: 'hold',
+  colorsEnd: ['#ffffff'],
   opacityMin: 0.7,
   opacityMax: 1,
   fadeInPct: 8,
   fadeOutPct: 72,
   scaleFrom: 1,
+  scaleMid: 1,
   scaleTo: 1,
+  sizeEnvelope: false,
+  envelopeMidPct: 50,
   spin: true,
   rotMax: 30,
   swayAmp: 20,
@@ -251,26 +288,39 @@ export const DEFAULT_CONFIG: ReactConfig = {
   id: 'my_react',
   label: 'My React',
   register: 'A gentle gesture — describe when the companion should use it.',
-  layers: [{ ...DEFAULT_LAYER }],
+  layers: [{
+    ...DEFAULT_LAYER,
+    colors: [...DEFAULT_LAYER.colors],
+    colorsMid: [...DEFAULT_LAYER.colorsMid],
+    colorsEnd: [...DEFAULT_LAYER.colorsEnd],
+  }],
 };
 
 export function newLayer(n: number): LayerConfig {
-  return { ...DEFAULT_LAYER, name: `Layer ${n}` };
+  return {
+    ...DEFAULT_LAYER,
+    name: `Layer ${n}`,
+    colors: [...DEFAULT_LAYER.colors],
+    colorsMid: [...DEFAULT_LAYER.colorsMid],
+    colorsEnd: [...DEFAULT_LAYER.colorsEnd],
+  };
 }
 
 // Accepts a v1 flat config (no `layers`), a v2 config, or a partly-old v2
 // (missing newer per-layer fields) and returns a complete v2 config. Used on
 // draft load and preset load so nothing saved ever goes stale.
 export function migrateConfig(raw: any): ReactConfig {
-  if (!raw || typeof raw !== 'object') return { ...DEFAULT_CONFIG, layers: [{ ...DEFAULT_LAYER }] };
+  if (!raw || typeof raw !== 'object') return { ...DEFAULT_CONFIG, layers: [newLayer(1)] };
   if (Array.isArray(raw.layers)) {
     const layers = raw.layers.length
       ? raw.layers.map((l: any, i: number) => ({
           ...newLayer(i + 1),
           ...l,
           colors: [...(l.colors ?? DEFAULT_LAYER.colors)],
+          colorsMid: [...(l.colorsMid ?? DEFAULT_LAYER.colorsMid)],
+          colorsEnd: [...(l.colorsEnd ?? DEFAULT_LAYER.colorsEnd)],
         }))
-      : [{ ...DEFAULT_LAYER, colors: [...DEFAULT_LAYER.colors] }];
+      : [newLayer(1)];
     return { id: raw.id ?? 'my_react', label: raw.label ?? 'My React', register: raw.register ?? '', layers };
   }
   // v1: emitter fields lived flat on the config
@@ -281,6 +331,8 @@ export function migrateConfig(raw: any): ReactConfig {
     ...DEFAULT_LAYER,
     ...emitter,
     colors: [...(emitter.colors ?? DEFAULT_LAYER.colors)],
+    colorsMid: [...(emitter.colorsMid ?? DEFAULT_LAYER.colorsMid)],
+    colorsEnd: [...(emitter.colorsEnd ?? DEFAULT_LAYER.colorsEnd)],
     name: 'Layer 1',
     travelEase: wasBurst ? 'easeOut' : 'linear',
     scaleFrom: wasBurst ? 0.3 : 1,
@@ -695,6 +747,41 @@ export const PRESETS: Record<string, ReactConfig> = {
       },
     ],
   },
+  signal_bloom: preset(
+    'signal_bloom',
+    'Signal Bloom',
+    'Recognition becoming confidence — a thought brightening, opening, and settling into itself.',
+    {
+      direction: 'burst',
+      count: 14,
+      spawnWindow: 1.1,
+      durMin: 2.8,
+      durMax: 3.8,
+      travelEase: 'easeOut',
+      shape: 'sparkle',
+      sizeMin: 9,
+      sizeMax: 20,
+      depthLink: true,
+      colorMode: 'signal',
+      colorMidMode: 'contrast',
+      colorEndMode: 'signal',
+      opacityMin: 0.62,
+      opacityMax: 1,
+      fadeInPct: 5,
+      fadeOutPct: 78,
+      sizeEnvelope: true,
+      scaleFrom: 0.3,
+      scaleMid: 1.45,
+      scaleTo: 0.72,
+      envelopeMidPct: 46,
+      rotMax: 32,
+      swayAmp: 4,
+      swayMin: 1.2,
+      swayMax: 2.1,
+      glowMode: 'adaptive',
+      glowBlur: 5,
+    },
+  ),
   sparks: preset(
     'sparks',
     'Sparks',

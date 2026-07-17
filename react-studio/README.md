@@ -41,18 +41,18 @@ npm run dev      # opens on port 5210 with the planner's live dev server family
 3. Tune the **parametric controls** on the left — emission (direction
    including *fountain* arcs and scatter-to-focus *convergence*, count,
    trickle, delay, travel **easing curves** with teach notes), particle
-   (12 shapes + custom paths, size, **depth
-   link**, colour), motion (spin, flutter, **scale from/to**), look (opacity,
-   **fade envelope**, glow).
-4. Watch the **Coach** under the stage — nine live animation-habit principles
+   (12 shapes + custom paths, size, **depth link**, start colour), motion
+   (spin, flutter), **change over time** (three-point size + colour envelopes
+   sharing one middle beat), look (opacity, **fade envelope**, glow).
+4. Watch the **Coach** under the stage — ten live animation-habit principles
    (vary the speeds, trickle the entrance, never pop, restraint, big things
    move slow, coherent depth, easing tells the physics, hero + support, calm
-   hands). Nudges name the layer and explain the why; they're principles, not
-   rules.
+   hands, intentional change). Nudges name the layer and explain the why;
+   they're principles, not rules.
 5. The **perf meter** shows live DOM nodes + fps — everything the studio
-   emits animates `transform`/`opacity` only, so watch it hold your display's
-   refresh rate even at high counts. That's the house law demonstrating
-   itself.
+   emits keeps movement on `transform`/`opacity`; colour envelopes deliberately
+   repaint their shapes, so the meter lets you feel the cost rather than hide
+   it. Restraint still matters at high counts.
 6. Hit **Export code** and **Copy all**. The output has six clearly-labelled
    parts; paste each into its home in `CompanionReacts.svelte`, plus the
    prompt line into the REACTS section of `ChatCompanion.svelte`.
@@ -67,8 +67,8 @@ cherry blossoms, drifting petals, champagne, focused formations). One-off set pi
 aren't parametric and are hand-built in the app; the studio deliberately
 doesn't try to model them.
 
-Notes: drafts saved before the layers update load fine (they migrate to
-one-layer configs on load, keeping their old burst easing/grow-in). The
+Notes: old drafts load unchanged: missing envelope fields migrate to a held
+colour and the original single `scaleFrom → scaleTo` motion. The
 studio renders the *base* react; the app occasionally adds theme-specific
 touches by hand. Exported ids should be unique — rename before export to
 avoid colliding with a shipped react.
