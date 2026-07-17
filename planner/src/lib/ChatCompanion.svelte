@@ -424,10 +424,16 @@
       await triggerHeartbeatCheck();
     }, 60000); // Check once a minute
 
-    // Run immediately on startup
+    // Run the due-alerts check immediately on startup — but NOT the
+    // heartbeat. The old boot-time heartbeat was the double-ping loop: a
+    // server beat pings her, the ping makes her OPEN the app, the boot
+    // check fires before msgSync has pulled the server's alert into Dexie,
+    // and he speaks again one minute after himself. The settle window in
+    // triggerHeartbeatCheck covers the first ticks; by then the pull has
+    // landed and the 25-min alert guard sees it. (She just opened the app —
+    // a proactive ping at that exact moment serves nobody anyway.)
     (async () => {
       await checkPendingNotifications();
-      await triggerHeartbeatCheck();
     })();
 
     // Plug this chat into the cross-app vault (msgSync.ts). The component is
@@ -784,8 +790,16 @@ If you do not want to notify the user or write in the diary right now, you MUST 
 Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
   }
 
+  // Boot settle window: no heartbeat for the first 3 minutes after mount, so
+  // msgSync's first pull can land any just-sent server beat in Dexie before
+  // the 25-min alert guard below consults it. Kills the "his ping made me
+  // open the app and he immediately pinged again" one-minute double.
+  const heartbeatBootAt = Date.now();
+  const HEARTBEAT_SETTLE_MS = 3 * 60 * 1000;
+
   export async function triggerHeartbeatCheck(force = false) {
     if (isLoading) return; // Don't run background check if already typing/busy
+    if (!force && Date.now() - heartbeatBootAt < HEARTBEAT_SETTLE_MS) return;
 
     const now = new Date();
     const currentHour = now.getHours();
