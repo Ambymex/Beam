@@ -11,21 +11,36 @@
 
   export let config: ReactConfig;
 
+  type PreviewMode = 'desktop' | 'iphone-portrait' | 'iphone-landscape';
+  const VIEWPORTS: Record<PreviewMode, { label: string; buttonLabel: string; width: number; height: number; device: boolean }> = {
+    desktop: { label: 'Desktop', buttonLabel: 'Desktop', width: 0, height: 0, device: false },
+    'iphone-portrait': { label: 'iPhone portrait', buttonLabel: 'iPhone', width: 393, height: 852, device: true },
+    'iphone-landscape': { label: 'iPhone landscape', buttonLabel: 'Landscape', width: 852, height: 393, device: true },
+  };
+
   let particleSets: Particle[][] = [];
   let stageEl: HTMLDivElement;
+  let frameEl: HTMLDivElement;
   let layerHost: HTMLDivElement;
   let clearTimer: ReturnType<typeof setTimeout>;
   let loopTimer: ReturnType<typeof setTimeout>;
+  let resizeObserver: ResizeObserver | undefined;
   let looping = true;
   let slowMo = false; // ¼-speed study mode
   let scrubbing = false;
   let scrubT = 0; // ms into the react while scrubbing
   let fps = 0;
   let domNodes = 0;
+  let previewMode: PreviewMode = 'desktop';
+  let frameScale = 1;
 
   $: canopy = canopyFor($currentTheme);
   $: life = lifeMs(config);
   $: rate = slowMo ? 0.25 : 1;
+  $: viewport = VIEWPORTS[previewMode];
+  $: frameStyle = viewport.device
+    ? `--viewport-width:${viewport.width}px; --viewport-height:${viewport.height}px; --frame-scale:${frameScale};`
+    : '';
   $: repainting = config.layers.some(
     (layer) => layer.colorMidMode !== 'hold' || layer.colorEndMode !== 'hold'
       || (layer.glowMode !== 'none' && (
@@ -108,6 +123,32 @@
     }
   }
 
+  function updateFrameScale() {
+    if (!frameEl || !viewport.device) {
+      frameScale = 1;
+      return;
+    }
+    // Keep real CSS-pixel dimensions inside the screen, then scale the whole
+    // phone like a model so it fits comfortably in the desktop editor.
+    const frameWidth = viewport.width + 20;
+    const frameHeight = viewport.height + 20;
+    frameScale = Math.max(
+      0.1,
+      Math.min((frameEl.clientWidth - 28) / frameWidth, (frameEl.clientHeight - 28) / frameHeight, 1),
+    );
+  }
+
+  function setPreviewMode(mode: string) {
+    if (!Object.prototype.hasOwnProperty.call(VIEWPORTS, mode)) return;
+    previewMode = mode as PreviewMode;
+    localStorage.setItem('react-studio-preview-mode', previewMode);
+    requestAnimationFrame(() => {
+      updateFrameScale();
+      fire();
+      scheduleLoop();
+    });
+  }
+
   // ---- scrubbing: freeze the whole react and walk its timeline by hand ----
   function enterScrub() {
     if (scrubbing) return;
@@ -149,6 +190,13 @@
   }
 
   onMount(() => {
+    const savedMode = localStorage.getItem('react-studio-preview-mode');
+    if (savedMode && Object.prototype.hasOwnProperty.call(VIEWPORTS, savedMode)) {
+      previewMode = savedMode as PreviewMode;
+    }
+    resizeObserver = new ResizeObserver(updateFrameScale);
+    resizeObserver.observe(frameEl);
+    requestAnimationFrame(updateFrameScale);
     fire();
     scheduleLoop();
     rafId = requestAnimationFrame(fpsLoop);
@@ -157,6 +205,7 @@
     clearTimeout(clearTimer);
     clearTimeout(loopTimer);
     clearTimeout(debounce);
+    resizeObserver?.disconnect();
     cancelAnimationFrame(rafId);
   });
 
@@ -164,30 +213,44 @@
   function tx(layer: LayerConfig, p: Particle): string {
     if (layer.direction === 'fixed') return '0px';
     if (layer.direction === 'burst' || layer.direction === 'converge')
-      return `${(Math.cos((p.angle * Math.PI) / 180) * p.distance).toFixed(1)}vmin`;
-    return `${p.driftX.toFixed(1)}vw`;
+      return `${(Math.cos((p.angle * Math.PI) / 180) * p.distance).toFixed(1)}cqmin`;
+    return `${p.driftX.toFixed(1)}cqw`;
   }
   function ty(layer: LayerConfig, p: Particle): string {
     if (layer.direction === 'fixed') return '0px';
-    if (layer.direction === 'fall') return '112vh';
-    if (layer.direction === 'rise') return '-72vh';
-    if (layer.direction === 'fountain') return '0vh'; // Y lives on the arc wrapper
+    if (layer.direction === 'fall') return '112cqh';
+    if (layer.direction === 'rise') return '-72cqh';
+    if (layer.direction === 'fountain') return '0cqh'; // Y lives on the arc wrapper
     if (layer.direction === 'converge')
-      return `${(Math.sin((p.angle * Math.PI) / 180) * p.distance * 0.7).toFixed(1)}vmin`;
-    return `${(Math.sin((p.angle * Math.PI) / 180) * p.distance * 0.7 + 8).toFixed(1)}vmin`;
+      return `${(Math.sin((p.angle * Math.PI) / 180) * p.distance * 0.7).toFixed(1)}cqmin`;
+    return `${(Math.sin((p.angle * Math.PI) / 180) * p.distance * 0.7 + 8).toFixed(1)}cqmin`;
   }
 </script>
 
 <div class="preview">
   <div class="toolbar">
-    <label class="tsel">
-      Theme
-      <select bind:value={$currentTheme}>
-        {#each THEME_ORDER as key}
-          <option value={key}>{THEME_LABELS[key]}</option>
+    <div class="view-options">
+      <label class="tsel">
+        Theme
+        <select bind:value={$currentTheme}>
+          {#each THEME_ORDER as key}
+            <option value={key}>{THEME_LABELS[key]}</option>
+          {/each}
+        </select>
+      </label>
+      <div class="view-switch" aria-label="Preview size">
+        <span>View</span>
+        {#each Object.entries(VIEWPORTS) as [mode, choice]}
+          <button
+            type="button"
+            class:active={previewMode === mode}
+            aria-pressed={previewMode === mode}
+            title={choice.device ? `${choice.label}, ${choice.width} by ${choice.height} CSS pixels` : 'Use all available preview space'}
+            on:click={() => setPreviewMode(mode)}
+          >{choice.buttonLabel}</button>
         {/each}
-      </select>
-    </label>
+      </div>
+    </div>
     <div class="tools">
       <button class="tbtn" on:click={fire} title="Replay the react">▶ Fire</button>
       <button class="tbtn" class:on={looping} on:click={toggleLoop} title="Auto-replay on a loop">
@@ -197,7 +260,15 @@
     </div>
   </div>
 
-  <div class="stage" bind:this={stageEl}>
+  <div class="stage-shell" class:device-mode={viewport.device} bind:this={frameEl}>
+    <div
+      class="device-frame"
+      class:phone={viewport.device}
+      class:landscape={previewMode === 'iphone-landscape'}
+      style={frameStyle}
+    >
+      {#if viewport.device}<div class="phone-pill" aria-hidden="true"></div>{/if}
+      <div class="stage" class:device-stage={viewport.device} bind:this={stageEl}>
     <!-- the same ambient canopies the app shows for this theme -->
     {#if canopy.stars}<div class="stars-canopy active"></div>{/if}
     {#if canopy.meteor}<div class="meteor-canopy active"></div>{/if}
@@ -245,8 +316,8 @@
                 --go:{layer.glowOpacity}; --gbr:{layer.glowBrightness};
                 --ease:{EASES[layer.travelEase].css};
                 --sway:{p.swayAmp}px; --swaydur:{p.swayDur}s; --swayphase:{p.swayPhase}s;
-                --rot:{p.rotEnd}deg; --apex:{p.apex.toFixed(1)}vh;
-                --fx:{p.fromX.toFixed(1)}vmin; --fy:{p.fromY.toFixed(1)}vmin;
+                --rot:{p.rotEnd}deg; --apex:{p.apex.toFixed(1)}cqh;
+                --fx:{p.fromX.toFixed(1)}cqmin; --fy:{p.fromY.toFixed(1)}cqmin;
                 {layer.direction === 'fixed'
                   ? `left:${layer.fixedX}%; top:${layer.fixedY}%;`
                   : layer.direction !== 'burst' && layer.direction !== 'converge' ? `left:${p.x}%;` : ''}
@@ -300,6 +371,11 @@
         </div>
       {/each}
     </div>
+      </div>
+    </div>
+    {#if viewport.device}
+      <div class="viewport-caption">{viewport.width} × {viewport.height} CSS px</div>
+    {/if}
   </div>
 
   <div class="underbar">
@@ -344,6 +420,12 @@
     gap: 12px;
     flex-wrap: wrap;
   }
+  .view-options {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
   .tsel {
     display: inline-flex;
     align-items: center;
@@ -358,6 +440,35 @@
     border-radius: 8px;
     padding: 6px 10px;
     font-size: 13px;
+  }
+  .view-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 3px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-2);
+  }
+  .view-switch > span {
+    padding: 0 5px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .view-switch button {
+    border: 0;
+    border-radius: 7px;
+    padding: 4px 8px;
+    background: transparent;
+    color: var(--text-dim);
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .view-switch button.active {
+    background: var(--signal);
+    color: var(--signal-contrast);
+    box-shadow: 0 0 7px var(--signal-glow);
   }
   .tools { display: flex; gap: 8px; }
   .tbtn {
@@ -415,15 +526,93 @@
   .meter .good { color: #7dbb8a; }
   .meter .rough { color: #d96a6a; }
   .meter .law { color: var(--text-faint); }
-  .stage {
+  .stage-shell {
     position: relative;
     flex: 1 1 auto;
     min-height: 420px;
+    min-width: 0;
+  }
+  .stage-shell.device-mode {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background:
+      radial-gradient(circle at 50% 45%, var(--signal-glow), transparent 48%),
+      color-mix(in srgb, var(--surface-2) 72%, var(--app-bg));
+  }
+  .device-frame {
+    width: 100%;
+    height: 100%;
+    display: flex;
+  }
+  .device-frame.phone {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: calc(var(--viewport-width) + 20px);
+    height: calc(var(--viewport-height) + 20px);
+    padding: 10px;
+    box-sizing: border-box;
+    flex: none;
+    transform: translate(-50%, -50%) scale(var(--frame-scale));
+    transform-origin: center;
+    border-radius: 52px;
+    background: #101013;
+    box-shadow:
+      0 24px 70px rgba(0, 0, 0, 0.32),
+      0 0 0 2px rgba(255, 255, 255, 0.16) inset;
+  }
+  .device-frame.phone.landscape { border-radius: 38px; }
+  .phone-pill {
+    position: absolute;
+    z-index: 100;
+    left: 50%;
+    top: 20px;
+    width: 126px;
+    height: 35px;
+    transform: translateX(-50%);
+    border-radius: 999px;
+    background: #070708;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.045);
+    pointer-events: none;
+  }
+  .device-frame.landscape .phone-pill {
+    left: 20px;
+    top: 50%;
+    width: 35px;
+    height: 126px;
+    transform: translateY(-50%);
+  }
+  .viewport-caption {
+    position: absolute;
+    right: 10px;
+    bottom: 8px;
+    z-index: 2;
+    color: var(--text-faint);
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+  }
+  .stage {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    box-sizing: border-box;
     border-radius: 16px;
     overflow: hidden;
+    container-type: size;
     background: var(--ambient-gradient, var(--app-bg));
     border: 1px solid var(--border);
   }
+  .stage.device-stage {
+    width: 100%;
+    height: 100%;
+    flex: none;
+    border: 0;
+    border-radius: 43px;
+  }
+  .device-frame.landscape .stage.device-stage { border-radius: 29px; }
   .ghost-card {
     position: absolute;
     top: 18px;

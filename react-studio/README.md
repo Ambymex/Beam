@@ -30,10 +30,14 @@ npm run dev      # opens on port 5210 with the planner's live dev server family
 
 ## Using it
 
-1. Pick a **theme** in the stage toolbar to preview against any environment;
-   **Fire** replays, **Loop** auto-replays, **¼×** is quarter-speed study
-   mode, and the **scrub bar** under the stage freezes the whole react so you
-   can walk its timeline frame by frame.
+1. Pick a **theme** in the stage toolbar to preview against any environment.
+   The **View** switch moves between the roomy desktop stage and true-size
+   393 × 852 iPhone portrait/landscape viewports, scaled to fit the editor;
+   viewport-relative travel is measured against the selected frame. **Fire**
+   replays, **Loop** auto-replays, **¼×** is quarter-speed study mode, and the
+   **scrub bar** under the stage freezes the whole react so you can walk its
+   timeline frame by frame. Your view choice is remembered locally and never
+   changes the saved react or exported code.
 2. A react is **1–4 layers**, each a full emitter (the classic recipe: a
    sparse *hero* layer carrying the feeling over a dense, dim *support* layer
    selling the depth — load **Champagne Toast** to study one). Layers can be
