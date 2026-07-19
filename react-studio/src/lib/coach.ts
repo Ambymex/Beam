@@ -63,7 +63,7 @@ export function coach(cfg: ReactConfig): CoachNote[] {
 
   // 3 — never pop
   {
-    const pops = layers.filter((l) => l.fadeInPct < 3 || l.fadeOutPct > 97);
+    const pops = layers.filter((l) => l.direction !== 'fixed' && (l.fadeInPct < 3 || l.fadeOutPct > 97));
     notes.push(
       pops.length
         ? {
@@ -126,7 +126,7 @@ export function coach(cfg: ReactConfig): CoachNote[] {
   // (sway phase and colour variation decorrelate them). Depth link is a
   // technique worth *feeling* once, not a correction.
   {
-    const scattered = layers.filter((l) => l.sizeMax >= l.sizeMin * 2 && !l.depthLink);
+    const scattered = layers.filter((l) => l.direction !== 'fixed' && l.sizeMax >= l.sizeMin * 2 && !l.depthLink);
     notes.push(
       scattered.length
         ? {

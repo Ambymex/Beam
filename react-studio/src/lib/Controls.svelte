@@ -2,6 +2,7 @@
   import { PRESETS, EASES, MAX_LAYERS, newLayer, migrateConfig, type ReactConfig, type EaseKind } from './reactConfig';
   import { SHAPE_LABELS, type ShapeKind } from './shapes';
   import CustomShape from './CustomShape.svelte';
+  import { SYNODIC_MONTH, lunarPhaseInfo } from './lunar';
 
   // Two-way bound from App; reassigning `config` (even to itself) is what tells
   // Svelte a nested field changed, so the live preview re-fires.
@@ -10,6 +11,9 @@
   let active = 0; // which layer is being edited
   $: if (active >= config.layers.length) active = config.layers.length - 1;
   $: layer = config.layers[active];
+  $: lunarPhase = layer?.shape === 'lunar'
+    ? lunarPhaseInfo(layer.lunarDay, layer.lunarHemisphere)
+    : null;
 
   const bump = () => {
     // Keep the old single-colour field meaningful for saved drafts made by
@@ -174,6 +178,7 @@
     <label class="field">
       <span>Direction</span>
       <select bind:value={layer.direction} on:change={bump}>
+        <option value="fixed">Fixed position</option>
         <option value="fall">Fall (top → down)</option>
         <option value="rise">Rise (bottom → up)</option>
         <option value="burst">Burst (from centre)</option>
@@ -187,6 +192,31 @@
     {#if layer.direction === 'converge'}
       <p class="hint">Particles begin scattered around the frame, settle into a focused cloud by 72% of travel, then hold still. Fade-out timing decides how long the lock gets to breathe.</p>
     {/if}
+    {#if layer.direction === 'fixed'}
+      <p class="hint">Anchored to one point on the stage. Inner size, colour and glow envelopes can still breathe without moving the object itself.</p>
+      <div class="pair">
+        <label class="field">
+          <span>Position X <b>{layer.fixedX}%</b></span>
+          <input type="range" min="5" max="95" bind:value={layer.fixedX} on:input={bump} />
+        </label>
+        <label class="field">
+          <span>Position Y <b>{layer.fixedY}%</b></span>
+          <input type="range" min="10" max="90" bind:value={layer.fixedY} on:input={bump} />
+        </label>
+      </div>
+      <label class="field">
+        <span>Animation cycle <b>{layer.durMax.toFixed(1)}s</b></span>
+        <input
+          type="range"
+          min="0.8"
+          max="12"
+          step="0.1"
+          bind:value={layer.durMax}
+          on:input={() => { layer.durMin = layer.durMax; bump(); }}
+        />
+      </label>
+    {/if}
+    {#if layer.direction !== 'fixed'}
     <label class="field">
       <span>Count <b>{layer.count}</b></span>
       <input type="range" min="1" max="80" bind:value={layer.count} on:input={bump} />
@@ -227,6 +257,7 @@
       </div>
       <p class="hint"><b>{EASES[layer.travelEase].label}:</b> {EASES[layer.travelEase].teach}</p>
     </div>
+    {/if}
     {#if layer.direction === 'fall' || layer.direction === 'rise' || layer.direction === 'fountain'}
       <label class="field">
         <span>Horizontal drift <b>{layer.driftX}vw</b></span>
@@ -269,6 +300,73 @@
         {/key}
       </div>
     {/if}
+    {#if layer.shape === 'lunar'}
+      {#if lunarPhase}
+        <div class="phase-card">
+          <b>{lunarPhase.name}</b>
+          <span>{(lunarPhase.illumination * 100).toFixed(1)}% illuminated · {lunarPhase.waxing ? 'waxing' : 'waning'} · lit on the {lunarPhase.side}</span>
+        </div>
+      {/if}
+      <label class="field col">
+        <span>Lunar day <b>{layer.lunarDay.toFixed(2)} / {SYNODIC_MONTH.toFixed(2)}</b></span>
+        <input type="range" min="0" max={SYNODIC_MONTH} step="0.01" bind:value={layer.lunarDay} on:input={bump} />
+      </label>
+      <label class="field">
+        <span>Hemisphere orientation</span>
+        <select bind:value={layer.lunarHemisphere} on:change={bump}>
+          <option value="south">Southern (Melbourne)</option>
+          <option value="north">Northern</option>
+        </select>
+      </label>
+      <div class="pair">
+        <label class="field">
+          <span>Apparent size <b>{layer.moonSize}px</b></span>
+          <input type="range" min="32" max="260" bind:value={layer.moonSize} on:input={bump} />
+        </label>
+        <label class="field">
+          <span>Disc opacity <b>{layer.moonOpacity.toFixed(2)}</b></span>
+          <input type="range" min="0" max="1" step="0.01" bind:value={layer.moonOpacity} on:input={bump} />
+        </label>
+      </div>
+      <label class="field">
+        <span>Moon colour</span>
+        <select bind:value={layer.colorMode} on:change={bump}>
+          <option value="fixed">Fixed colour</option>
+          <option value="signal">Theme --signal</option>
+          <option value="contrast">Theme --signal-contrast</option>
+        </select>
+      </label>
+      {#if layer.colorMode === 'fixed'}
+        <div class="single-colour">
+          <input type="color" bind:value={layer.colors[0]} on:input={bump} aria-label="Moon colour" />
+        </div>
+      {/if}
+      <div class="pair">
+        <label class="field">
+          <span>Earthshine <b>{layer.moonEarthshineOpacity.toFixed(2)}</b></span>
+          <input type="range" min="0" max="1" step="0.01" bind:value={layer.moonEarthshineOpacity} on:input={bump} />
+        </label>
+        <label class="field colour-field">
+          <span>Earthshine colour</span>
+          <input type="color" bind:value={layer.moonEarthshineColor} on:input={bump} aria-label="Earthshine colour" />
+        </label>
+      </div>
+      <div class="pair">
+        <label class="field">
+          <span>Terminator softness <b>{layer.moonTerminatorSoftness.toFixed(2)}</b></span>
+          <input type="range" min="0" max="3" step="0.05" bind:value={layer.moonTerminatorSoftness} on:input={bump} />
+        </label>
+        <label class="field">
+          <span>Limb shading <b>{layer.moonLimbDarkening.toFixed(2)}</b></span>
+          <input type="range" min="0" max="1" step="0.01" bind:value={layer.moonLimbDarkening} on:input={bump} />
+        </label>
+      </div>
+      <label class="field check">
+        <input type="checkbox" bind:checked={layer.moonDebug} on:change={bump} />
+        <span>Debug mask, axes and pivot</span>
+      </label>
+      <p class="hint">The phase uses projected-sphere geometry. Day 0 is new, 7.38 first quarter, 14.77 full, and 22.15 last quarter.</p>
+    {:else}
     <div class="pair">
       <label class="field">
         <span>Size min <b>{layer.sizeMin}px</b></span>
@@ -307,10 +405,18 @@
         <button class="add-color" on:click={addColor} title="Add a colour for per-particle variation">＋</button>
       </div>
     {/if}
+    {/if}
   </section>
 
   <section>
     <h3>Motion · {layer.name}</h3>
+    {#if layer.shape === 'lunar'}
+      <label class="field">
+        <span>Disc rotation <b>{layer.moonRotation}°</b></span>
+        <input type="range" min="-180" max="180" bind:value={layer.moonRotation} on:input={bump} />
+      </label>
+      <p class="hint">Position remains truly fixed. Rotation is an artistic orientation adjustment; set it to 0° for the hemisphere-correct upright phase.</p>
+    {:else}
     <label class="field check">
       <input type="checkbox" bind:checked={layer.spin} on:change={bump} />
       <span>Spin as it travels</span>
@@ -336,6 +442,7 @@
           <input type="range" min="0.4" max="3.5" step="0.1" bind:value={layer.swayMax} on:input={bump} />
         </label>
       </div>
+    {/if}
     {/if}
   </section>
 
@@ -431,6 +538,7 @@
 
   <section>
     <h3>Look · {layer.name}</h3>
+    {#if layer.shape !== 'lunar'}
     <div class="pair">
       <label class="field">
         <span>Opacity min <b>{layer.opacityMin.toFixed(2)}</b></span>
@@ -462,6 +570,7 @@
         <p class="hint">Popping in or vanishing at full opacity is the #1 amateur tell — even 5% of fade keeps the illusion of a thing arriving and leaving.</p>
       {/if}
     </div>
+    {/if}
     <label class="field">
       <span>Glow</span>
       <select bind:value={layer.glowMode} on:change={bump}>
@@ -496,6 +605,16 @@
           <input type="range" min="0" max="24" bind:value={layer.glowBlur} on:input={bump} />
         </label>
       {/if}
+      <div class="pair">
+        <label class="field">
+          <span>Glow opacity <b>{layer.glowOpacity.toFixed(2)}</b></span>
+          <input type="range" min="0" max="1" step="0.01" bind:value={layer.glowOpacity} on:input={bump} />
+        </label>
+        <label class="field">
+          <span>Glow brightness <b>{layer.glowBrightness.toFixed(2)}</b></span>
+          <input type="range" min="0" max="2" step="0.05" bind:value={layer.glowBrightness} on:input={bump} />
+        </label>
+      </div>
     {/if}
     {#if layer.glowMode === 'fixed'}
       <label class="field">
@@ -713,6 +832,30 @@
   .triple { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
   .triple .field { flex-direction: column; align-items: stretch; gap: 4px; }
   .triple .field input[type='range'] { max-width: none; width: 100%; }
+  .phase-card {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 9px 10px;
+    border: 1px solid color-mix(in srgb, var(--signal) 38%, var(--border));
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--signal) 7%, var(--surface-2));
+    color: var(--text-dim);
+    font-size: 11px;
+  }
+  .phase-card b { color: var(--text); font-size: 12px; }
+  .single-colour,
+  .colour-field { display: flex; align-items: center; gap: 8px; }
+  .single-colour input[type='color'],
+  .colour-field input[type='color'] {
+    width: 44px;
+    height: 30px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: none;
+    cursor: pointer;
+    padding: 2px;
+  }
   .colors { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .color-chip { position: relative; }
   .color-chip input[type='color'] {

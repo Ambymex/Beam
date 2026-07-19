@@ -7,6 +7,7 @@
 // its scale/ease baked in, and its own block in the fire() branch.
 import { SHAPES, type ShapeDef, type CustomPathPart } from './shapes';
 import { EASES, type ReactConfig, type LayerConfig, type ColorMode, type GlowColorMode } from './reactConfig';
+import { lunarLitPath, lunarPhaseInfo } from './lunar';
 
 const n = (x: number) => Number(x.toFixed(3)).toString();
 
@@ -45,11 +46,13 @@ function glowColorExpr(mode: GlowColorMode, colors: string[], fillName: string):
 }
 
 function txExpr(layer: LayerConfig): string {
+  if (layer.direction === 'fixed') return `'0px'`;
   if (layer.direction === 'burst' || layer.direction === 'converge')
     return '`${(Math.cos(angle * Math.PI / 180) * distance).toFixed(1)}vmin`';
   return `\`\${(-${n(layer.driftX)} + Math.random() * ${n(layer.driftX * 2)}).toFixed(1)}vw\``;
 }
 function tyExpr(layer: LayerConfig): string {
+  if (layer.direction === 'fixed') return `'0px'`;
   if (layer.direction === 'fall') return `'112vh'`;
   if (layer.direction === 'rise') return `'-72vh'`;
   if (layer.direction === 'fountain') return `'0vh'`; // Y lives on the arc wrapper
@@ -74,6 +77,10 @@ export function generate(cfg: ReactConfig): Generated {
   const layers = cfg.layers;
   const anyFountain = layers.some((l) => l.direction === 'fountain');
   const anyConverge = layers.some((l) => l.direction === 'converge');
+  const anyLunar = layers.some((l) => l.shape === 'lunar');
+  const movingLayerIndexes = layers
+    .map((l, i) => l.direction === 'fixed' ? -1 : i)
+    .filter((i) => i >= 0);
   const anySizeEnvelope = layers.some((l) => l.sizeEnvelope);
   const anyColorEnvelope = layers.some(
     (l) => l.colorMidMode !== 'hold' || l.colorEndMode !== 'hold',
@@ -92,6 +99,26 @@ export function generate(cfg: ReactConfig): Generated {
 
   const arrayNames = layers.map((_, k) => (layers.length === 1 ? id : `${id}_l${k + 1}`));
 
+  const moonPresetScript = anyLunar
+    ? `
+  interface ${Cap}MoonPreset {
+    lunarDay: number;
+    hemisphere: 'north' | 'south';
+    position: { x: number; y: number };
+    disc: { color: string; opacity: number; size: number; rotation: number };
+    surface: { terminatorSoftness: number; earthshine: number; earthshineColor: string; limbDarkening: number };
+    glow: { color: string; radius: number; opacity: number; brightness: number };
+  }
+${layers.map((l, k) => l.shape === 'lunar' ? `  const ${id}Moon${k + 1}: ${Cap}MoonPreset = {
+    lunarDay: ${n(l.lunarDay)},
+    hemisphere: '${l.lunarHemisphere}',
+    position: { x: ${n(l.fixedX)}, y: ${n(l.fixedY)} },
+    disc: { color: '${l.colorMode === 'fixed' ? (l.colors[0] ?? '#ffffff') : l.colorMode === 'signal' ? 'var(--signal)' : 'var(--signal-contrast)'}', opacity: ${n(l.moonOpacity)}, size: ${n(l.moonSize)}, rotation: ${n(l.moonRotation)} },
+    surface: { terminatorSoftness: ${n(l.moonTerminatorSoftness)}, earthshine: ${n(l.moonEarthshineOpacity)}, earthshineColor: '${l.moonEarthshineColor}', limbDarkening: ${n(l.moonLimbDarkening)} },
+    glow: { color: '${l.glowColorMode === 'fixed' ? (l.glowColors[0] ?? '#ffffff') : 'auto'}', radius: ${n(l.glowBlur)}, opacity: ${n(l.glowOpacity)}, brightness: ${n(l.glowBrightness)} },
+  };` : '').filter(Boolean).join('\n')}`
+    : '';
+
   const script = `  // ${cfg.label} — ${cfg.register}
   interface ${Cap}P {
     id: number; x: number; size: number; color: string; colorMid: string; colorEnd: string;
@@ -101,8 +128,9 @@ export function generate(cfg: ReactConfig): Generated {
     rotEnd: number; swayAmp: number; swayDur: number; swayPhase: number;
     tx: string; ty: string;${anyFountain ? ' apex: number;' : ''}${anyConverge ? ' fromX: number; fromY: number;' : ''}
   }
+${moonPresetScript}
 ${arrayNames.map((a) => `  let ${a}: ${Cap}P[] = [];`).join('\n')}
-  let ${id}Timer: ReturnType<typeof setTimeout>;`;
+${movingLayerIndexes.length ? `  let ${id}Timer: ReturnType<typeof setTimeout>;` : ''}`;
 
   // ---- fire() branch: one block per layer ----
   const layerBlocks = layers
@@ -112,8 +140,13 @@ ${arrayNames.map((a) => `  let ${a}: ${Cap}P[] = [];`).join('\n')}
       const swayRange = l.swayMax - l.swayMin;
       const sizeRange = l.sizeMax - l.sizeMin;
       const opRange = l.opacityMax - l.opacityMin;
+      const fixed = l.direction === 'fixed';
       // depth-linked: one sample drives size/speed/opacity; else independent
-      const sampled = l.depthLink
+      const sampled = fixed
+        ? `const size = ${n(l.shape === 'lunar' ? l.moonSize : l.sizeMax)};
+        const dur = ${n(l.durMax)};
+        const op = ${n(l.shape === 'lunar' ? l.moonOpacity : l.opacityMax)};`
+        : l.depthLink
         ? `const t = Math.random(); // depth: 0 far, 1 near
         const size = Math.round(${n(l.sizeMin)} + t * ${n(sizeRange)});
         const dur = ${n(l.durMax)} - t * ${n(durRange)};
@@ -123,10 +156,10 @@ ${arrayNames.map((a) => `  let ${a}: ${Cap}P[] = [];`).join('\n')}
         const op = ${n(l.opacityMin)} + Math.random() * ${n(opRange)};`;
       return `      // layer ${k + 1}: ${l.name}
       const b${k + 1}: ${Cap}P[] = [];
-      for (let i = 0; i < ${l.count}; i++) {
+      for (let i = 0; i < ${fixed ? 1 : l.count}; i++) {
         ${sampled}
         const swayDur = ${n(l.swayMin)} + Math.random() * ${n(swayRange)};
-        const delay = ${n(l.layerDelay)} + Math.random() * ${n(l.spawnWindow)};${
+        const delay = ${fixed ? n(l.layerDelay) : `${n(l.layerDelay)} + Math.random() * ${n(l.spawnWindow)}`};${
         l.direction === 'burst'
           ? `
         const angle = Math.random() * 360;
@@ -164,8 +197,8 @@ ${arrayNames.map((a) => `  let ${a}: ${Cap}P[] = [];`).join('\n')}
           envMidDur: +(dur * ${n(l.envelopeMidPct / 100)}).toFixed(3),
           envEndDelay: +(delay + dur * ${n(l.envelopeMidPct / 100)}).toFixed(3),
           envEndDur: +(dur * ${n((100 - l.envelopeMidPct) / 100)}).toFixed(3),
-          rotEnd: ${l.spin ? `(Math.random() < 0.5 ? -1 : 1) * ${n(l.rotMax)} * dur` : '0'},
-          swayAmp: ${l.swayAmp ? `${n(l.swayAmp * 0.6)} + Math.random() * ${n(l.swayAmp * 0.4)}` : '0'},
+          rotEnd: ${!fixed && l.spin ? `(Math.random() < 0.5 ? -1 : 1) * ${n(l.rotMax)} * dur` : '0'},
+          swayAmp: ${!fixed && l.swayAmp ? `${n(l.swayAmp * 0.6)} + Math.random() * ${n(l.swayAmp * 0.4)}` : '0'},
           swayDur,
           swayPhase: Math.random() * swayDur,
           tx: ${txExpr(l)},
@@ -176,12 +209,17 @@ ${arrayNames.map((a) => `  let ${a}: ${Cap}P[] = [];`).join('\n')}
     })
     .join('\n');
 
-  const fireBranch = `    } else if (type === '${id}') {
-${layerBlocks}
+  const cleanupScript = movingLayerIndexes.length
+    ? `
       clearTimeout(${id}Timer);
       ${id}Timer = setTimeout(() => {
-${arrayNames.map((a) => `        ${a} = [];`).join('\n')}
-      }, ${lifeMs});
+${movingLayerIndexes.map((i) => `        ${arrayNames[i]} = [];`).join('\n')}
+      }, ${lifeMs});`
+    : '';
+
+  const fireBranch = `    } else if (type === '${id}') {
+${layerBlocks}
+${cleanupScript}
     }`;
 
   // ---- markup: one {#each} per layer ----
@@ -190,8 +228,29 @@ ${arrayNames.map((a) => `        ${a} = [];`).join('\n')}
       const arr = arrayNames[k];
       const cls = layers.length === 1 ? id : `${id}-l${k + 1}`;
       const sd = shapeDef(l);
+      const phase = l.shape === 'lunar' ? lunarPhaseInfo(l.lunarDay, l.lunarHemisphere) : null;
+      const litPath = l.shape === 'lunar' ? lunarLitPath(l.lunarDay, l.lunarHemisphere) : '';
+      const lunarMarkup = l.shape === 'lunar'
+        ? `            <svg viewBox="0 0 100 100" width={p.size} height={p.size} role="img" aria-label="${phase?.name}, ${n((phase?.illumination ?? 0) * 100)}% illuminated, ${l.lunarHemisphere} orientation" style="display:block; overflow:visible; transform:rotate(${n(l.moonRotation)}deg); transform-origin:50% 50%;">
+              <defs>
+                <clipPath id="${cls}-moon-clip-{p.id}"><circle cx="50" cy="50" r="46" /></clipPath>
+                <filter id="${cls}-moon-blur-{p.id}" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="${n(l.moonTerminatorSoftness)}" /></filter>
+              </defs>
+              <g clip-path="url(#${cls}-moon-clip-{p.id})">
+                <circle cx="50" cy="50" r="46" fill="${l.moonEarthshineColor}" opacity="${n(l.moonEarthshineOpacity)}" />${litPath ? `
+                <path d="${litPath}" fill="currentColor"${l.moonTerminatorSoftness > 0 ? ` filter="url(#${cls}-moon-blur-{p.id})"` : ''} />` : ''}${l.moonLimbDarkening > 0 ? `
+                <circle cx="50" cy="50" r="${n(46 - l.moonLimbDarkening * 5)}" fill="none" stroke="rgba(0,0,0,0.72)" stroke-width="${n(l.moonLimbDarkening * 10)}" opacity="${n(l.moonLimbDarkening)}" />` : ''}
+              </g>${l.moonDebug ? `
+              <circle cx="50" cy="50" r="46" fill="none" stroke="#5dff9a" stroke-width="1" stroke-dasharray="3 2" vector-effect="non-scaling-stroke" />${litPath ? `
+              <path d="${litPath}" fill="none" stroke="#ff5da8" stroke-width="1" vector-effect="non-scaling-stroke" />` : ''}
+              <path d="M4 50H96 M50 4V96" fill="none" stroke="rgba(93,255,154,0.62)" stroke-width="0.7" stroke-dasharray="2 3" vector-effect="non-scaling-stroke" />
+              <circle cx="50" cy="50" r="2" fill="#ff5da8" />` : ''}
+            </svg>`
+        : '';
       const shapeInner =
-        sd.render === 'path'
+        sd.render === 'lunar'
+          ? lunarMarkup
+          : sd.render === 'path'
           ? `            <svg viewBox="${attr(sd.viewBox ?? '0 0 24 24')}" width={p.size} height={p.size} style="display:block;">
 ${pathParts(sd).map((part) => `              <path fill="currentColor" d="${attr(part.d)}"${part.transform ? ` transform="${attr(part.transform)}"` : ''}${part.fillRule ? ` fill-rule="${part.fillRule}"` : ''} />`).join('\n')}
             </svg>`
@@ -217,14 +276,16 @@ ${colorMarkup}
 ${scaleMarkup}
   </span>`
           : scaleMarkup;
-      const leftAttr = l.direction === 'burst' || l.direction === 'converge' ? '' : 'left:{p.x}%; ';
+      const leftAttr = l.direction === 'fixed'
+        ? `left:${n(l.fixedX)}%; top:${n(l.fixedY)}%; `
+        : l.direction === 'burst' || l.direction === 'converge' ? '' : 'left:{p.x}%; ';
       const apexVar = l.direction === 'fountain' ? ' --apex:{p.apex}vh;' : '';
       const convergeVars = l.direction === 'converge' ? ' --fx:{p.fromX}vmin; --fy:{p.fromY}vmin;' : '';
       return `  <!-- ${cfg.label}, layer ${k + 1}: ${l.name} -->
   {#each ${arr} as p (p.id)}
     <span
       class="${cls}"
-      style="${leftAttr}--size:{p.size}px; --dur:{p.dur}s; --delay:{p.delay}s; --op:{p.op}; --indur:{p.inDur}s; --outdelay:{p.outDelay}s; --outdur:{p.outDur}s; --envmiddur:{p.envMidDur}s; --envenddelay:{p.envEndDelay}s; --envenddur:{p.envEndDur}s; --tx:{p.tx}; --ty:{p.ty}; --s0:${n(l.scaleFrom)}; --sm:${n(l.scaleMid)}; --s1:${n(l.scaleTo)}; --c0:{p.color}; --cm:{p.colorMid}; --c1:{p.colorEnd}; --gb0:${n(l.glowBlur)}px; --gbm:${n(l.glowEnvelope ? l.glowBlurMid : l.glowBlur)}px; --gb1:${n(l.glowEnvelope ? l.glowBlurEnd : l.glowBlur)}px; --fgc0:{p.glowColor}; --fgcm:{p.glowColorMid}; --fgc1:{p.glowColorEnd}; --sway:{p.swayAmp}px; --swaydur:{p.swayDur}s; --swayphase:{p.swayPhase}s; --rot:{p.rotEnd}deg;${apexVar}${convergeVars}"
+      style="${leftAttr}--size:{p.size}px; --dur:{p.dur}s; --delay:{p.delay}s; --op:{p.op}; --indur:{p.inDur}s; --outdelay:{p.outDelay}s; --outdur:{p.outDur}s; --envmiddur:{p.envMidDur}s; --envenddelay:{p.envEndDelay}s; --envenddur:{p.envEndDur}s; --tx:{p.tx}; --ty:{p.ty}; --s0:${n(l.scaleFrom)}; --sm:${n(l.scaleMid)}; --s1:${n(l.scaleTo)}; --c0:{p.color}; --cm:{p.colorMid}; --c1:{p.colorEnd}; --gb0:${n(l.glowBlur)}px; --gbm:${n(l.glowEnvelope ? l.glowBlurMid : l.glowBlur)}px; --gb1:${n(l.glowEnvelope ? l.glowBlurEnd : l.glowBlur)}px; --fgc0:{p.glowColor}; --fgcm:{p.glowColorMid}; --fgc1:{p.glowColorEnd}; --go:${n(l.glowOpacity)}; --gbr:${n(l.glowBrightness)}; --sway:{p.swayAmp}px; --swaydur:{p.swayDur}s; --swayphase:{p.swayPhase}s; --rot:{p.rotEnd}deg;${apexVar}${convergeVars}"
     >
 ${inner}
     </span>
@@ -237,7 +298,9 @@ ${inner}
     .map((l, k) => {
       const cls = layers.length === 1 ? id : `${id}-l${k + 1}`;
       const basePos =
-        l.direction === 'fall'
+        l.direction === 'fixed'
+          ? 'margin-top: calc(var(--size) / -2);'
+          : l.direction === 'fall'
           ? 'top: calc(-1 * var(--size) - 10px);'
           : l.direction === 'burst' || l.direction === 'converge'
             ? 'top: 50%; left: 50%; margin-top: calc(var(--size) / -2);'
@@ -277,7 +340,11 @@ ${inner}
         ? `
   .${cls}-glow {
     display: block;
-    filter: drop-shadow(0 0 var(--gb0) var(--gc0, var(--fgc0)));${glowAnim}
+    --glow-alpha: clamp(0%, calc(var(--go, 0.72) * var(--gbr, 1) * 100%), 100%);
+    --corona-alpha: clamp(0%, calc(var(--go, 0.72) * var(--gbr, 1) * 34%), 65%);
+    filter:
+      drop-shadow(0 0 var(--gb0) color-mix(in srgb, var(--gc0, var(--fgc0)) var(--glow-alpha), transparent))
+      drop-shadow(0 0 calc(var(--gb0) * 1.8) color-mix(in srgb, var(--gc0, var(--fgc0)) var(--corona-alpha), transparent));${glowAnim}
   }`
         : `
   .${cls}-glow { display: block; }`;
@@ -308,10 +375,12 @@ ${inner}
     --s0: ${n(l.scaleFrom)};
     --sm: ${n(l.scaleMid)};
     --s1: ${n(l.scaleTo)};
-    animation:
+    ${l.direction === 'fixed'
+      ? 'opacity: var(--op); transform: translate(0, 0);'
+      : `animation:
       ${travelAnim} var(--dur) ${EASES[l.travelEase].css} var(--delay) both,
       ${id}-in var(--indur) linear var(--delay) both,
-      ${id}-out var(--outdur) linear var(--outdelay) forwards;
+      ${id}-out var(--outdur) linear var(--outdelay) forwards;`}
   }
   .${cls}-scale {
     display: block;${scaleAnim}
@@ -385,12 +454,12 @@ ${inner}
   const glowEnvelopeCss = anyGlowEnvelope
     ? `
   @keyframes ${id}-glow-a {
-    from { filter: drop-shadow(0 0 var(--gb0) var(--gc0, var(--fgc0))); }
-    to { filter: drop-shadow(0 0 var(--gbm) var(--gcm, var(--fgcm))); }
+    from { filter: drop-shadow(0 0 var(--gb0) color-mix(in srgb, var(--gc0, var(--fgc0)) var(--glow-alpha), transparent)) drop-shadow(0 0 calc(var(--gb0) * 1.8) color-mix(in srgb, var(--gc0, var(--fgc0)) var(--corona-alpha), transparent)); }
+    to { filter: drop-shadow(0 0 var(--gbm) color-mix(in srgb, var(--gcm, var(--fgcm)) var(--glow-alpha), transparent)) drop-shadow(0 0 calc(var(--gbm) * 1.8) color-mix(in srgb, var(--gcm, var(--fgcm)) var(--corona-alpha), transparent)); }
   }
   @keyframes ${id}-glow-b {
-    from { filter: drop-shadow(0 0 var(--gbm) var(--gcm, var(--fgcm))); }
-    to { filter: drop-shadow(0 0 var(--gb1) var(--gc1, var(--fgc1))); }
+    from { filter: drop-shadow(0 0 var(--gbm) color-mix(in srgb, var(--gcm, var(--fgcm)) var(--glow-alpha), transparent)) drop-shadow(0 0 calc(var(--gbm) * 1.8) color-mix(in srgb, var(--gcm, var(--fgcm)) var(--corona-alpha), transparent)); }
+    to { filter: drop-shadow(0 0 var(--gb1) color-mix(in srgb, var(--gc1, var(--fgc1)) var(--glow-alpha), transparent)) drop-shadow(0 0 calc(var(--gb1) * 1.8) color-mix(in srgb, var(--gc1, var(--fgc1)) var(--corona-alpha), transparent)); }
   }`
     : '';
 

@@ -6,6 +6,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { THEME_ORDER, THEME_LABELS, currentTheme, canopyFor } from './theme';
   import { SHAPES, type ShapeDef, type CustomPathPart } from './shapes';
+  import LunarMoon from './LunarMoon.svelte';
   import { spawnAll, lifeMs, EASES, type ReactConfig, type LayerConfig, type Particle } from './reactConfig';
 
   export let config: ReactConfig;
@@ -60,7 +61,13 @@
     scrubbing = false;
     particleSets = spawnAll(config);
     clearTimeout(clearTimer);
-    clearTimer = setTimeout(() => (particleSets = []), life / rate);
+    clearTimer = setTimeout(() => {
+      // Fixed objects are stage fixtures; travelling layers still clean up on
+      // schedule, while the moon remains present between replay cycles.
+      particleSets = particleSets.map((set, i) =>
+        config.layers[i]?.direction === 'fixed' ? set : [],
+      );
+    }, life / rate);
     // playbackRate is set after the DOM exists; also count what we mounted
     requestAnimationFrame(() => {
       applyRate();
@@ -155,11 +162,13 @@
 
   // per-particle travel endpoint, by direction (matches generate.ts)
   function tx(layer: LayerConfig, p: Particle): string {
+    if (layer.direction === 'fixed') return '0px';
     if (layer.direction === 'burst' || layer.direction === 'converge')
       return `${(Math.cos((p.angle * Math.PI) / 180) * p.distance).toFixed(1)}vmin`;
     return `${p.driftX.toFixed(1)}vw`;
   }
   function ty(layer: LayerConfig, p: Particle): string {
+    if (layer.direction === 'fixed') return '0px';
     if (layer.direction === 'fall') return '112vh';
     if (layer.direction === 'rise') return '-72vh';
     if (layer.direction === 'fountain') return '0vh'; // Y lives on the arc wrapper
@@ -233,11 +242,14 @@
                 --c0:{p.color}; --cm:{p.colorMid}; --c1:{p.colorEnd};
                 --gb0:{layer.glowBlur}px; --gbm:{layer.glowEnvelope ? layer.glowBlurMid : layer.glowBlur}px; --gb1:{layer.glowEnvelope ? layer.glowBlurEnd : layer.glowBlur}px;
                 --fgc0:{p.glowColor}; --fgcm:{p.glowColorMid}; --fgc1:{p.glowColorEnd};
+                --go:{layer.glowOpacity}; --gbr:{layer.glowBrightness};
                 --ease:{EASES[layer.travelEase].css};
                 --sway:{p.swayAmp}px; --swaydur:{p.swayDur}s; --swayphase:{p.swayPhase}s;
                 --rot:{p.rotEnd}deg; --apex:{p.apex.toFixed(1)}vh;
                 --fx:{p.fromX.toFixed(1)}vmin; --fy:{p.fromY.toFixed(1)}vmin;
-                {layer.direction !== 'burst' && layer.direction !== 'converge' ? `left:${p.x}%;` : ''}
+                {layer.direction === 'fixed'
+                  ? `left:${layer.fixedX}%; top:${layer.fixedY}%;`
+                  : layer.direction !== 'burst' && layer.direction !== 'converge' ? `left:${p.x}%;` : ''}
               "
             >
               <span class="p-arc">
@@ -246,7 +258,20 @@
                     <span class="p-sway">
                       <span class="p-glow">
                         <span class="p-shape" class:adaptive={layer.glowMode === 'adaptive'}>
-                          {#if sd.render === 'path'}
+                          {#if sd.render === 'lunar'}
+                            <LunarMoon
+                              uid={`preview-${li}-${p.id}`}
+                              size={p.size}
+                              lunarDay={layer.lunarDay}
+                              hemisphere={layer.lunarHemisphere}
+                              rotation={layer.moonRotation}
+                              terminatorSoftness={layer.moonTerminatorSoftness}
+                              earthshineOpacity={layer.moonEarthshineOpacity}
+                              earthshineColor={layer.moonEarthshineColor}
+                              limbDarkening={layer.moonLimbDarkening}
+                              debug={layer.moonDebug}
+                            />
+                          {:else if sd.render === 'path'}
                             <svg viewBox={sd.viewBox} width={p.size} height={p.size} style="display:block;">
                               {#each pathParts(sd) as part}
                                 <path
@@ -435,6 +460,12 @@
   .react-layer.fall .p { top: calc(-1 * var(--size) - 10px); }
   .react-layer.rise .p { bottom: calc(-1 * var(--size) - 10px); }
   .react-layer.fountain .p { bottom: calc(-1 * var(--size) - 10px); }
+  .react-layer.fixed .p {
+    margin-top: calc(var(--size) / -2);
+    animation: none;
+    opacity: var(--op);
+    transform: translate(0, 0);
+  }
   .react-layer.burst .p { top: 50%; left: 50%; margin-top: calc(var(--size) / -2); }
   .react-layer.converge .p {
     top: 50%;
@@ -445,7 +476,7 @@
       s-in var(--indur) linear var(--delay) both,
       s-out var(--outdur) linear var(--outdelay) forwards;
   }
-  .react-layer.size-envelope:not(.converge) .p {
+  .react-layer.size-envelope:not(.converge):not(.fixed) .p {
     animation:
       s-travel-pos var(--dur) var(--ease, linear) var(--delay) both,
       s-in var(--indur) linear var(--delay) both,
@@ -541,7 +572,11 @@
   }
   .react-layer.fixed-glow .p-glow,
   .react-layer.adaptive-glow .p-glow {
-    filter: drop-shadow(0 0 var(--gb0) var(--gc0, var(--fgc0)));
+    --glow-alpha: clamp(0%, calc(var(--go, 0.72) * var(--gbr, 1) * 100%), 100%);
+    --corona-alpha: clamp(0%, calc(var(--go, 0.72) * var(--gbr, 1) * 34%), 65%);
+    filter:
+      drop-shadow(0 0 var(--gb0) color-mix(in srgb, var(--gc0, var(--fgc0)) var(--glow-alpha), transparent))
+      drop-shadow(0 0 calc(var(--gb0) * 1.8) color-mix(in srgb, var(--gc0, var(--fgc0)) var(--corona-alpha), transparent));
   }
   .react-layer.glow-envelope .p-glow {
     animation:
@@ -549,12 +584,12 @@
       s-glow-b var(--envenddur) linear var(--envenddelay) forwards;
   }
   @keyframes s-glow-a {
-    from { filter: drop-shadow(0 0 var(--gb0) var(--gc0, var(--fgc0))); }
-    to { filter: drop-shadow(0 0 var(--gbm) var(--gcm, var(--fgcm))); }
+    from { filter: drop-shadow(0 0 var(--gb0) color-mix(in srgb, var(--gc0, var(--fgc0)) var(--glow-alpha), transparent)) drop-shadow(0 0 calc(var(--gb0) * 1.8) color-mix(in srgb, var(--gc0, var(--fgc0)) var(--corona-alpha), transparent)); }
+    to { filter: drop-shadow(0 0 var(--gbm) color-mix(in srgb, var(--gcm, var(--fgcm)) var(--glow-alpha), transparent)) drop-shadow(0 0 calc(var(--gbm) * 1.8) color-mix(in srgb, var(--gcm, var(--fgcm)) var(--corona-alpha), transparent)); }
   }
   @keyframes s-glow-b {
-    from { filter: drop-shadow(0 0 var(--gbm) var(--gcm, var(--fgcm))); }
-    to { filter: drop-shadow(0 0 var(--gb1) var(--gc1, var(--fgc1))); }
+    from { filter: drop-shadow(0 0 var(--gbm) color-mix(in srgb, var(--gcm, var(--fgcm)) var(--glow-alpha), transparent)) drop-shadow(0 0 calc(var(--gbm) * 1.8) color-mix(in srgb, var(--gcm, var(--fgcm)) var(--corona-alpha), transparent)); }
+    to { filter: drop-shadow(0 0 var(--gb1) color-mix(in srgb, var(--gc1, var(--fgc1)) var(--glow-alpha), transparent)) drop-shadow(0 0 calc(var(--gb1) * 1.8) color-mix(in srgb, var(--gc1, var(--fgc1)) var(--corona-alpha), transparent)); }
   }
   :global([data-theme='dark']) .react-layer.adaptive-glow .p-glow {
     --gc0: rgba(255, 255, 255, 0.35);

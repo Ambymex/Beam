@@ -11,13 +11,14 @@ export type ShapeKind =
   | 'droplet'
   | 'leaf'
   | 'moon'
+  | 'lunar'
   | 'snowflake'
   | 'bolt'
   | 'caret'
   | 'custom';
 
 export interface ShapeDef {
-  render: 'path' | 'css';
+  render: 'path' | 'css' | 'lunar';
   viewBox?: string;
   d?: string; // path data (render === 'path')
   paths?: CustomPathPart[]; // imported SVGs may contain several transformed paths
@@ -61,6 +62,7 @@ export const SHAPES: Record<ShapeKind, ShapeDef> = {
   droplet: { render: 'path', viewBox: '0 0 24 24', d: DROPLET_D },
   leaf: { render: 'path', viewBox: '0 0 24 24', d: LEAF_D },
   moon: { render: 'path', viewBox: '0 0 24 24', d: MOON_D },
+  lunar: { render: 'lunar', viewBox: '0 0 100 100' },
   snowflake: { render: 'path', viewBox: '0 0 24 24', d: SNOWFLAKE_D },
   bolt: { render: 'path', viewBox: '0 0 24 24', d: BOLT_D },
   caret: { render: 'path', viewBox: '0 0 24 24', d: CARET_D },
@@ -76,6 +78,7 @@ export const SHAPE_LABELS: Record<ShapeKind, string> = {
   droplet: 'Droplet',
   leaf: 'Leaf',
   moon: 'Crescent moon',
+  lunar: 'Lunar phase (accurate)',
   snowflake: 'Snowflake',
   bolt: 'Bolt',
   caret: 'Open angle / caret',

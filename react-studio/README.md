@@ -39,9 +39,10 @@ npm run dev      # opens on port 5210 with the planner's live dev server family
    selling the depth — load **Champagne Toast** to study one). Layers can be
    muted for solo study and delayed for phrasing.
 3. Tune the **parametric controls** on the left — emission (direction
-   including *fountain* arcs and scatter-to-focus *convergence*, count,
+   including a persistent *fixed position*, *fountain* arcs and
+   scatter-to-focus *convergence*, count,
    trickle, delay, travel **easing curves** with teach notes), particle
-   (12 shapes + custom shapes drawn on the grid or **imported from Krita as
+   (13 shapes + custom shapes drawn on the grid or **imported from Krita as
    SVG**, size, **depth link**, start colour), motion
    (spin, flutter), **change over time** (three-point size + colour envelopes),
    look (opacity, **fade envelope**, expandable glow-colour palettes and
@@ -59,15 +60,24 @@ npm run dev      # opens on port 5210 with the planner's live dev server family
    parts; paste each into its home in `CompanionReacts.svelte`, plus the
    prompt line into the REACTS section of `ChatCompanion.svelte`.
    Multi-layer reacts export as per-layer arrays/classes sharing one set of
-   keyframes — still one `fire()` branch, still self-removing.
+   keyframes — still one `fire()` branch. Travelling layers self-remove;
+   fixed-position layers intentionally persist.
 
 ## Scope
 
 Covers the **particle-gesture family** — fall, rise, burst, fountain, and
-converge-and-lock — which is what most reacts are (black hearts, sparks,
+converge-and-lock — plus persistent fixed-position focus objects. This is what
+most reacts are (black hearts, sparks,
 cherry blossoms, drifting petals, champagne, focused formations). One-off set pieces like the tungsten strike
 aren't parametric and are hand-built in the app; the studio deliberately
 doesn't try to model them.
+
+Load **Lunar Focus** for the phase-accurate moon primitive. Its 29.530588853-day
+slider uses projected-sphere terminator geometry, with Southern/Northern
+hemisphere orientation, fixed X/Y placement, disc size/colour/opacity,
+earthshine, limb shading, terminator softness, independent glow radius,
+opacity and brightness, and a mask/axis/pivot debug view. Export includes a
+typed moon preset alongside matching SVG markup and keeps the object mounted.
 
 Notes: old drafts load unchanged: missing envelope fields migrate to held
 colour/glow and the original single `scaleFrom → scaleTo` motion. The

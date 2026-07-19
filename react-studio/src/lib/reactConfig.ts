@@ -1,4 +1,5 @@
 import type { ShapeKind, CustomPathPart } from './shapes';
+import type { LunarHemisphere } from './lunar';
 
 // The parametric model of a particle-gesture react — the family that covers
 // black_hearts, sparks, liquid drift, cherry_blossoms, convergence, etc. One-off set pieces
@@ -8,7 +9,7 @@ import type { ShapeKind, CustomPathPart } from './shapes';
 // hero is how complex reacts are actually built; per-layer delay gives
 // choreography phases. Old single-emitter drafts migrate via migrateConfig().
 
-export type Direction = 'fall' | 'rise' | 'burst' | 'fountain' | 'converge';
+export type Direction = 'fixed' | 'fall' | 'rise' | 'burst' | 'fountain' | 'converge';
 export type ColorMode = 'fixed' | 'signal' | 'contrast';
 export type ColorStopMode = ColorMode | 'hold';
 export type GlowColorMode = 'auto' | 'fixed';
@@ -107,6 +108,21 @@ export interface LayerConfig {
   driftX: number; // net horizontal spread, vw (fall/rise/fountain); burst radiates
   arcApex: number; // fountain: how high the arc rises, vh
   focusRadius: number; // converge: landing-cloud radius around centre, vmin
+  fixedX: number; // fixed: stage position, percent
+  fixedY: number;
+
+  // Physically projected lunar phase. These fields are dormant for every
+  // other shape, which keeps old particle reacts unchanged.
+  lunarDay: number; // 0–29.530588853
+  lunarHemisphere: LunarHemisphere;
+  moonSize: number;
+  moonOpacity: number;
+  moonRotation: number;
+  moonTerminatorSoftness: number;
+  moonEarthshineOpacity: number;
+  moonEarthshineColor: string;
+  moonLimbDarkening: number;
+  moonDebug: boolean;
 
   // glow: 'none', a 'fixed' coloured halo, or an 'adaptive' theme-readability
   // rim (light rim on dark themes, soft dark rim on light) — the trick that
@@ -116,6 +132,8 @@ export interface LayerConfig {
   glowBlurMid: number;
   glowBlurEnd: number;
   glowEnvelope: boolean;
+  glowOpacity: number;
+  glowBrightness: number;
   // `glowColor` is retained as a compatibility mirror for old drafts.
   glowColor: string;
   glowColorMode: GlowColorMode;
@@ -211,9 +229,14 @@ export function fillGlowColors(
 let seq = 0;
 export function spawnLayer(layer: LayerConfig): Particle[] {
   const out: Particle[] = [];
-  for (let i = 0; i < layer.count; i++) {
+  const count = layer.direction === 'fixed' ? 1 : layer.count;
+  for (let i = 0; i < count; i++) {
     let size: number, dur: number, op: number;
-    if (layer.depthLink) {
+    if (layer.direction === 'fixed') {
+      size = layer.shape === 'lunar' ? layer.moonSize : layer.sizeMax;
+      dur = layer.durMax;
+      op = layer.shape === 'lunar' ? layer.moonOpacity : layer.opacityMax;
+    } else if (layer.depthLink) {
       // one depth sample drives everything: near = big, fast, solid
       const t = Math.random();
       size = Math.round(lerp(layer.sizeMin, layer.sizeMax, t));
@@ -225,7 +248,9 @@ export function spawnLayer(layer: LayerConfig): Particle[] {
       op = rand(layer.opacityMin, layer.opacityMax);
     }
     const swayDur = rand(layer.swayMin, layer.swayMax);
-    const delay = layer.layerDelay + rand(0, layer.spawnWindow);
+    const delay = layer.direction === 'fixed'
+      ? layer.layerDelay
+      : layer.layerDelay + rand(0, layer.spawnWindow);
     const angle = rand(0, 360);
     const distance = layer.direction === 'converge'
       ? Math.sqrt(Math.random()) * layer.focusRadius
@@ -254,8 +279,8 @@ export function spawnLayer(layer: LayerConfig): Particle[] {
       envMidDur: (dur * layer.envelopeMidPct) / 100,
       envEndDelay: delay + (dur * layer.envelopeMidPct) / 100,
       envEndDur: (dur * (100 - layer.envelopeMidPct)) / 100,
-      rotEnd: layer.spin ? (Math.random() < 0.5 ? -1 : 1) * layer.rotMax * dur : 0,
-      swayAmp: layer.swayAmp ? rand(layer.swayAmp * 0.6, layer.swayAmp) : 0,
+      rotEnd: layer.direction !== 'fixed' && layer.spin ? (Math.random() < 0.5 ? -1 : 1) * layer.rotMax * dur : 0,
+      swayAmp: layer.direction !== 'fixed' && layer.swayAmp ? rand(layer.swayAmp * 0.6, layer.swayAmp) : 0,
       swayDur,
       swayPhase: rand(0, swayDur),
       driftX: rand(-layer.driftX, layer.driftX),
@@ -324,11 +349,25 @@ export const DEFAULT_LAYER: LayerConfig = {
   driftX: 0,
   arcApex: 55,
   focusRadius: 10,
+  fixedX: 50,
+  fixedY: 55,
+  lunarDay: 4,
+  lunarHemisphere: 'south',
+  moonSize: 120,
+  moonOpacity: 0.94,
+  moonRotation: 0,
+  moonTerminatorSoftness: 0.35,
+  moonEarthshineOpacity: 0.12,
+  moonEarthshineColor: '#71809a',
+  moonLimbDarkening: 0.18,
+  moonDebug: false,
   glowMode: 'none',
   glowBlur: 6,
   glowBlurMid: 6,
   glowBlurEnd: 6,
   glowEnvelope: false,
+  glowOpacity: 0.72,
+  glowBrightness: 1,
   glowColor: 'auto',
   glowColorMode: 'auto',
   glowColors: ['#ffffff'],
@@ -428,6 +467,50 @@ const preset = (
 });
 
 export const PRESETS: Record<string, ReactConfig> = {
+  lunar_focus: preset(
+    'lunar_focus',
+    'Lunar Focus',
+    'A still lunar focus object — phase-accurate, quietly luminous, and ready to anchor later state choreography.',
+    {
+      name: 'Moon',
+      direction: 'fixed',
+      count: 1,
+      spawnWindow: 0,
+      layerDelay: 0,
+      durMin: 8,
+      durMax: 8,
+      shape: 'lunar',
+      moonSize: 128,
+      moonOpacity: 0.94,
+      fixedX: 50,
+      fixedY: 55,
+      lunarDay: 4.2,
+      lunarHemisphere: 'south',
+      moonTerminatorSoftness: 0.35,
+      moonEarthshineOpacity: 0.12,
+      moonEarthshineColor: '#71809a',
+      moonLimbDarkening: 0.18,
+      colorMode: 'fixed',
+      colors: ['#f3edcf'],
+      colorMidMode: 'hold',
+      colorEndMode: 'hold',
+      opacityMin: 0.94,
+      opacityMax: 0.94,
+      fadeInPct: 0,
+      fadeOutPct: 100,
+      spin: false,
+      rotMax: 0,
+      swayAmp: 0,
+      driftX: 0,
+      glowMode: 'fixed',
+      glowBlur: 14,
+      glowOpacity: 0.62,
+      glowBrightness: 1.15,
+      glowColor: '#c8d7ff',
+      glowColorMode: 'fixed',
+      glowColors: ['#c8d7ff'],
+    },
+  ),
   black_hearts: preset(
     'black_hearts',
     'Black Hearts',
