@@ -106,7 +106,7 @@ export function generate(cfg: ReactConfig): Generated {
     hemisphere: 'north' | 'south';
     position: { x: number; y: number };
     disc: { color: string; opacity: number; size: number; rotation: number };
-    surface: { terminatorSoftness: number; earthshine: number; earthshineColor: string; limbDarkening: number };
+    surface: { terminatorSoftness: number; earthshine: number; earthshineColor: string; limbDarkening: number; limbDarkeningColor: string };
     glow: { color: string; radius: number; opacity: number; brightness: number };
   }
 ${layers.map((l, k) => l.shape === 'lunar' ? `  const ${id}Moon${k + 1}: ${Cap}MoonPreset = {
@@ -114,7 +114,7 @@ ${layers.map((l, k) => l.shape === 'lunar' ? `  const ${id}Moon${k + 1}: ${Cap}M
     hemisphere: '${l.lunarHemisphere}',
     position: { x: ${n(l.fixedX)}, y: ${n(l.fixedY)} },
     disc: { color: '${l.colorMode === 'fixed' ? (l.colors[0] ?? '#ffffff') : l.colorMode === 'signal' ? 'var(--signal)' : 'var(--signal-contrast)'}', opacity: ${n(l.moonOpacity)}, size: ${n(l.moonSize)}, rotation: ${n(l.moonRotation)} },
-    surface: { terminatorSoftness: ${n(l.moonTerminatorSoftness)}, earthshine: ${n(l.moonEarthshineOpacity)}, earthshineColor: '${l.moonEarthshineColor}', limbDarkening: ${n(l.moonLimbDarkening)} },
+    surface: { terminatorSoftness: ${n(l.moonTerminatorSoftness)}, earthshine: ${n(l.moonEarthshineOpacity)}, earthshineColor: '${l.moonEarthshineColor}', limbDarkening: ${n(l.moonLimbDarkening)}, limbDarkeningColor: '${l.moonLimbDarkeningColor}' },
     glow: { color: '${l.glowColorMode === 'fixed' ? (l.glowColors[0] ?? '#ffffff') : 'auto'}', radius: ${n(l.glowBlur)}, opacity: ${n(l.glowOpacity)}, brightness: ${n(l.glowBrightness)} },
   };` : '').filter(Boolean).join('\n')}`
     : '';
@@ -239,7 +239,7 @@ ${cleanupScript}
               <g clip-path="url(#${cls}-moon-clip-{p.id})">
                 <circle cx="50" cy="50" r="46" fill="${l.moonEarthshineColor}" opacity="${n(l.moonEarthshineOpacity)}" />${litPath ? `
                 <path d="${litPath}" fill="currentColor"${l.moonTerminatorSoftness > 0 ? ` filter="url(#${cls}-moon-blur-{p.id})"` : ''} />` : ''}${l.moonLimbDarkening > 0 ? `
-                <circle cx="50" cy="50" r="${n(46 - l.moonLimbDarkening * 5)}" fill="none" stroke="rgba(0,0,0,0.72)" stroke-width="${n(l.moonLimbDarkening * 10)}" opacity="${n(l.moonLimbDarkening)}" />` : ''}
+                <circle cx="50" cy="50" r="${n(46 - l.moonLimbDarkening * 5)}" fill="none" stroke="${l.moonLimbDarkeningColor}" stroke-opacity="0.72" stroke-width="${n(l.moonLimbDarkening * 10)}" opacity="${n(l.moonLimbDarkening)}" />` : ''}
               </g>${l.moonDebug ? `
               <circle cx="50" cy="50" r="46" fill="none" stroke="#5dff9a" stroke-width="1" stroke-dasharray="3 2" vector-effect="non-scaling-stroke" />${litPath ? `
               <path d="${litPath}" fill="none" stroke="#ff5da8" stroke-width="1" vector-effect="non-scaling-stroke" />` : ''}

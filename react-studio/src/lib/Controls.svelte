@@ -361,6 +361,15 @@
           <input type="range" min="0" max="1" step="0.01" bind:value={layer.moonLimbDarkening} on:input={bump} />
         </label>
       </div>
+      <label class="field colour-field">
+        <span>Limb shading colour</span>
+        <input
+          type="color"
+          bind:value={layer.moonLimbDarkeningColor}
+          on:input={bump}
+          aria-label="Limb shading colour"
+        />
+      </label>
       <label class="field check">
         <input type="checkbox" bind:checked={layer.moonDebug} on:change={bump} />
         <span>Debug mask, axes and pivot</span>

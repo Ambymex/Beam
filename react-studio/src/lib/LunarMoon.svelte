@@ -10,6 +10,7 @@
   export let earthshineOpacity = 0;
   export let earthshineColor = '#8390a8';
   export let limbDarkening = 0;
+  export let limbDarkeningColor = '#000000';
   export let debug = false;
 
   $: safeUid = uid.replace(/[^a-zA-Z0-9_-]/g, '');
@@ -60,7 +61,8 @@
         cy="50"
         r={46 - limbDarkening * 5}
         fill="none"
-        stroke="rgba(0, 0, 0, 0.72)"
+        stroke={limbDarkeningColor}
+        stroke-opacity="0.72"
         stroke-width={limbDarkening * 10}
         opacity={limbDarkening}
       />

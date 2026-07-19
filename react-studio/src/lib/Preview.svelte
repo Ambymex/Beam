@@ -269,6 +269,7 @@
                               earthshineOpacity={layer.moonEarthshineOpacity}
                               earthshineColor={layer.moonEarthshineColor}
                               limbDarkening={layer.moonLimbDarkening}
+                              limbDarkeningColor={layer.moonLimbDarkeningColor}
                               debug={layer.moonDebug}
                             />
                           {:else if sd.render === 'path'}

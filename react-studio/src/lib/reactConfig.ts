@@ -122,6 +122,7 @@ export interface LayerConfig {
   moonEarthshineOpacity: number;
   moonEarthshineColor: string;
   moonLimbDarkening: number;
+  moonLimbDarkeningColor: string;
   moonDebug: boolean;
 
   // glow: 'none', a 'fixed' coloured halo, or an 'adaptive' theme-readability
@@ -360,6 +361,7 @@ export const DEFAULT_LAYER: LayerConfig = {
   moonEarthshineOpacity: 0.12,
   moonEarthshineColor: '#71809a',
   moonLimbDarkening: 0.18,
+  moonLimbDarkeningColor: '#000000',
   moonDebug: false,
   glowMode: 'none',
   glowBlur: 6,
@@ -490,6 +492,7 @@ export const PRESETS: Record<string, ReactConfig> = {
       moonEarthshineOpacity: 0.12,
       moonEarthshineColor: '#71809a',
       moonLimbDarkening: 0.18,
+      moonLimbDarkeningColor: '#000000',
       colorMode: 'fixed',
       colors: ['#f3edcf'],
       colorMidMode: 'hold',
