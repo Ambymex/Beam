@@ -246,10 +246,15 @@ export const ATMOSPHERIC_STUDIES: Record<string, AtmosphericStudy> = {
       name: 'Mist recognition',
       source: 'baily',
       narrative: 'recognise',
-      x: 55,
-      y: 58,
+      // The Studio's stand-in Baily/moon is anchored here. Keeping the study
+      // on that same point prevents the veil from drifting beside its subject.
+      x: 50,
+      y: 55,
       duration: 9,
       intensity: 0.58,
+      // Mist Recognition is deliberately veil-first. Glory rings remain an
+      // available control, but this study must not resemble Quiet Corona.
+      opacity: 0,
       color: '#e8f5ff',
       secondaryColor: '#b8d7ff',
       tertiaryColor: '#dccbff',

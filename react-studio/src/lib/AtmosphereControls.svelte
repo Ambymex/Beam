@@ -236,9 +236,10 @@
       </div>
     {:else if effect.phenomenon === 'glory'}
       <h4>Glory optics</h4>
-      <div class="pair">
+      <div class="triple">
         <label class="field col"><span>Halo diameter <b>{effect.haloDiameter}</b></span><input type="range" min="14" max="90" bind:value={effect.haloDiameter} on:input={bump} /></label>
         <label class="field col"><span>Ring compression <b>{effect.ringCompression.toFixed(2)}</b></span><input type="range" min="0.1" max="1" step="0.01" bind:value={effect.ringCompression} on:input={bump} /></label>
+        <label class="field col"><span>Ring visibility <b>{effect.opacity.toFixed(2)}</b></span><input type="range" min="0" max="1" step="0.01" bind:value={effect.opacity} on:input={bump} /></label>
       </div>
       <div class="triple">
         <label class="field col"><span>Mist density <b>{effect.mistDensity.toFixed(2)}</b></span><input type="range" min="0" max="1" step="0.01" bind:value={effect.mistDensity} on:input={bump} /></label>

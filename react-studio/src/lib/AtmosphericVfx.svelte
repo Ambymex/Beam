@@ -137,9 +137,11 @@
           `}
         ></div>
         <div class="glory-field">
-          {#each indices(Math.max(3, effect.ringCount)) as i}
-            <span class="glory-ring" style={gloryRingStyle(effect, i)}></span>
-          {/each}
+          {#if effect.opacity > 0.01}
+            {#each indices(Math.max(3, effect.ringCount)) as i}
+              <span class="glory-ring" style={gloryRingStyle(effect, i)}></span>
+            {/each}
+          {/if}
           <span
             class="presence-silhouette"
             style={`--silhouette-opacity:${effect.silhouetteOpacity}; --silhouette-blur:${effect.edgeDiffusion * 0.42}px;`}
