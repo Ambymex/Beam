@@ -17,7 +17,7 @@ import {
 export type Direction = 'fixed' | 'fall' | 'rise' | 'burst' | 'fountain' | 'converge';
 export type ColorMode = 'fixed' | 'signal' | 'contrast';
 export type ColorStopMode = ColorMode | 'hold';
-export type GlowColorMode = 'auto' | 'fixed';
+export type GlowColorMode = 'auto' | 'fixed' | 'signal' | 'contrast';
 export type GlowColorStopMode = GlowColorMode | 'hold';
 export type EaseKind = 'linear' | 'easeIn' | 'easeOut' | 'softInOut' | 'overshoot';
 
@@ -218,6 +218,8 @@ export function fillColors(layer: LayerConfig): [string, string, string] {
 
 function pickGlowColor(mode: GlowColorMode, colors: string[], fill: string): string {
   if (mode === 'auto') return fill;
+  if (mode === 'signal') return 'var(--signal)';
+  if (mode === 'contrast') return 'var(--signal-contrast)';
   return colors.length ? colors[Math.floor(Math.random() * colors.length)] : '#ffffff';
 }
 

@@ -42,6 +42,8 @@ function colorExpr(mode: ColorMode, colors: string[]): string {
 
 function glowColorExpr(mode: GlowColorMode, colors: string[], fillName: string): string {
   if (mode === 'auto') return fillName;
+  if (mode === 'signal') return `'var(--signal)'`;
+  if (mode === 'contrast') return `'var(--signal-contrast)'`;
   if (colors.length === 1) return `'${colors[0]}'`;
   const arr = colors.map((c) => `'${c}'`).join(', ');
   return `[${arr}][Math.floor(Math.random() * ${colors.length})]`;
@@ -119,7 +121,13 @@ ${layers.map((l, k) => l.shape === 'lunar' ? `  const ${id}Moon${k + 1}: ${Cap}M
     position: { x: ${n(l.fixedX)}, y: ${n(l.fixedY)} },
     disc: { color: '${l.colorMode === 'fixed' ? (l.colors[0] ?? '#ffffff') : l.colorMode === 'signal' ? 'var(--signal)' : 'var(--signal-contrast)'}', opacity: ${n(l.moonOpacity)}, size: ${n(l.moonSize)}, rotation: ${n(l.moonRotation)} },
     surface: { terminatorSoftness: ${n(l.moonTerminatorSoftness)}, earthshine: ${n(l.moonEarthshineOpacity)}, earthshineColor: '${l.moonEarthshineColor}', limbDarkening: ${n(l.moonLimbDarkening)}, limbDarkeningColor: '${l.moonLimbDarkeningColor}' },
-    glow: { color: '${l.glowColorMode === 'fixed' ? (l.glowColors[0] ?? '#ffffff') : 'auto'}', radius: ${n(l.glowBlur)}, opacity: ${n(l.glowOpacity)}, brightness: ${n(l.glowBrightness)} },
+    glow: { color: '${l.glowColorMode === 'fixed'
+      ? (l.glowColors[0] ?? '#ffffff')
+      : l.glowColorMode === 'signal'
+        ? 'var(--signal)'
+        : l.glowColorMode === 'contrast'
+          ? 'var(--signal-contrast)'
+          : 'auto'}', radius: ${n(l.glowBlur)}, opacity: ${n(l.glowOpacity)}, brightness: ${n(l.glowBrightness)} },
   };` : '').filter(Boolean).join('\n')}`
     : '';
 

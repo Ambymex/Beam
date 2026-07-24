@@ -21,7 +21,11 @@
     // earlier Studio versions.
     layer.glowColor = layer.glowColorMode === 'auto'
       ? 'auto'
-      : (layer.glowColors[0] ?? '#ffffff');
+      : layer.glowColorMode === 'signal'
+        ? 'var(--signal)'
+        : layer.glowColorMode === 'contrast'
+          ? 'var(--signal-contrast)'
+          : (layer.glowColors[0] ?? '#ffffff');
     config = config;
   };
 
@@ -630,10 +634,12 @@
     {/if}
     {#if layer.glowMode === 'fixed'}
       <label class="field">
-        <span>Start glow colour</span>
+        <span>{layer.shape === 'lunar' ? 'Moon glow colour' : 'Start glow colour'}</span>
         <select bind:value={layer.glowColorMode} on:change={bump}>
           <option value="auto">Follow particle</option>
           <option value="fixed">Fixed colour(s)</option>
+          <option value="signal">Theme --signal</option>
+          <option value="contrast">Theme --signal-contrast</option>
         </select>
       </label>
       {#if layer.glowColorMode === 'fixed'}
@@ -656,6 +662,8 @@
           <option value="hold">Hold start</option>
           <option value="auto">Follow particle</option>
           <option value="fixed">Fixed colour(s)</option>
+          <option value="signal">Theme --signal</option>
+          <option value="contrast">Theme --signal-contrast</option>
         </select>
       </label>
       {#if layer.glowColorMidMode === 'fixed'}
@@ -678,6 +686,8 @@
           <option value="hold">Hold middle</option>
           <option value="auto">Follow particle</option>
           <option value="fixed">Fixed colour(s)</option>
+          <option value="signal">Theme --signal</option>
+          <option value="contrast">Theme --signal-contrast</option>
         </select>
       </label>
       {#if layer.glowColorEndMode === 'fixed'}

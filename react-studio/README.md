@@ -95,7 +95,8 @@ Load **Lunar Focus** for the phase-accurate moon primitive. Its 29.530588853-day
 slider uses projected-sphere terminator geometry, with Southern/Northern
 hemisphere orientation, fixed X/Y placement, disc size/colour/opacity,
 earthshine, limb shading strength/colour, terminator softness, independent glow radius,
-opacity and brightness, and a mask/axis/pivot debug view. Export includes a
+colour (fixed, theme signal or theme contrast), opacity and brightness, and a
+mask/axis/pivot debug view. Export includes a
 typed moon preset alongside matching SVG markup and keeps the object mounted.
 
 Notes: old drafts load unchanged: missing envelope fields migrate to held
