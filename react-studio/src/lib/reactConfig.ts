@@ -1,5 +1,10 @@
 import type { ShapeKind, CustomPathPart } from './shapes';
 import type { LunarHemisphere } from './lunar';
+import {
+  atmosphereLifeMs,
+  migrateAtmosphericEffect,
+  type AtmosphericEffectConfig,
+} from './atmosphere';
 
 // The parametric model of a particle-gesture react — the family that covers
 // black_hearts, sparks, liquid drift, cherry_blossoms, convergence, etc. One-off set pieces
@@ -150,6 +155,9 @@ export interface ReactConfig {
   label: string;
   register: string; // one-line emotional register, for the companion prompt
   layers: LayerConfig[];
+  // Optical fields live beside particle emitters: rings, mist, paired lights,
+  // threshold beads and later sky-scale phenomena.
+  atmosphere: AtmosphericEffectConfig[];
 }
 
 export const MAX_LAYERS = 4;
@@ -306,7 +314,7 @@ export function lifeMs(cfg: ReactConfig): number {
   for (const l of cfg.layers) {
     max = Math.max(max, l.layerDelay + l.spawnWindow + l.durMax);
   }
-  return max * 1000 + 400;
+  return Math.max(max * 1000, atmosphereLifeMs(cfg.atmosphere)) + 400;
 }
 
 export const DEFAULT_LAYER: LayerConfig = {
@@ -393,6 +401,7 @@ export const DEFAULT_CONFIG: ReactConfig = {
     glowColorsEnd: [...DEFAULT_LAYER.glowColorsEnd],
     customPaths: DEFAULT_LAYER.customPaths.map((part) => ({ ...part })),
   }],
+  atmosphere: [],
 };
 
 export function newLayer(n: number): LayerConfig {
@@ -413,15 +422,27 @@ export function newLayer(n: number): LayerConfig {
 // (missing newer per-layer fields) and returns a complete v2 config. Used on
 // draft load and preset load so nothing saved ever goes stale.
 export function migrateConfig(raw: any): ReactConfig {
-  if (!raw || typeof raw !== 'object') return { ...DEFAULT_CONFIG, layers: [newLayer(1)] };
+  if (!raw || typeof raw !== 'object') {
+    return { ...DEFAULT_CONFIG, layers: [newLayer(1)], atmosphere: [] };
+  }
   if (Array.isArray(raw.layers)) {
     const layers = raw.layers.length
       ? raw.layers.map((l: any, i: number) => migrateLayer(l, i + 1))
       : [newLayer(1)];
-    return { id: raw.id ?? 'my_react', label: raw.label ?? 'My React', register: raw.register ?? '', layers };
+    const atmosphere = Array.isArray(raw.atmosphere)
+      ? raw.atmosphere.map((effect: Partial<AtmosphericEffectConfig>, i: number) =>
+          migrateAtmosphericEffect(effect, i + 1))
+      : [];
+    return {
+      id: raw.id ?? 'my_react',
+      label: raw.label ?? 'My React',
+      register: raw.register ?? '',
+      layers,
+      atmosphere,
+    };
   }
   // v1: emitter fields lived flat on the config
-  const { id, label, register, ...emitter } = raw;
+  const { id, label, register, atmosphere: rawAtmosphere, ...emitter } = raw;
   // v1 bursts had a hardcoded decelerate bezier + 0.3 grow-in
   const wasBurst = emitter.direction === 'burst';
   const layer: LayerConfig = {
@@ -430,7 +451,17 @@ export function migrateConfig(raw: any): ReactConfig {
     travelEase: wasBurst ? 'easeOut' : 'linear',
     scaleFrom: wasBurst ? 0.3 : 1,
   };
-  return { id: id ?? 'my_react', label: label ?? 'My React', register: register ?? '', layers: [layer] };
+  const atmosphere = Array.isArray(rawAtmosphere)
+    ? rawAtmosphere.map((effect: Partial<AtmosphericEffectConfig>, i: number) =>
+        migrateAtmosphericEffect(effect, i + 1))
+    : [];
+  return {
+    id: id ?? 'my_react',
+    label: label ?? 'My React',
+    register: register ?? '',
+    layers: [layer],
+    atmosphere,
+  };
 }
 
 function migrateLayer(l: any, n: number): LayerConfig {
@@ -466,6 +497,7 @@ const preset = (
   label,
   register,
   layers: [{ ...DEFAULT_LAYER, name: 'Layer 1', ...layer }],
+  atmosphere: [],
 });
 
 export const PRESETS: Record<string, ReactConfig> = {
@@ -579,6 +611,7 @@ export const PRESETS: Record<string, ReactConfig> = {
     id: 'champagne_toast',
     label: 'Champagne Toast',
     register: 'A toast — celebration with weight behind it: real wins, big mornings, moments worth raising a glass to.',
+    atmosphere: [],
     layers: [
       {
         ...DEFAULT_LAYER,
@@ -640,6 +673,7 @@ export const PRESETS: Record<string, ReactConfig> = {
     id: 'threads_converge',
     label: 'Threads Converge',
     register: 'Recognition arriving quietly — scattered details resolving into one pattern worth following.',
+    atmosphere: [],
     layers: [
       {
         ...DEFAULT_LAYER,
@@ -700,6 +734,7 @@ export const PRESETS: Record<string, ReactConfig> = {
     id: 'second_pass',
     label: 'Second Pass',
     register: 'A gentle reset after something misses — no shame, no drama, just room for another try.',
+    atmosphere: [],
     layers: [
       {
         ...DEFAULT_LAYER,
@@ -761,6 +796,7 @@ export const PRESETS: Record<string, ReactConfig> = {
     id: 'clean_compile',
     label: 'Clean Compile',
     register: 'The quiet satisfaction when a stubborn thing finally works — earned relief and a small private grin.',
+    atmosphere: [],
     layers: [
       {
         ...DEFAULT_LAYER,
@@ -823,6 +859,7 @@ export const PRESETS: Record<string, ReactConfig> = {
     id: 'structure_found',
     label: 'Structure Found',
     register: 'The moment confusion stops being noise — a pattern locks into place, holds, then makes room for the next thought.',
+    atmosphere: [],
     layers: [
       {
         ...DEFAULT_LAYER,

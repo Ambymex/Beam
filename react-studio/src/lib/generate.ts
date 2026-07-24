@@ -8,6 +8,8 @@
 import { SHAPES, type ShapeDef, type CustomPathPart } from './shapes';
 import { EASES, type ReactConfig, type LayerConfig, type ColorMode, type GlowColorMode } from './reactConfig';
 import { lunarLitPath, lunarPhaseInfo } from './lunar';
+import { atmosphereLifeMs } from './atmosphere';
+import { generateAtmosphereExport } from './generateAtmosphere';
 
 const n = (x: number) => Number(x.toFixed(3)).toString();
 
@@ -68,6 +70,7 @@ export interface Generated {
   markup: string;
   css: string;
   prompt: string;
+  atmosphere: string;
   combined: string;
 }
 
@@ -91,9 +94,10 @@ export function generate(cfg: ReactConfig): Generated {
       || (l.glowMode === 'fixed' && (l.glowColorMidMode !== 'hold' || l.glowColorEndMode !== 'hold'))
     ),
   );
-  const lifeMs = Math.round(
-    Math.max(...layers.map((l) => l.layerDelay + l.spawnWindow + l.durMax)) * 1000 + 400,
-  );
+  const lifeMs = Math.round(Math.max(
+    Math.max(...layers.map((l) => l.layerDelay + l.spawnWindow + l.durMax)) * 1000,
+    atmosphereLifeMs(cfg.atmosphere),
+  ) + 400);
 
   const idsLine = `// add '${id}' to REACT_IDS:\nexport const REACT_IDS = [/* …existing…, */ '${id}'];`;
 
@@ -492,6 +496,7 @@ ${inner}
   }`;
 
   const prompt = `- "${id}": ${cfg.register}`;
+  const atmosphere = generateAtmosphereExport(id, cfg.atmosphere);
 
   const combined = `/* ============================================================
    ${cfg.label}  (react id: ${id}${layers.length > 1 ? `, ${layers.length} layers` : ''})
@@ -517,7 +522,11 @@ ${css}
 /* 6 — roster entry (src/lib/reactRoster.ts — perennial, or add
    when: { seasons: […] } / { themes: […] } for a guest star) */
 ${prompt}
+${atmosphere ? `
+/* 7 — atmospheric VFX data (portable game-side config) */
+${atmosphere}
+` : ''}
 `;
 
-  return { reactId: id, idsLine, script, markup, css, prompt, combined };
+  return { reactId: id, idsLine, script, markup, css, prompt, atmosphere, combined };
 }

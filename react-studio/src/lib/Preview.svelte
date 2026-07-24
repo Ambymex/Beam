@@ -7,6 +7,7 @@
   import { THEME_ORDER, THEME_LABELS, currentTheme, canopyFor } from './theme';
   import { SHAPES, type ShapeDef, type CustomPathPart } from './shapes';
   import LunarMoon from './LunarMoon.svelte';
+  import AtmosphericVfx from './AtmosphericVfx.svelte';
   import { spawnAll, lifeMs, EASES, type ReactConfig, type LayerConfig, type Particle } from './reactConfig';
 
   export let config: ReactConfig;
@@ -31,6 +32,7 @@
   let scrubT = 0; // ms into the react while scrubbing
   let fps = 0;
   let domNodes = 0;
+  let atmosphereRun = 0;
   let previewMode: PreviewMode = 'desktop';
   let frameScale = 1;
 
@@ -47,7 +49,7 @@
         layer.glowEnvelope
         || (layer.glowMode === 'fixed' && (layer.glowColorMidMode !== 'hold' || layer.glowColorEndMode !== 'hold'))
       ))
-  );
+  ) || config.atmosphere.some((effect) => effect.enabled);
 
   function shapeDefFor(layer: LayerConfig): ShapeDef {
     return layer.shape === 'custom'
@@ -74,6 +76,7 @@
 
   function fire() {
     scrubbing = false;
+    atmosphereRun += 1;
     particleSets = spawnAll(config);
     clearTimeout(clearTimer);
     clearTimer = setTimeout(() => {
@@ -292,6 +295,12 @@
 
     <!-- the react layers, stacked in config order -->
     <div class="layer-host" bind:this={layerHost}>
+      {#key atmosphereRun}
+        <AtmosphericVfx
+          effects={config.atmosphere}
+          sourcePresent={config.layers.some((layer) => layer.direction === 'fixed' && layer.shape === 'lunar')}
+        />
+      {/key}
       {#each config.layers as layer, li}
         {@const sd = shapeDefFor(layer)}
         <div

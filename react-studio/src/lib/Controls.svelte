@@ -2,6 +2,7 @@
   import { PRESETS, EASES, MAX_LAYERS, newLayer, migrateConfig, type ReactConfig, type EaseKind } from './reactConfig';
   import { SHAPE_LABELS, type ShapeKind } from './shapes';
   import CustomShape from './CustomShape.svelte';
+  import AtmosphereControls from './AtmosphereControls.svelte';
   import { SYNODIC_MONTH, lunarPhaseInfo } from './lunar';
 
   // Two-way bound from App; reassigning `config` (even to itself) is what tells
@@ -143,6 +144,8 @@
       <textarea rows="2" bind:value={config.register} on:input={bump}></textarea>
     </label>
   </section>
+
+  <AtmosphereControls bind:config />
 
   <section>
     <h3>Layers</h3>

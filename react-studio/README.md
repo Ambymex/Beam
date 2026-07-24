@@ -51,6 +51,11 @@ npm run dev      # opens on port 5210 with the planner's live dev server family
    (spin, flutter), **change over time** (three-point size + colour envelopes),
    look (opacity, **fade envelope**, expandable glow-colour palettes and
    three-point glow strength). Size, colour and glow share one middle beat.
+   **Atmospheric VFX** are a parallel composable stack rather than particle
+   shapes: choose a source, optical phenomenon and narrative envelope, then
+   tune only the controls meaningful to that phenomenon. Wave 1 includes
+   corona, glory, moon-dogs and Baily's beads, with Quiet Corona, Mist
+   Recognition, Shared Moon and Threshold Beads studies.
 4. Watch the **Coach** under the stage — ten live animation-habit principles
    (vary the speeds, trickle the entrance, never pop, restraint, big things
    move slow, coherent depth, easing tells the physics, hero + support, calm
@@ -66,6 +71,9 @@ npm run dev      # opens on port 5210 with the planner's live dev server family
    Multi-layer reacts export as per-layer arrays/classes sharing one set of
    keyframes — still one `fire()` branch. Travelling layers self-remove;
    fixed-position layers intentionally persist.
+   If the design includes atmospheric layers, section 7 adds portable typed
+   VFX data for the shared game-side renderer. The Studio's source marker is
+   preview-only and is never part of that exported atmosphere config.
 
 ## Scope
 
@@ -75,6 +83,13 @@ most reacts are (black hearts, sparks,
 cherry blossoms, drifting petals, champagne, focused formations). One-off set pieces like the tungsten strike
 aren't parametric and are hand-built in the app; the studio deliberately
 doesn't try to model them.
+
+Atmospheric layers extend that scope with optical fields that particles cannot
+honestly represent. Their architecture follows **source → phenomenon →
+narrative envelope**, so several effects can share one focus without becoming
+one-off presets or flattening every emotion into sparkles. Focus-moon optics
+are the first family; projected/local effects and whole-sky fields follow as
+separate waves.
 
 Load **Lunar Focus** for the phase-accurate moon primitive. Its 29.530588853-day
 slider uses projected-sphere terminator geometry, with Southern/Northern
