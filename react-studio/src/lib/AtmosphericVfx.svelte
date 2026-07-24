@@ -163,6 +163,24 @@
       --fade-stop:${fadeStop}%;
     `;
   }
+
+  function spectreWispStyle(effect: AtmosphericEffectConfig, i: number): string {
+    const angle = noise(i * 2.81 + 5) * Math.PI * 2;
+    const radius = 24 + noise(i * 4.17 + 18) * 34;
+    const x = 50 + Math.cos(angle) * radius;
+    const y = 48 + Math.sin(angle) * radius * 0.72;
+    const width = 5 + noise(i + 40) * 8;
+    const height = 28 + noise(i + 71) * 38;
+    return `
+      left:${x.toFixed(2)}%; top:${y.toFixed(2)}%;
+      --wisp-width:${width.toFixed(2)}%;
+      --wisp-height:${height.toFixed(2)}%;
+      --wisp-delay:${(-noise(i + 92) * 7).toFixed(2)}s;
+      --wisp-period:${(5.8 + noise(i + 113) * 4.2).toFixed(2)}s;
+      --wisp-turn:${((noise(i + 137) * 2 - 1) * 24).toFixed(1)}deg;
+      --wisp-drift:${((noise(i + 151) * 2 - 1) * (7 + effect.distortionNoise * 12)).toFixed(2)}%;
+    `;
+  }
 </script>
 
 <div class="atmospheric-stack" aria-hidden="true">
@@ -301,10 +319,19 @@
           `}
         >
           <span class="spectre-fog"></span>
-          <span class="spectre-halo"></span>
+          <span class="spectre-glory">
+            <i></i><i></i><i></i>
+          </span>
+          <span class="spectre-aura">
+            {#each indices(9) as i}
+              <i class="spectre-wisp" style={spectreWispStyle(effect, i)}></i>
+            {/each}
+          </span>
           <span class="spectre-silhouette">
             <i class="spectre-head"></i>
             <i class="spectre-body"></i>
+            <i class="spectre-arm left"></i>
+            <i class="spectre-arm right"></i>
           </span>
         </div>
       {/if}
@@ -663,69 +690,162 @@
 
   .spectre-field {
     position: absolute;
-    width: 13cqmin;
-    height: 20cqmin;
+    width: 14cqmin;
+    height: 22cqmin;
     transform: translate(-50%, -50%) scale(var(--projection-scale)) scaleY(var(--projection-stretch));
     transform-origin: center bottom;
     animation: spectre-arrive var(--duration) cubic-bezier(0.2, 0.55, 0.22, 1) calc(var(--delay) + var(--motion-lag)) both;
   }
   @keyframes spectre-arrive {
-    0% { opacity: 0; transform: translate(-50%, -50%) scale(calc(var(--projection-scale) * 0.72)) scaleY(calc(var(--projection-stretch) * 0.9)); }
-    34% { opacity: 1; transform: translate(-50%, -50%) scale(var(--projection-scale)) scaleY(var(--projection-stretch)); }
-    72% { opacity: 1; transform: translate(-50%, -50%) scale(calc(var(--projection-scale) * (1 + var(--distortion) * 0.04))) scaleY(var(--projection-stretch)); }
-    100% { opacity: 0; transform: translate(-50%, -50%) scale(calc(var(--projection-scale) * 1.04)) scaleY(calc(var(--projection-stretch) * 1.02)); }
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(calc(var(--projection-scale) * 0.64)) scaleY(calc(var(--projection-stretch) * 0.82)); }
+    30% { opacity: 1; transform: translate(-50%, -50%) scale(var(--projection-scale)) scaleY(var(--projection-stretch)); }
+    76% { opacity: 1; transform: translate(-50%, -50%) scale(calc(var(--projection-scale) * (1 + var(--distortion) * 0.055))) scaleY(calc(var(--projection-stretch) * 1.015)); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(calc(var(--projection-scale) * 1.08)) scaleY(calc(var(--projection-stretch) * 1.04)); }
   }
   .spectre-fog,
-  .spectre-halo,
+  .spectre-glory,
+  .spectre-aura,
   .spectre-silhouette {
     position: absolute;
     inset: 0;
   }
   .spectre-fog {
-    inset: -42%;
-    border-radius: 48%;
+    inset: -58%;
+    border-radius: 46%;
     background:
-      radial-gradient(ellipse, color-mix(in srgb, var(--c1) calc(var(--fog-depth) * 32%), transparent), transparent 64%),
-      radial-gradient(ellipse at 62% 42%, color-mix(in srgb, var(--c0) calc(var(--fog-depth) * 20%), transparent), transparent 72%);
-    filter: blur(calc(var(--projection-blur) * 1.8));
-    animation: spectre-fog-drift 5.8s ease-in-out infinite alternate;
+      radial-gradient(ellipse at 50% 32%,
+        transparent 0 13%,
+        color-mix(in srgb, var(--c2) calc(var(--fog-depth) * 19%), transparent) 26%,
+        transparent 55%),
+      radial-gradient(ellipse,
+        color-mix(in srgb, var(--c1) calc(var(--fog-depth) * 28%), transparent),
+        transparent 68%);
+    filter: blur(calc(var(--projection-blur) * 2.2)) contrast(1.08);
+    animation: spectre-fog-drift 6.8s ease-in-out infinite alternate;
   }
   @keyframes spectre-fog-drift {
-    from { transform: translateX(calc(var(--distortion) * -8cqmin)) scale(0.96); }
-    to { transform: translateX(calc(var(--distortion) * 8cqmin)) scale(1.06); }
+    from { opacity: 0.72; transform: translate(calc(var(--distortion) * -9cqmin), 1%) scale(0.94) rotate(-1deg); }
+    to { opacity: 1; transform: translate(calc(var(--distortion) * 9cqmin), -2%) scale(1.08) rotate(1.5deg); }
   }
-  .spectre-halo {
-    inset: -18%;
-    border: 1.5px solid color-mix(in srgb, var(--c0) 72%, transparent);
+  .spectre-glory {
+    left: 5%;
+    top: -18%;
+    right: auto;
+    bottom: auto;
+    width: 90%;
+    aspect-ratio: 1;
     border-radius: 50%;
     opacity: var(--spectre-halo);
-    filter: blur(2px) drop-shadow(0 0 7px var(--c1));
-    transform: scaleX(calc(1 + var(--distortion) * 0.2));
+    filter: blur(1.4px) drop-shadow(0 0 8px color-mix(in srgb, var(--c1) 58%, transparent));
+    animation: spectre-glory-waver 4.9s ease-in-out infinite alternate;
+  }
+  .spectre-glory i {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    aspect-ratio: 1;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 1px solid color-mix(in srgb, var(--c0) 70%, transparent);
+  }
+  .spectre-glory i:nth-child(1) {
+    width: 46%;
+    border-color: color-mix(in srgb, var(--c2) 66%, transparent);
+  }
+  .spectre-glory i:nth-child(2) {
+    width: 69%;
+    border-color: color-mix(in srgb, var(--c1) 58%, transparent);
+  }
+  .spectre-glory i:nth-child(3) {
+    width: 92%;
+    border-color: color-mix(in srgb, var(--c0) 46%, transparent);
+  }
+  @keyframes spectre-glory-waver {
+    from { transform: scale(0.94) translateX(calc(var(--distortion) * -4%)); opacity: calc(var(--spectre-halo) * 0.7); }
+    to { transform: scale(1.08) translateX(calc(var(--distortion) * 4%)); opacity: var(--spectre-halo); }
+  }
+  .spectre-aura {
+    inset: -34%;
+    filter: blur(calc(1.2px + var(--projection-blur) * 0.42));
+  }
+  .spectre-wisp {
+    position: absolute;
+    width: var(--wisp-width);
+    height: var(--wisp-height);
+    transform-origin: center bottom;
+    border-radius: 58% 42% 66% 34%;
+    background: linear-gradient(
+      to top,
+      transparent,
+      color-mix(in srgb, #05030b 72%, var(--c2)) 42%,
+      color-mix(in srgb, var(--c2) 24%, transparent) 78%,
+      transparent
+    );
+    box-shadow: 0 0 8px color-mix(in srgb, var(--c2) 22%, transparent);
+    opacity: calc(0.18 + var(--distortion) * 0.48);
+    animation: spectre-writhe var(--wisp-period) ease-in-out var(--wisp-delay) infinite alternate;
+  }
+  @keyframes spectre-writhe {
+    from {
+      transform: translate(-50%, -50%) translateX(calc(var(--wisp-drift) * -1)) rotate(calc(var(--wisp-turn) * -1)) scaleY(0.72);
+      opacity: 0.12;
+    }
+    to {
+      transform: translate(-50%, -50%) translateX(var(--wisp-drift)) translateY(-18%) rotate(var(--wisp-turn)) scaleY(1.16);
+      opacity: calc(0.2 + var(--distortion) * 0.52);
+    }
   }
   .spectre-silhouette {
     opacity: var(--projection-opacity);
-    filter: blur(var(--projection-blur));
+    filter:
+      blur(calc(var(--projection-blur) * 0.56))
+      drop-shadow(0 0 calc(4px + var(--projection-blur)) color-mix(in srgb, var(--c2) 32%, transparent));
+    animation: spectre-shadow-swim 5.6s ease-in-out infinite alternate;
+  }
+  @keyframes spectre-shadow-swim {
+    from { transform: translateX(calc(var(--distortion) * -5%)) skewX(calc(var(--distortion) * -2deg)); }
+    to { transform: translateX(calc(var(--distortion) * 5%)) skewX(calc(var(--distortion) * 2deg)); }
   }
   .spectre-head,
-  .spectre-body {
+  .spectre-body,
+  .spectre-arm {
     position: absolute;
     display: block;
     left: 50%;
     transform: translateX(-50%);
-    background: color-mix(in srgb, #111522 82%, var(--c2));
+    background: color-mix(in srgb, #030208 80%, var(--c2));
   }
   .spectre-head {
-    top: 3%;
-    width: 45%;
+    top: 1%;
+    width: 39%;
     aspect-ratio: 1;
-    border-radius: 52% 48% 46% 54%;
+    border-radius: 48% 52% 44% 56%;
+    box-shadow:
+      inset 0 0 7px #000,
+      0 0 10px color-mix(in srgb, var(--c2) 30%, transparent);
   }
   .spectre-body {
     bottom: 0;
-    width: 74%;
-    height: 74%;
-    border-radius: 48% 48% 34% 34%;
-    transform: translateX(-50%) skewX(calc((var(--distortion) - 0.12) * 8deg));
+    width: 80%;
+    height: 81%;
+    clip-path: polygon(25% 0, 75% 0, 91% 18%, 78% 49%, 70% 100%, 30% 100%, 22% 49%, 9% 18%);
+    border-radius: 46% 46% 18% 18%;
+    transform: translateX(-50%) skewX(calc((var(--distortion) - 0.18) * 7deg));
+  }
+  .spectre-arm {
+    top: 26%;
+    width: 18%;
+    height: 60%;
+    border-radius: 50% 50% 70% 70%;
+    transform-origin: top center;
+  }
+  .spectre-arm.left {
+    left: 22%;
+    transform: translateX(-50%) rotate(calc(-8deg - var(--distortion) * 7deg));
+  }
+  .spectre-arm.right {
+    left: 78%;
+    transform: translateX(-50%) rotate(calc(8deg + var(--distortion) * 7deg));
   }
 
   .source-guide {
