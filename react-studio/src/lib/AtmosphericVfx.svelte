@@ -105,6 +105,64 @@
       --final-flash:${effect.finalFlash};
     `;
   }
+
+  function pillarSparkStyle(effect: AtmosphericEffectConfig, i: number): string {
+    const count = Math.max(3, Math.round(4 + effect.suspendedDensity * 22));
+    const progress = (i + 0.5) / count;
+    const jitter = (noise(i * 2.71 + 8) * 2 - 1) * effect.pillarWidth * 0.42;
+    const x = effect.x + (effect.targetX - effect.x) * progress + jitter;
+    const y = effect.y + (effect.targetY - effect.y) * progress;
+    const size = 1 + noise(i + 31) * 2.2;
+    return `
+      left:${x.toFixed(2)}%; top:${y.toFixed(2)}%;
+      --spark-size:${size.toFixed(2)}px;
+      --spark-delay:${(effect.delay + effect.riseTime * progress).toFixed(2)}s;
+      --spark-duration:${Math.max(1.2, effect.holdTime + effect.decayTime).toFixed(2)}s;
+      --spark-drift:${((noise(i + 77) * 2 - 1) * 1.8).toFixed(2)}cqmin;
+      --spark-opacity:${Math.min(1, 0.18 + effect.suspendedDensity * 0.52 + effect.residualShimmer * 0.3).toFixed(2)};
+    `;
+  }
+
+  function dewStyle(effect: AtmosphericEffectConfig, i: number): string {
+    const count = Math.max(5, Math.round(7 + effect.dewDensity * 34));
+    const angle = noise(i * 3.13 + 2) * Math.PI * 2;
+    const radius = Math.sqrt(noise(i * 4.71 + 9)) * effect.contactRadius;
+    const x = Math.cos(angle) * radius;
+    const y = Math.sin(angle) * radius * 0.34;
+    const size = 1 + noise(i + 48) * 2.4;
+    const alignment = effect.viewerAlignment * (1 - Math.min(1, radius / effect.contactRadius));
+    return `
+      left:calc(${effect.x}% + ${x.toFixed(2)}cqmin);
+      top:calc(${effect.y}% + ${y.toFixed(2)}cqmin);
+      --dew-size:${size.toFixed(2)}px;
+      --dew-delay:${(effect.delay + noise(i + 12) * effect.shimmerFrequency).toFixed(2)}s;
+      --dew-period:${Math.max(1.2, effect.shimmerFrequency + noise(i + 64) * 2).toFixed(2)}s;
+      --dew-brightness:${Math.min(1, effect.retroBrightness + alignment).toFixed(2)};
+    `;
+  }
+
+  function virgaStyle(effect: AtmosphericEffectConfig, i: number): string {
+    const count = Math.max(1, Math.round(effect.strandCount));
+    const spread = Math.min(34, 9 + count * 1.15);
+    const x = effect.x + ((i + 0.5) / count - 0.5) * spread + (noise(i + 21) * 2 - 1) * 2.2;
+    const available = Math.max(3, effect.evaporationHeight - effect.y);
+    const length = Math.min(effect.trailLength * (0.72 + noise(i + 44) * 0.32), available);
+    const fadeStop = effect.virgaFadeCurve === 'soft'
+      ? 52
+      : effect.virgaFadeCurve === 'balanced'
+        ? 68
+        : 82;
+    return `
+      left:${x.toFixed(2)}%; top:${effect.y}%;
+      --trail-length:${length.toFixed(2)}%;
+      --virga-delay:${(effect.delay + noise(i + 6) * 1.4).toFixed(2)}s;
+      --virga-speed:${Math.max(1.2, effect.descentSpeed * (0.82 + noise(i + 70) * 0.35)).toFixed(2)}s;
+      --virga-wind:${((noise(i + 95) * 0.45 + 0.55) * effect.lateralWind).toFixed(2)}cqmin;
+      --droplet-brightness:${effect.dropletBrightness};
+      --terminal-opacity:${effect.terminalOpacity};
+      --fade-stop:${fadeStop}%;
+    `;
+  }
 </script>
 
 <div class="atmospheric-stack" aria-hidden="true">
@@ -165,10 +223,99 @@
             style={beadStyle(effect, i)}
           ></span>
         {/each}
+      {:else if effect.phenomenon === 'lightPillar'}
+        <svg
+          class="pillar-field"
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          style={`
+            --pillar-width:${effect.pillarWidth}px;
+            --pillar-softness:${effect.verticalSoftness}px;
+            --pillar-core:${effect.coreBrightness};
+            --pillar-taper:${effect.pillarTaper};
+            --rise:${effect.riseTime}s;
+            --hold:${effect.holdTime}s;
+            --decay:${effect.decayTime}s;
+          `}
+        >
+          <line
+            class="pillar-haze"
+            x1={effect.x}
+            y1={effect.y}
+            x2={effect.targetX}
+            y2={effect.targetY}
+            pathLength="1"
+          ></line>
+          <line
+            class="pillar-core"
+            x1={effect.x}
+            y1={effect.y}
+            x2={effect.targetX}
+            y2={effect.targetY}
+            pathLength="1"
+          ></line>
+        </svg>
+        <span
+          class="pillar-target"
+          style={`left:${effect.targetX}%; top:${effect.targetY}%; --target-glow:${effect.coreBrightness};`}
+        ></span>
+        {#each indices(4 + effect.suspendedDensity * 22) as i}
+          <i class="pillar-spark" style={pillarSparkStyle(effect, i)}></i>
+        {/each}
+      {:else if effect.phenomenon === 'heiligenschein'}
+        <div
+          class="dew-halo"
+          style={`
+            left:${effect.x}%; top:${effect.y}%;
+            --contact-radius:${effect.contactRadius * 2}cqmin;
+            --retro:${effect.retroBrightness};
+            --falloff:${effect.localFalloff};
+            --persistence:${effect.dewPersistence};
+          `}
+        ></div>
+        {#each indices(7 + effect.dewDensity * 34) as i}
+          <i class="dew-point" style={dewStyle(effect, i)}></i>
+        {/each}
+      {:else if effect.phenomenon === 'virga'}
+        <div
+          class="virga-veil"
+          style={`left:${effect.x}%; top:${effect.y}%; --veil-width:${Math.min(42, 14 + effect.strandCount * 1.4)}cqmin;`}
+        ></div>
+        {#each indices(effect.strandCount) as i}
+          <i class="virga-strand" style={virgaStyle(effect, i)}></i>
+        {/each}
+      {:else if effect.phenomenon === 'brockenSpectre'}
+        <div
+          class="spectre-field"
+          style={`
+            left:calc(${effect.x}% + ${effect.projectionOffsetX}cqmin);
+            top:calc(${effect.y}% + ${effect.projectionOffsetY}cqmin);
+            --projection-scale:${effect.projectionScale};
+            --projection-stretch:${effect.perspectiveStretch};
+            --projection-blur:${effect.projectionBlur}px;
+            --projection-opacity:${effect.projectionOpacity};
+            --fog-depth:${effect.fogDepth};
+            --motion-lag:${effect.motionLag}s;
+            --spectre-halo:${effect.haloIntensity};
+            --distortion:${effect.distortionNoise};
+          `}
+        >
+          <span class="spectre-fog"></span>
+          <span class="spectre-halo"></span>
+          <span class="spectre-silhouette">
+            <i class="spectre-head"></i>
+            <i class="spectre-body"></i>
+          </span>
+        </div>
       {/if}
 
       {#if effect.previewSource && !sourcePresent}
-        <span class="source-guide"></span>
+        <span class="source-guide" class:body-source={effect.source === 'baily'}>
+          {#if effect.source === 'baily'}
+            <i class="source-head"></i>
+            <i class="source-body"></i>
+          {/if}
+        </span>
       {/if}
     </div>
   {/each}
@@ -376,6 +523,211 @@
     68%, 100% { opacity: 0; transform: scale(0.3); }
   }
 
+  .pillar-field {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+  .pillar-field line {
+    vector-effect: non-scaling-stroke;
+    stroke-linecap: round;
+    fill: none;
+  }
+  .pillar-haze {
+    stroke: color-mix(in srgb, var(--c1) 68%, transparent);
+    stroke-width: calc(var(--pillar-width) * 2.8);
+    opacity: calc(0.16 + var(--pillar-taper) * 0.22);
+    filter: blur(var(--pillar-softness));
+  }
+  .pillar-core {
+    stroke: color-mix(in srgb, white 56%, var(--c0));
+    stroke-width: var(--pillar-width);
+    opacity: var(--pillar-core);
+    filter:
+      drop-shadow(0 0 3px var(--c0))
+      drop-shadow(0 0 calc(var(--pillar-softness) * 0.7) var(--c1));
+    animation: pillar-condense calc(var(--rise) + var(--hold) + var(--decay)) ease-in-out var(--delay) both;
+  }
+  @keyframes pillar-condense {
+    0% { opacity: 0; stroke-width: calc(var(--pillar-width) * 0.18); }
+    24% { opacity: var(--pillar-core); stroke-width: var(--pillar-width); }
+    72% { opacity: var(--pillar-core); stroke-width: calc(var(--pillar-width) * 0.84); }
+    100% { opacity: 0; stroke-width: calc(var(--pillar-width) * 0.24); }
+  }
+  .pillar-target {
+    position: absolute;
+    width: 11cqmin;
+    aspect-ratio: 2.5;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: radial-gradient(ellipse, color-mix(in srgb, var(--c0) 46%, transparent), transparent 70%);
+    filter: blur(2.5px);
+    opacity: 0;
+    animation: target-receive calc(var(--duration) * 0.72) ease-out calc(var(--delay) + var(--rise) * 0.72) both;
+  }
+  @keyframes target-receive {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+    35%, 70% { opacity: calc(var(--target-glow) * 0.66); transform: translate(-50%, -50%) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(1.28); }
+  }
+  .pillar-spark {
+    position: absolute;
+    width: var(--spark-size);
+    aspect-ratio: 1;
+    margin: calc(var(--spark-size) / -2);
+    border-radius: 50%;
+    background: color-mix(in srgb, white 72%, var(--c0));
+    box-shadow: 0 0 5px var(--c1);
+    opacity: 0;
+    animation: pillar-suspend var(--spark-duration) ease-in-out var(--spark-delay) both;
+  }
+  @keyframes pillar-suspend {
+    0% { opacity: 0; transform: translateX(var(--spark-drift)) scale(0.4); }
+    28% { opacity: var(--spark-opacity); transform: translateX(0) scale(1); }
+    62% { opacity: calc(var(--spark-opacity) * 0.72); transform: translateX(calc(var(--spark-drift) * -0.4)) scale(0.78); }
+    100% { opacity: 0; transform: translateX(calc(var(--spark-drift) * -0.8)) scale(0.3); }
+  }
+
+  .dew-halo {
+    position: absolute;
+    width: var(--contact-radius);
+    aspect-ratio: 2.5;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background:
+      radial-gradient(ellipse,
+        color-mix(in srgb, white calc(var(--retro) * 30%), transparent) 0 8%,
+        color-mix(in srgb, var(--c0) calc(var(--retro) * 48%), transparent) 22%,
+        color-mix(in srgb, var(--c1) calc(var(--retro) * 28%), transparent) calc(48% + var(--falloff) * 12%),
+        transparent 76%);
+    filter: blur(2px);
+    opacity: 0;
+    animation: dew-gather var(--duration) ease-in-out var(--delay) both;
+  }
+  @keyframes dew-gather {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.78); }
+    28% { opacity: var(--persistence); transform: translate(-50%, -50%) scale(1); }
+    82% { opacity: var(--persistence); transform: translate(-50%, -50%) scale(1.015); }
+    100% { opacity: calc(var(--persistence) * 0.78); transform: translate(-50%, -50%) scale(1.02); }
+  }
+  .dew-point {
+    position: absolute;
+    width: var(--dew-size);
+    aspect-ratio: 1;
+    margin: calc(var(--dew-size) / -2);
+    border-radius: 50%;
+    background: color-mix(in srgb, white 76%, var(--c0));
+    box-shadow: 0 0 5px color-mix(in srgb, var(--c1) 72%, transparent);
+    opacity: 0;
+    animation: dew-shimmer var(--dew-period) ease-in-out var(--dew-delay) infinite alternate;
+  }
+  @keyframes dew-shimmer {
+    0%, 18% { opacity: 0.08; transform: scale(0.6); }
+    48% { opacity: var(--dew-brightness); transform: scale(1.3); }
+    78%, 100% { opacity: 0.18; transform: scale(0.72); }
+  }
+
+  .virga-veil {
+    position: absolute;
+    width: var(--veil-width);
+    height: 38%;
+    transform: translateX(-50%);
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--c1) 14%, transparent), transparent 86%);
+    filter: blur(8px);
+    opacity: 0.7;
+  }
+  .virga-strand {
+    position: absolute;
+    width: 1.2px;
+    height: var(--trail-length);
+    transform-origin: top center;
+    background: linear-gradient(
+      to bottom,
+      transparent 0,
+      color-mix(in srgb, var(--c0) calc(var(--droplet-brightness) * 72%), transparent) 16%,
+      color-mix(in srgb, var(--c1) calc(var(--droplet-brightness) * 54%), transparent) var(--fade-stop),
+      color-mix(in srgb, var(--c2) calc(var(--terminal-opacity) * 100%), transparent) 100%
+    );
+    filter: blur(0.35px) drop-shadow(0 0 2px color-mix(in srgb, var(--c0) 34%, transparent));
+    opacity: 0;
+    animation: virga-descend var(--virga-speed) cubic-bezier(0.24, 0.52, 0.36, 1) var(--virga-delay) both;
+  }
+  @keyframes virga-descend {
+    0% { opacity: 0; transform: translate(0, -4%) scaleY(0.18); }
+    24% { opacity: var(--droplet-brightness); transform: translate(calc(var(--virga-wind) * 0.16), 0) scaleY(0.68); }
+    64% { opacity: calc(var(--droplet-brightness) * 0.74); transform: translate(calc(var(--virga-wind) * 0.68), 5%) scaleY(1); }
+    100% { opacity: var(--terminal-opacity); transform: translate(var(--virga-wind), 10%) scaleY(0.84); }
+  }
+
+  .spectre-field {
+    position: absolute;
+    width: 13cqmin;
+    height: 20cqmin;
+    transform: translate(-50%, -50%) scale(var(--projection-scale)) scaleY(var(--projection-stretch));
+    transform-origin: center bottom;
+    animation: spectre-arrive var(--duration) cubic-bezier(0.2, 0.55, 0.22, 1) calc(var(--delay) + var(--motion-lag)) both;
+  }
+  @keyframes spectre-arrive {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(calc(var(--projection-scale) * 0.72)) scaleY(calc(var(--projection-stretch) * 0.9)); }
+    34% { opacity: 1; transform: translate(-50%, -50%) scale(var(--projection-scale)) scaleY(var(--projection-stretch)); }
+    72% { opacity: 1; transform: translate(-50%, -50%) scale(calc(var(--projection-scale) * (1 + var(--distortion) * 0.04))) scaleY(var(--projection-stretch)); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(calc(var(--projection-scale) * 1.04)) scaleY(calc(var(--projection-stretch) * 1.02)); }
+  }
+  .spectre-fog,
+  .spectre-halo,
+  .spectre-silhouette {
+    position: absolute;
+    inset: 0;
+  }
+  .spectre-fog {
+    inset: -42%;
+    border-radius: 48%;
+    background:
+      radial-gradient(ellipse, color-mix(in srgb, var(--c1) calc(var(--fog-depth) * 32%), transparent), transparent 64%),
+      radial-gradient(ellipse at 62% 42%, color-mix(in srgb, var(--c0) calc(var(--fog-depth) * 20%), transparent), transparent 72%);
+    filter: blur(calc(var(--projection-blur) * 1.8));
+    animation: spectre-fog-drift 5.8s ease-in-out infinite alternate;
+  }
+  @keyframes spectre-fog-drift {
+    from { transform: translateX(calc(var(--distortion) * -8cqmin)) scale(0.96); }
+    to { transform: translateX(calc(var(--distortion) * 8cqmin)) scale(1.06); }
+  }
+  .spectre-halo {
+    inset: -18%;
+    border: 1.5px solid color-mix(in srgb, var(--c0) 72%, transparent);
+    border-radius: 50%;
+    opacity: var(--spectre-halo);
+    filter: blur(2px) drop-shadow(0 0 7px var(--c1));
+    transform: scaleX(calc(1 + var(--distortion) * 0.2));
+  }
+  .spectre-silhouette {
+    opacity: var(--projection-opacity);
+    filter: blur(var(--projection-blur));
+  }
+  .spectre-head,
+  .spectre-body {
+    position: absolute;
+    display: block;
+    left: 50%;
+    transform: translateX(-50%);
+    background: color-mix(in srgb, #111522 82%, var(--c2));
+  }
+  .spectre-head {
+    top: 3%;
+    width: 45%;
+    aspect-ratio: 1;
+    border-radius: 52% 48% 46% 54%;
+  }
+  .spectre-body {
+    bottom: 0;
+    width: 74%;
+    height: 74%;
+    border-radius: 48% 48% 34% 34%;
+    transform: translateX(-50%) skewX(calc((var(--distortion) - 0.12) * 8deg));
+  }
+
   .source-guide {
     position: absolute;
     left: var(--x);
@@ -390,6 +742,36 @@
       0 0 2px rgba(255, 255, 255, 0.8),
       0 0 14px color-mix(in srgb, var(--c0) 48%, transparent);
     opacity: 0.86;
+  }
+  .source-guide.body-source {
+    width: 6cqmin;
+    height: 11cqmin;
+    aspect-ratio: auto;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    opacity: 0.76;
+  }
+  .source-head,
+  .source-body {
+    position: absolute;
+    display: block;
+    left: 50%;
+    transform: translateX(-50%);
+    background: color-mix(in srgb, var(--c0) 28%, #252a38);
+    box-shadow: 0 0 7px color-mix(in srgb, var(--c0) 38%, transparent);
+  }
+  .source-head {
+    top: 3%;
+    width: 48%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+  }
+  .source-body {
+    bottom: 0;
+    width: 74%;
+    height: 72%;
+    border-radius: 48% 48% 34% 34%;
   }
 
   /* Pale diffraction can disappear completely on daytime themes. Preserve

@@ -54,8 +54,10 @@ npm run dev      # opens on port 5210 with the planner's live dev server family
    **Atmospheric VFX** are a parallel composable stack rather than particle
    shapes: choose a source, optical phenomenon and narrative envelope, then
    tune only the controls meaningful to that phenomenon. Wave 1 includes
-   corona, glory, moon-dogs and Baily's beads, with Quiet Corona, Mist
-   Recognition, Shared Moon and Threshold Beads studies.
+   corona, glory, moon-dogs and Baily's beads; Wave 2 adds source-to-target
+   light pillars, local heiligenschein dew-light, evaporating virga and
+   Brocken-spectre projections. Eight starter studies keep each phenomenon
+   grounded in its narrative job before you remix it across themes.
 4. Watch the **Coach** under the stage — ten live animation-habit principles
    (vary the speeds, trickle the entrance, never pop, restraint, big things
    move slow, coherent depth, easing tells the physics, hero + support, calm

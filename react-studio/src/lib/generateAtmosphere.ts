@@ -29,12 +29,47 @@ function optics(effect: AtmosphericEffectConfig): string {
       fadeOrder: ${q(effect.fadeOrder)}
     }`;
   }
-  return `{
+  if (effect.phenomenon === 'bailyBeads') {
+    return `{
       beadCount: ${effect.beadCount}, beadRadius: ${n(effect.beadRadius)},
       beadIrregularity: ${n(effect.beadIrregularity)}, beadSize: ${n(effect.beadSize)},
       beadBrightness: ${n(effect.beadBrightness)}, beadSequence: ${q(effect.beadSequence)},
       ignitionSpread: ${n(effect.ignitionSpread)}, finalFlash: ${n(effect.finalFlash)}
     }`;
+  }
+  if (effect.phenomenon === 'lightPillar') {
+    return `{
+      targetX: ${n(effect.targetX)}, targetY: ${n(effect.targetY)},
+      pillarWidth: ${n(effect.pillarWidth)}, pillarTaper: ${n(effect.pillarTaper)},
+      verticalSoftness: ${n(effect.verticalSoftness)}, coreBrightness: ${n(effect.coreBrightness)},
+      suspendedDensity: ${n(effect.suspendedDensity)}, riseTime: ${n(effect.riseTime)},
+      holdTime: ${n(effect.holdTime)}, decayTime: ${n(effect.decayTime)},
+      residualShimmer: ${n(effect.residualShimmer)}
+    }`;
+  }
+  if (effect.phenomenon === 'heiligenschein') {
+    return `{
+      contactRadius: ${n(effect.contactRadius)}, dewDensity: ${n(effect.dewDensity)},
+      retroBrightness: ${n(effect.retroBrightness)}, localFalloff: ${n(effect.localFalloff)},
+      shimmerFrequency: ${n(effect.shimmerFrequency)}, viewerAlignment: ${n(effect.viewerAlignment)},
+      dewPersistence: ${n(effect.dewPersistence)}
+    }`;
+  }
+  if (effect.phenomenon === 'virga') {
+    return `{
+      trailLength: ${n(effect.trailLength)}, descentSpeed: ${n(effect.descentSpeed)},
+      evaporationHeight: ${n(effect.evaporationHeight)}, strandCount: ${effect.strandCount},
+      fadeCurve: ${q(effect.virgaFadeCurve)}, lateralWind: ${n(effect.lateralWind)},
+      dropletBrightness: ${n(effect.dropletBrightness)}, terminalOpacity: ${n(effect.terminalOpacity)}
+    }`;
+  }
+  return `{
+    projectionScale: ${n(effect.projectionScale)}, perspectiveStretch: ${n(effect.perspectiveStretch)},
+    projectionBlur: ${n(effect.projectionBlur)}, projectionOpacity: ${n(effect.projectionOpacity)},
+    fogDepth: ${n(effect.fogDepth)}, motionLag: ${n(effect.motionLag)},
+    haloIntensity: ${n(effect.haloIntensity)}, projectionOffsetX: ${n(effect.projectionOffsetX)},
+    projectionOffsetY: ${n(effect.projectionOffsetY)}, distortionNoise: ${n(effect.distortionNoise)}
+  }`;
 }
 
 export function generateAtmosphereExport(
@@ -66,8 +101,8 @@ export interface AtmosphericVfxPreset {
   id: string;
   name: string;
   enabled: boolean;
-  source: 'focusMoon' | 'baily' | 'target' | 'atmosphere' | 'sharedMidpoint';
-  phenomenon: 'corona' | 'glory' | 'moonDogs' | 'bailyBeads';
+  source: 'focusMoon' | 'baily' | 'pawHand' | 'target' | 'atmosphere' | 'sharedMidpoint';
+  phenomenon: 'corona' | 'glory' | 'moonDogs' | 'bailyBeads' | 'lightPillar' | 'heiligenschein' | 'virga' | 'brockenSpectre';
   narrative: 'gather' | 'recognise' | 'consider' | 'commit' | 'offer' | 'refuse' | 'release' | 'settle' | 'remain';
   anchor: { x: number; y: number };
   timing: { delay: number; duration: number };

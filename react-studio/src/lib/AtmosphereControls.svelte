@@ -87,12 +87,12 @@
 
 <section class="atmosphere-controls">
   <div class="heading-row">
-    <h3>Atmospheric VFX · Focus-moon optics</h3>
-    <span class="wave">Wave 1</span>
+    <h3>Atmospheric VFX · Optical field lab</h3>
+    <span class="wave">Waves 1 + 2</span>
   </div>
   <p class="intro">
-    Optical fields sit beside particle layers. Pick a study, then tune the source,
-    phenomenon and narrative envelope without changing the background or mobile frame.
+    Optical fields sit beside particle layers. Pick a study, then tune its source,
+    target and narrative envelope without changing the background or mobile frame.
   </p>
 
   <div class="study-row">
@@ -121,7 +121,7 @@
 
   {#if !effect}
     <div class="empty">
-      No atmospheric layer yet. Load one of the four studies or press ＋ to begin.
+      No atmospheric layer yet. Load one of the studies or press ＋ to begin.
     </div>
   {:else}
     <label class="field">
@@ -281,6 +281,76 @@
         <label class="field col"><span>Sequence</span><select bind:value={effect.beadSequence} on:change={bump}><option value="irregular">Irregular</option><option value="sequential">Sequential</option></select></label>
         <label class="field col"><span>Ignition spread <b>{effect.ignitionSpread.toFixed(1)}s</b></span><input type="range" min="0.1" max="5" step="0.1" bind:value={effect.ignitionSpread} on:input={bump} /></label>
         <label class="field col"><span>Final flash <b>{effect.finalFlash.toFixed(2)}</b></span><input type="range" min="0" max="1.5" step="0.01" bind:value={effect.finalFlash} on:input={bump} /></label>
+      </div>
+    {:else if effect.phenomenon === 'lightPillar'}
+      <h4>Light-pillar optics</h4>
+      <div class="pair">
+        <label class="field col"><span>Target X <b>{effect.targetX}%</b></span><input type="range" min="5" max="95" bind:value={effect.targetX} on:input={bump} /></label>
+        <label class="field col"><span>Target Y <b>{effect.targetY}%</b></span><input type="range" min="8" max="95" bind:value={effect.targetY} on:input={bump} /></label>
+      </div>
+      <div class="triple">
+        <label class="field col"><span>Width <b>{effect.pillarWidth.toFixed(1)}px</b></span><input type="range" min="1" max="14" step="0.1" bind:value={effect.pillarWidth} on:input={bump} /></label>
+        <label class="field col"><span>Taper <b>{effect.pillarTaper.toFixed(2)}</b></span><input type="range" min="0" max="1" step="0.01" bind:value={effect.pillarTaper} on:input={bump} /></label>
+        <label class="field col"><span>Softness <b>{effect.verticalSoftness.toFixed(1)}px</b></span><input type="range" min="0" max="18" step="0.1" bind:value={effect.verticalSoftness} on:input={bump} /></label>
+      </div>
+      <div class="triple">
+        <label class="field col"><span>Core <b>{effect.coreBrightness.toFixed(2)}</b></span><input type="range" min="0.05" max="1" step="0.01" bind:value={effect.coreBrightness} on:input={bump} /></label>
+        <label class="field col"><span>Ice crystals <b>{effect.suspendedDensity.toFixed(2)}</b></span><input type="range" min="0" max="1" step="0.01" bind:value={effect.suspendedDensity} on:input={bump} /></label>
+        <label class="field col"><span>After-shimmer <b>{effect.residualShimmer.toFixed(2)}</b></span><input type="range" min="0" max="1" step="0.01" bind:value={effect.residualShimmer} on:input={bump} /></label>
+      </div>
+      <div class="triple">
+        <label class="field col"><span>Rise <b>{effect.riseTime.toFixed(1)}s</b></span><input type="range" min="0.2" max="6" step="0.1" bind:value={effect.riseTime} on:input={bump} /></label>
+        <label class="field col"><span>Hold <b>{effect.holdTime.toFixed(1)}s</b></span><input type="range" min="0.2" max="10" step="0.1" bind:value={effect.holdTime} on:input={bump} /></label>
+        <label class="field col"><span>Decay <b>{effect.decayTime.toFixed(1)}s</b></span><input type="range" min="0.2" max="8" step="0.1" bind:value={effect.decayTime} on:input={bump} /></label>
+      </div>
+    {:else if effect.phenomenon === 'heiligenschein'}
+      <h4>Heiligenschein optics</h4>
+      <div class="triple">
+        <label class="field col"><span>Contact radius <b>{effect.contactRadius}</b></span><input type="range" min="5" max="42" bind:value={effect.contactRadius} on:input={bump} /></label>
+        <label class="field col"><span>Dew density <b>{effect.dewDensity.toFixed(2)}</b></span><input type="range" min="0" max="1" step="0.01" bind:value={effect.dewDensity} on:input={bump} /></label>
+        <label class="field col"><span>Retro brightness <b>{effect.retroBrightness.toFixed(2)}</b></span><input type="range" min="0.05" max="1" step="0.01" bind:value={effect.retroBrightness} on:input={bump} /></label>
+      </div>
+      <div class="triple">
+        <label class="field col"><span>Local falloff <b>{effect.localFalloff.toFixed(2)}</b></span><input type="range" min="0" max="1" step="0.01" bind:value={effect.localFalloff} on:input={bump} /></label>
+        <label class="field col"><span>Shimmer <b>{effect.shimmerFrequency.toFixed(1)}s</b></span><input type="range" min="0.8" max="8" step="0.1" bind:value={effect.shimmerFrequency} on:input={bump} /></label>
+        <label class="field col"><span>Viewer alignment <b>{effect.viewerAlignment.toFixed(2)}</b></span><input type="range" min="0" max="1" step="0.01" bind:value={effect.viewerAlignment} on:input={bump} /></label>
+      </div>
+      <label class="field col"><span>Quiet persistence <b>{effect.dewPersistence.toFixed(2)}</b></span><input type="range" min="0.05" max="1" step="0.01" bind:value={effect.dewPersistence} on:input={bump} /></label>
+    {:else if effect.phenomenon === 'virga'}
+      <h4>Virga optics</h4>
+      <div class="triple">
+        <label class="field col"><span>Trail length <b>{effect.trailLength}</b></span><input type="range" min="6" max="65" bind:value={effect.trailLength} on:input={bump} /></label>
+        <label class="field col"><span>Evaporates at Y <b>{effect.evaporationHeight}%</b></span><input type="range" min="30" max="94" bind:value={effect.evaporationHeight} on:input={bump} /></label>
+        <label class="field col"><span>Strands <b>{effect.strandCount}</b></span><input type="range" min="1" max="28" bind:value={effect.strandCount} on:input={bump} /></label>
+      </div>
+      <div class="triple">
+        <label class="field col"><span>Descent <b>{effect.descentSpeed.toFixed(1)}s</b></span><input type="range" min="1.2" max="12" step="0.1" bind:value={effect.descentSpeed} on:input={bump} /></label>
+        <label class="field col"><span>Lateral wind <b>{effect.lateralWind.toFixed(1)}</b></span><input type="range" min="-12" max="12" step="0.1" bind:value={effect.lateralWind} on:input={bump} /></label>
+        <label class="field col"><span>Droplet light <b>{effect.dropletBrightness.toFixed(2)}</b></span><input type="range" min="0.05" max="1" step="0.01" bind:value={effect.dropletBrightness} on:input={bump} /></label>
+      </div>
+      <div class="pair">
+        <label class="field col"><span>Evaporation curve</span><select bind:value={effect.virgaFadeCurve} on:change={bump}><option value="soft">Soft and early</option><option value="balanced">Balanced</option><option value="late">Late release</option></select></label>
+        <label class="field col"><span>Terminal opacity <b>{effect.terminalOpacity.toFixed(2)}</b></span><input type="range" min="0" max="0.5" step="0.01" bind:value={effect.terminalOpacity} on:input={bump} /></label>
+      </div>
+    {:else if effect.phenomenon === 'brockenSpectre'}
+      <h4>Brocken-spectre projection</h4>
+      <div class="triple">
+        <label class="field col"><span>Projection scale <b>{effect.projectionScale.toFixed(2)}</b></span><input type="range" min="0.8" max="4" step="0.01" bind:value={effect.projectionScale} on:input={bump} /></label>
+        <label class="field col"><span>Perspective <b>{effect.perspectiveStretch.toFixed(2)}</b></span><input type="range" min="0.6" max="2" step="0.01" bind:value={effect.perspectiveStretch} on:input={bump} /></label>
+        <label class="field col"><span>Blur <b>{effect.projectionBlur.toFixed(1)}px</b></span><input type="range" min="0" max="18" step="0.1" bind:value={effect.projectionBlur} on:input={bump} /></label>
+      </div>
+      <div class="triple">
+        <label class="field col"><span>Opacity <b>{effect.projectionOpacity.toFixed(2)}</b></span><input type="range" min="0.02" max="0.8" step="0.01" bind:value={effect.projectionOpacity} on:input={bump} /></label>
+        <label class="field col"><span>Fog depth <b>{effect.fogDepth.toFixed(2)}</b></span><input type="range" min="0" max="1" step="0.01" bind:value={effect.fogDepth} on:input={bump} /></label>
+        <label class="field col"><span>Motion lag <b>{effect.motionLag.toFixed(1)}s</b></span><input type="range" min="0" max="4" step="0.1" bind:value={effect.motionLag} on:input={bump} /></label>
+      </div>
+      <div class="pair">
+        <label class="field col"><span>Halo <b>{effect.haloIntensity.toFixed(2)}</b></span><input type="range" min="0" max="1" step="0.01" bind:value={effect.haloIntensity} on:input={bump} /></label>
+        <label class="field col"><span>Distortion <b>{effect.distortionNoise.toFixed(2)}</b></span><input type="range" min="0" max="1" step="0.01" bind:value={effect.distortionNoise} on:input={bump} /></label>
+      </div>
+      <div class="pair">
+        <label class="field col"><span>Projection X offset <b>{effect.projectionOffsetX.toFixed(1)}</b></span><input type="range" min="-40" max="40" step="0.5" bind:value={effect.projectionOffsetX} on:input={bump} /></label>
+        <label class="field col"><span>Projection Y offset <b>{effect.projectionOffsetY.toFixed(1)}</b></span><input type="range" min="-55" max="35" step="0.5" bind:value={effect.projectionOffsetY} on:input={bump} /></label>
       </div>
     {/if}
   {/if}
