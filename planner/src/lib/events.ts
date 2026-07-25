@@ -4,8 +4,12 @@
 //
 // What we notify on — TRANSITIONS ONLY (§7):
 //   • block-start    — a block's confident core begins
-//   • appliance-free — a washer/dryer cycle ENDS ("dryer's free, go") — the
-//                      whole appliance-Jenga payoff, high priority
+//   • appliance-free — a parallel-process block ENDS ("dryer's free, go") —
+//                      the whole appliance-Jenga payoff, high priority. The
+//                      washer/dryer lanes carry anything that runs on its own
+//                      clock (delivery windows, oven timers, downloads), so a
+//                      LABELLED block gets neutral finished-wording; only an
+//                      unlabelled one is assumed to be the appliance itself.
 //   • travel-start   — for an appointment, fire at the DEPARTURE edge
 //                      ("leave now"), never the appointment time
 // We NEVER notify on an undone task; it migrates silently (§5/§13). There is
@@ -28,6 +32,8 @@ export interface TransitionEvent {
   vibeId: string | null;
 }
 
+// Lane ids are historical (§ frozen names); these are the two PARALLEL-PROCESS
+// lanes — things that run alongside the day without her attention.
 const APPLIANCE_LANES = new Set(['washer', 'dryer']);
 
 // Convert an hours-from-local-midnight value on a given day into an absolute
@@ -113,16 +119,19 @@ export function eventsForDay(dayKey: string, blocks: Block[]): TransitionEvent[]
     }
 
     if (APPLIANCE_LANES.has(b.laneId)) {
-      // appliance cycle ENDING — fire at coreEnd ("it's free now")
+      // parallel process ENDING — fire at coreEnd ("it's finished now").
+      // The label is the truth: "Woolies delivery" must not ping as
+      // "Washing machine is free". Only the unlabelled quick-capture case
+      // keeps the appliance wording (an empty washer block IS the washer).
       const vibe = b.vibeId ? resolveVibe(b.vibeId) : null;
       const emoji = vibe ? vibeToEmoji(vibe.hex) : '';
-      const title = `${laneLabel(b.laneId)} is free`;
+      const title = label ? `${label} — done` : `${laneLabel(b.laneId)} is free`;
       out.push({
         key: `${dayKey}:${b.id}:appliance-free`,
         fireAt: momentOf(dayKey, b.coreEndHours).toISOString(),
         kind: 'appliance-free',
         title: emoji ? `${emoji} ${title}` : title,
-        body: 'Cycle done — go switch it over.',
+        body: label ? 'That one just finished — over to you.' : 'Cycle done — go switch it over.',
         vibeId: b.vibeId,
       });
       // Do NOT continue here: generate the block-start notification for the appliance block too!

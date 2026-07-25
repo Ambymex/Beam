@@ -71,6 +71,19 @@ and about what you could not verify; state what you proved and how.
 | Vibes (sacred), categories | `src/lib/vibes.ts`, `categories.ts`, `customVibes.ts`, `customCategories.ts` |
 | DB | `src/lib/db.ts` — Dexie v6: `days, customVibes, customCategories, scratchpad, notifications, glucose, comms` |
 
+**Lane semantics (2026-07-20)**: the `washer`/`dryer` lane ids are **frozen
+historical names**, not their meaning. They are the two **parallel-process**
+lanes — anything that runs on its own clock alongside her day: laundry, yes,
+but equally delivery windows, oven timers, downloads, parking meters. Ash
+uses them this way daily. **The label is the truth**; nothing may infer
+laundry from the lane id. This is enforced in three places — the companion
+prompt (`getSystemPrompt` + the heartbeat header + `parse-command`'s
+fallback) and `events.ts`, where a LABELLED block gets neutral
+finished-wording and only an unlabelled one keeps "Washing machine is free"
+(that quick-capture case really is the washer). Blocks on these lanes stay
+hard-edged by default (taper = core end) — a cycle or a window has a fixed
+length.
+
 **Chat storage** is localStorage (`radial-planner-chat-v1`), a 100-message
 sliding window. The vault keeps the full history in the cloud.
 
