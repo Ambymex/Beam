@@ -101,14 +101,19 @@ Deno.serve(async (req) => {
     //     quiet that long (also skips the planner-active stand-down)
     //   { "dryRun": true, "simulateLow": true, "simulateSilenceHours": 2 }
     //     → pretend a fresh dangerous low
+    //   { "dryRun": true, "skipRateLimit": true }  → step past the 25-min
+    //     self rate-limit so the guards BELOW it (voice awareness, ladder,
+    //     vigil) can be inspected on demand
     let simSilenceHours: number | null = null;
     let simLow = false;
+    let skipRateLimit = false;
     try {
       const body = await req.json();
       dryRun = body?.dryRun === true;
       if (dryRun) {
         if (typeof body?.simulateSilenceHours === 'number') simSilenceHours = body.simulateSilenceHours;
         simLow = body?.simulateLow === true;
+        skipRateLimit = body?.skipRateLimit === true;
       }
     } catch {
       /* empty body is the normal cron invocation */
@@ -303,27 +308,57 @@ Deno.serve(async (req) => {
       .eq('source', SOURCE)
       .order('created_at', { ascending: false })
       .limit(1);
-    if (lastBeat?.length && now.getTime() - Date.parse(lastBeat[0].created_at) < 25 * MIN) {
+    if (!skipRateLimit && lastBeat?.length && now.getTime() - Date.parse(lastBeat[0].created_at) < 25 * MIN) {
       return json({ skipped: 'spoke recently' });
     }
 
-    // -- mutual awareness with the CLIENT heartbeat: its notifications sync
-    //    into the vault as comms rows (source 'planner', kind
-    //    'companion-alert'). The planner-activity stand-down above misses
-    //    "app open but quiet" (it only sees vault WRITES), so both sides
-    //    also yield if ANY companion alert landed in the last 25 minutes —
-    //    one voice per half hour, never two different pings back to back.
-    //    (The client-side twin of this guard lives in triggerHeartbeatCheck.)
-    const { data: lastAlert } = await supabase
+    // -- mutual awareness with the CLIENT heartbeat. Has he ALREADY had her
+    //    attention in the last 25 minutes, by any route? Two shapes count:
+    //      • a comms 'companion-alert' row — any heartbeat's notification;
+    //      • a CHAT row from the planner with role 'assistant' — the client
+    //        heartbeat speaking, or him simply replying in conversation.
+    //    That second shape is the fix for the intermittent double (2026-07-20):
+    //    the client heartbeat only writes a comms row when the model happens
+    //    to include a show_notification ACTION. When it replied with a bare
+    //    message instead, it left no alert trace, this guard saw nothing, and
+    //    the server spoke again — a different message, "only sometimes",
+    //    pattern invisible because it depended on the model's action choice.
+    //    Chat rows are always written when he speaks, so they are the honest
+    //    signal. (The client-side twin lives in triggerHeartbeatCheck.)
+    const { data: lastVoice, error: voiceErr } = await supabase
       .from('messages')
-      .select('created_at, source')
+      .select('created_at, source, channel, kind')
       .eq('sync_key', syncKey)
-      .eq('channel', 'comms')
-      .eq('kind', 'companion-alert')
+      .or(
+        'and(channel.eq.comms,kind.eq.companion-alert),and(channel.eq.chat,role.eq.assistant,source.eq.planner)',
+      )
       .order('created_at', { ascending: false })
       .limit(1);
-    if (lastAlert?.length && now.getTime() - Date.parse(lastAlert[0].created_at) < 25 * MIN) {
-      return json({ skipped: `a companion alert landed ${Math.round((now.getTime() - Date.parse(lastAlert[0].created_at)) / MIN)} min ago (${lastAlert[0].source}) — one voice at a time` });
+    if (voiceErr) return json({ error: `voice guard query failed: ${voiceErr.message}` }, 500);
+
+    // dry-run diagnostic: show each arm separately (timestamps only, no
+    // message text) so the guard can be proven rather than assumed.
+    let voiceProbe: Record<string, string | null> | undefined;
+    if (dryRun) {
+      const [alertArm, chatArm] = await Promise.all([
+        supabase.from('messages').select('created_at').eq('sync_key', syncKey)
+          .eq('channel', 'comms').eq('kind', 'companion-alert')
+          .order('created_at', { ascending: false }).limit(1),
+        supabase.from('messages').select('created_at').eq('sync_key', syncKey)
+          .eq('channel', 'chat').eq('role', 'assistant').eq('source', 'planner')
+          .order('created_at', { ascending: false }).limit(1),
+      ]);
+      const age = (r: { data: { created_at: string }[] | null }) =>
+        r.data?.length ? `${Math.round((now.getTime() - Date.parse(r.data[0].created_at)) / MIN)} min ago` : null;
+      voiceProbe = { commsAlertArm: age(alertArm), plannerChatArm: age(chatArm) };
+    }
+
+    if (lastVoice?.length && now.getTime() - Date.parse(lastVoice[0].created_at) < 25 * MIN) {
+      const mins = Math.round((now.getTime() - Date.parse(lastVoice[0].created_at)) / MIN);
+      return json({
+        skipped: `he already had her attention ${mins} min ago (${lastVoice[0].source}/${lastVoice[0].channel}) — one voice at a time`,
+        voiceProbe,
+      });
     }
 
     // ---- the idle-down ladder -------------------------------------------

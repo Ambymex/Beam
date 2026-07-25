@@ -26,6 +26,7 @@
   import {
     registerChatAdapter,
     scheduleMsgSync,
+    syncMessages,
     setSyncKey,
     getSyncKey,
     generateSyncKey,
@@ -831,13 +832,18 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
     // the heartbeat edge function.
     if (!force) {
       try {
+        // Pull first, THEN judge. The local archive lags the vault by up to
+        // the 90s sync interval, and a server beat that landed inside that
+        // window used to be invisible here — so this side spoke too. One
+        // cheap round-trip makes the view current at the moment of decision.
+        await syncMessages();
         const lastAlert = await lastCompanionAlertTs();
         if (Date.now() - lastAlert < 25 * 60 * 1000) {
           console.log('[Heartbeat] A companion alert landed recently — standing down this beat.');
           return;
         }
       } catch {
-        /* Dexie hiccup — proceed as before */
+        /* Dexie or network hiccup — proceed as before */
       }
     }
 

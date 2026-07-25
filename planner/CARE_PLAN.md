@@ -164,8 +164,22 @@ the setup docs).
   minutes apart, different content, double tokens). Both sides now also
   yield if ANY `companion-alert` comms row landed <25 min ago, whoever sent
   it — client checks Dexie (`lastCompanionAlertTs`), server checks the
-  vault — BEFORE spending an LLM call. Residual race ≈ the ~90s msgSync
-  latency, down from ~15 min.
+  vault — BEFORE spending an LLM call.
+  **Voice awareness (2026-07-20)** — the fix for the *intermittent* double
+  that survived the above. The client heartbeat only writes a
+  `companion-alert` comms row when the model happens to include a
+  `show_notification` ACTION; when it replies with a bare message it writes
+  a CHAT row only, leaving no alert trace, so the server saw nothing and
+  spoke again. That's why the doubles looked patternless — the pattern was
+  the model's action choice, invisible from outside. The server guard now
+  matches **either** a comms `companion-alert` **or** a chat row with
+  `role=assistant, source=planner` (his own words by any route, including
+  ordinary conversation — if he just had her attention, he doesn't ping).
+  The client now `await syncMessages()` **before** consulting its local
+  archive, so its view is current at the moment of decision instead of up
+  to 90s stale. Dry-run levers: `skipRateLimit` steps past the self
+  rate-limit, and every dryRun response carries a `voiceProbe` showing each
+  arm's age (timestamps only, no message text).
 
 ---
 

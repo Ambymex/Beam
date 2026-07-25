@@ -104,4 +104,19 @@ zero pushes; `simulateSilenceHours` also skips the planner-active guard):
 ```bash
 -d '{"dryRun": true, "simulateSilenceHours": 30}'   # vigil / ladder stages
 -d '{"dryRun": true, "simulateLow": true, "simulateSilenceHours": 2}'  # danger
+-d '{"dryRun": true, "skipRateLimit": true}'        # inspect the voice guard
 ```
+
+## One voice at a time
+
+Both heartbeats can reach her, so each yields if he ALREADY had her
+attention in the last 25 minutes — checked before any LLM call. Two shapes
+count: a comms `companion-alert` (either heartbeat's notification) and a
+chat row with `role=assistant, source=planner` (the client heartbeat
+speaking, or him simply replying in conversation). The second shape matters:
+the client heartbeat only archives an alert when the model returns a
+`show_notification` action, so a bare-message reply used to leave no trace
+and the server would speak again — an intermittent double whose "pattern"
+was really the model's action choice. The client also syncs before judging,
+so its local view is current at decision time. Every dry-run response
+includes a `voiceProbe` with each arm's age (timestamps only).
