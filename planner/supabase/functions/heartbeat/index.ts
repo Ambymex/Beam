@@ -201,6 +201,10 @@ Deno.serve(async (req) => {
     let gTrend = 'unknown';
     let gMinutesOld: number | null = null;
     let gIsLow = false;
+    // dryRun diagnostic: what happened on the Beam call, without exposing
+    // readings — the CGM chain is safety-relevant, so its failures must be
+    // observable on demand rather than swallowed.
+    let cgmProbe: Record<string, unknown> = { configured: false };
     const beamUrl = Deno.env.get('BEAM_URL');
     const beamToken = Deno.env.get('BEAM_TOKEN');
     // same placeholder trap as the sync key: '<beam bridge token>' pasted
@@ -209,7 +213,7 @@ Deno.serve(async (req) => {
       try {
         const res = await fetch(`${beamUrl.replace(/\/$/, '')}/glucose/current`, {
           headers: { Authorization: `Bearer ${beamToken}` },
-          signal: AbortSignal.timeout(4000),
+          signal: AbortSignal.timeout(8000),
         });
         if (res.ok) {
           const g = await res.json();
@@ -221,9 +225,18 @@ Deno.serve(async (req) => {
             `GLUCOSE: ${g.mmol_per_l} mmol/L, trend ${gTrend}, ` +
             `${g.minutes_old ?? '?'} min old` +
             `${g.is_low ? ' — LOW' : ''}${g.is_high ? ' — HIGH' : ''}`;
+          cgmProbe = { configured: true, ok: true, gotReading: gMmol !== null, minutesOld: gMinutesOld };
+        } else {
+          cgmProbe = {
+            configured: true,
+            ok: false,
+            status: res.status,
+            detail: (await res.text()).slice(0, 700),
+          };
         }
-      } catch {
+      } catch (err) {
         // bridge down — the heartbeat still runs on schedule context alone
+        cgmProbe = { configured: true, ok: false, threw: String(err).slice(0, 200) };
       }
     }
     if (simLow) {
@@ -261,7 +274,7 @@ Deno.serve(async (req) => {
         `for ${human(silenceMs)}. This is Solenoid's emergency override. Ash: please answer anything, ` +
         `anywhere. If someone else is seeing this and can't reach her, please check on her.`;
       if (dryRun) {
-        return json({ dryRun: true, wouldScream: true, title, body, silence: human(silenceMs) });
+        return json({ dryRun: true, wouldScream: true, title, body, silence: human(silenceMs), cgmProbe });
       }
       const { error: pushErr } = await supabase.from('scheduled_pushes').upsert(
         {
@@ -297,7 +310,7 @@ Deno.serve(async (req) => {
 
     // -- quiet hours (danger above deliberately outranks this) --
     if (localHour < 6 || localHour >= 23) {
-      return json({ skipped: `quiet hours (${localHour}h ${tz})` });
+      return json({ skipped: `quiet hours (${localHour}h ${tz})`, ...(dryRun ? { cgmProbe } : {}) });
     }
 
     // -- rate limit: did any heartbeat speak in the last 25 minutes? --
@@ -309,7 +322,7 @@ Deno.serve(async (req) => {
       .order('created_at', { ascending: false })
       .limit(1);
     if (!skipRateLimit && lastBeat?.length && now.getTime() - Date.parse(lastBeat[0].created_at) < 25 * MIN) {
-      return json({ skipped: 'spoke recently' });
+      return json({ skipped: 'spoke recently', ...(dryRun ? { cgmProbe } : {}) });
     }
 
     // -- mutual awareness with the CLIENT heartbeat. Has he ALREADY had her
@@ -358,6 +371,7 @@ Deno.serve(async (req) => {
       return json({
         skipped: `he already had her attention ${mins} min ago (${lastVoice[0].source}/${lastVoice[0].channel}) — one voice at a time`,
         voiceProbe,
+        ...(dryRun ? { cgmProbe } : {}),
       });
     }
 

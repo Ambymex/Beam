@@ -8,6 +8,8 @@ from fastapi.responses import JSONResponse
 
 from librelinkup import LibreLinkUp, LibreLinkUpError
 
+DEFAULT_UPSTREAM = "https://api.libreview.io"
+
 EMAIL = os.environ["LLU_EMAIL"]
 PASSWORD = os.environ["LLU_PASSWORD"]
 API_TOKEN = os.environ["API_TOKEN"]
@@ -115,3 +117,37 @@ async def history(
 @app.get("/healthz")
 async def healthz():
     return {"ok": True}
+
+
+@app.get("/healthz/upstream")
+async def healthz_upstream():
+    """Can THIS machine talk to Abbott's login API at all?
+
+    Posts deliberately-fake credentials (never the real ones — a fake email
+    can't lock the real account) and classifies the response. A healthy
+    vantage point gets a clean "incorrect username/password"; a gateway that
+    is bot-blocking this IP/ASN returns garbage like "decode base64
+    password". Tokenless on purpose: it reveals nothing but Abbott's opinion
+    of this machine, and it exists precisely for debugging days when the
+    real login is broken (2026-07-22: cloud-IP filtering took the bridge
+    down while the same request worked from a residential IP).
+    """
+    from librelinkup import HEADERS
+
+    async with httpx.AsyncClient(timeout=15) as probe:
+        try:
+            r = await probe.post(
+                f"{DEFAULT_UPSTREAM}/llu/auth/login",
+                headers=HEADERS,
+                json={"email": "probe-diagnostic@example.com", "password": "NotARealPassword1"},
+            )
+            body = r.text[:300]
+            healthy = '"status":2' in body.replace(" ", "") and "incorrect" in body
+            return {
+                "upstream_reachable": True,
+                "http_status": r.status_code,
+                "looks_healthy": healthy,
+                "body_snippet": body,
+            }
+        except Exception as e:  # noqa: BLE001 — diagnostics report, never raise
+            return {"upstream_reachable": False, "error": str(e)[:300]}
