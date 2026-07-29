@@ -110,10 +110,14 @@ zero pushes; `simulateSilenceHours` also skips the planner-active guard):
 ## One voice at a time
 
 Both heartbeats can reach her, so each yields if he ALREADY had her
-attention in the last 25 minutes — checked before any LLM call. Two shapes
-count: a comms `companion-alert` (either heartbeat's notification) and a
-chat row with `role=assistant, source=planner` (the client heartbeat
-speaking, or him simply replying in conversation). The second shape matters:
+attention in the last 25 minutes — checked before any LLM call. Three shapes
+count: a comms `companion-alert` (either heartbeat's notification), a comms
+`scheduled-alert` (one of his future reminders firing — added 2026-07-29,
+because a fired reminder is his voice too and leaving it out produced a
+fresh unique riff on each reminder minutes later), and a chat row with
+`role=assistant, source=planner` (the client heartbeat speaking, or him
+simply replying in conversation). Ring-transition kinds are deliberately
+not counted. The second shape matters:
 the client heartbeat only archives an alert when the model returns a
 `show_notification` action, so a bare-message reply used to leave no trace
 and the server would speak again — an intermittent double whose "pattern"

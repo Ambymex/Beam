@@ -85,14 +85,17 @@ export async function insertRemoteComms(
   if (added) unreadComms.update((n) => n + added);
 }
 
-// Most recent companion-alert timestamp, ANY source — his own local sends
-// and server-heartbeat rows pulled in by msgSync both count. The client
-// heartbeat uses this to yield when a notification already landed recently,
-// whoever sent it (the other half of this guard lives in the heartbeat edge
-// function) — one voice per half hour, never two different pings back to back.
+// Most recent timestamp of HIS voice reaching her, ANY source — heartbeat
+// check-ins ('companion-alert') and his fired future reminders
+// ('scheduled-alert') both count; local sends and rows pulled in by msgSync
+// both count. The client heartbeat uses this to yield when he already had
+// her attention (the server-side twin lives in the heartbeat edge function)
+// — one voice per half hour, never a fresh riff on a reminder that just
+// fired. Ring-transition kinds are deliberately NOT counted: mechanical
+// pings aren't him speaking.
 export async function lastCompanionAlertTs(): Promise<number> {
   const recent = await db.comms.orderBy('ts').reverse().limit(25).toArray();
-  const hit = recent.find((c) => c.kind === 'companion-alert');
+  const hit = recent.find((c) => c.kind === 'companion-alert' || c.kind === 'scheduled-alert');
   return hit?.ts ?? 0;
 }
 

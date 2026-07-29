@@ -337,13 +337,19 @@ Deno.serve(async (req) => {
     //    the server spoke again — a different message, "only sometimes",
     //    pattern invisible because it depended on the model's action choice.
     //    Chat rows are always written when he speaks, so they are the honest
-    //    signal. (The client-side twin lives in triggerHeartbeatCheck.)
+    //    signal. 'scheduled-alert' counts too (2026-07-29): his future
+    //    reminders archive under that kind, and leaving them out let the
+    //    heartbeat write a fresh unique riff on a reminder minutes after it
+    //    fired — "two unique messages per scheduled notification". A reminder
+    //    IS his voice. Ring-transition kinds (block-start etc.) stay excluded
+    //    on purpose: those are mechanical pings, not him speaking.
+    //    (The client-side twin lives in triggerHeartbeatCheck.)
     const { data: lastVoice, error: voiceErr } = await supabase
       .from('messages')
       .select('created_at, source, channel, kind')
       .eq('sync_key', syncKey)
       .or(
-        'and(channel.eq.comms,kind.eq.companion-alert),and(channel.eq.chat,role.eq.assistant,source.eq.planner)',
+        'and(channel.eq.comms,kind.in.(companion-alert,scheduled-alert)),and(channel.eq.chat,role.eq.assistant,source.eq.planner)',
       )
       .order('created_at', { ascending: false })
       .limit(1);
@@ -355,7 +361,7 @@ Deno.serve(async (req) => {
     if (dryRun) {
       const [alertArm, chatArm] = await Promise.all([
         supabase.from('messages').select('created_at').eq('sync_key', syncKey)
-          .eq('channel', 'comms').eq('kind', 'companion-alert')
+          .eq('channel', 'comms').in('kind', ['companion-alert', 'scheduled-alert'])
           .order('created_at', { ascending: false }).limit(1),
         supabase.from('messages').select('created_at').eq('sync_key', syncKey)
           .eq('channel', 'chat').eq('role', 'assistant').eq('source', 'planner')
