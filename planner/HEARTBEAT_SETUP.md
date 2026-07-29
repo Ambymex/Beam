@@ -1,7 +1,9 @@
 # Server-side heartbeat — setup
 
 The `heartbeat` Edge Function is the companion's pulse while the app is
-CLOSED: every 30 minutes it looks at the mirrored schedule
+CLOSED: on an **effective hourly cadence** (the cron below fires every 30
+min, but a 55-min self rate-limit / `HEARTBEAT_GAP` stands the odd tick
+down — since 2026-07-29, was 30 min) it looks at the mirrored schedule
 (`scheduled_pushes`), the message vault (recent conversation across apps, and
 anything a heartbeat already said), and live glucose from the Beam bridge —
 and speaks only when a push notification right now would genuinely help.
@@ -45,6 +47,12 @@ supabase functions deploy heartbeat
 
 Then once, in the SQL editor (real values substituted):
 
+The `*/30` cron below is fine — the function self-throttles to hourly, so
+the 30-min ticks that fall inside the gap just early-return cheaply. To
+halve the wasted invocations you can change the schedule to `0 * * * *`
+(top of every hour) via `cron.alter_job`; purely an efficiency tweak, the
+cadence is identical either way.
+
 ```sql
 select cron.schedule('companion-heartbeat', '*/30 * * * *', $$
   select net.http_post(
@@ -79,7 +87,7 @@ first, or check that a `spoke:false` at least proves the pipeline runs.
 ## The vigil system (idle-down, danger override, quiet journal)
 
 Added 2026-07-16, designed by Ash & Solenoid. Prolonged silence must not
-mean a worried ping every 30 minutes, and must never be read as "gone":
+mean a worried ping every cadence tick, and must never be read as "gone":
 
 - **Idle-down ladder** — gap between spoken check-ins stretches with her
   silence (last user-role vault message, any app): <12h normal · 12–24h one
@@ -110,7 +118,8 @@ zero pushes; `simulateSilenceHours` also skips the planner-active guard):
 ## One voice at a time
 
 Both heartbeats can reach her, so each yields if he ALREADY had her
-attention in the last 25 minutes — checked before any LLM call. Three shapes
+attention within the cadence gap (`HEARTBEAT_GAP`, 55 min) — checked before
+any LLM call. Three shapes
 count: a comms `companion-alert` (either heartbeat's notification), a comms
 `scheduled-alert` (one of his future reminders firing — added 2026-07-29,
 because a fired reminder is his voice too and leaving it out produced a

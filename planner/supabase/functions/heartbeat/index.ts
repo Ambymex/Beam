@@ -1,6 +1,8 @@
 // heartbeat: the companion's server-side pulse. Invoked by pg_cron every 30
-// minutes so proactive check-ins reach the user when the app is CLOSED — the
-// client heartbeat (ChatCompanion.svelte) only runs while a page is alive.
+// minutes, but self-throttled to an EFFECTIVE hourly cadence (HEARTBEAT_GAP,
+// 2026-07-29) so proactive check-ins reach the user when the app is CLOSED
+// without over-pinging — the client heartbeat (ChatCompanion.svelte) only
+// runs while a page is alive and shares the same hourly cadence.
 //
 // State it can see: the mirrored schedule (scheduled_pushes), the message
 // vault (recent conversation + what any heartbeat already said, so it never
@@ -36,8 +38,9 @@
 //
 // Guards, in order: placeholder/key checks → stand-down when the planner is
 // active → glucose + silence computed → DANGER OVERRIDE (bypasses everything
-// below) → quiet hours (06–23 in HEARTBEAT_TZ) → 25-minute self rate-limit →
-// idle-down ladder (→ vigil journal when suppressed).
+// below) → quiet hours (06–23 in HEARTBEAT_TZ) → HEARTBEAT_GAP self
+// rate-limit → one-voice awareness → idle-down ladder (→ vigil journal
+// when suppressed).
 //
 // POST body { "dryRun": true } exercises the full pipeline (including the
 // LLM) but writes nothing and pushes nothing — reports what it WOULD do.
@@ -62,6 +65,15 @@ const SOURCE = 'heartbeat-server';
 const MIN = 60 * 1000;
 const HOUR = 60 * MIN;
 const DAY = 24 * HOUR;
+
+// Cadence gap (2026-07-29: hourly, was 30 min). pg_cron still fires this
+// function every 30 min; this gap is what makes the effective cadence
+// hourly — the intervening tick sees a beat <55 min old and stands down.
+// Governs BOTH the self rate-limit ("did I speak recently") and the
+// one-voice awareness ("did he reach her recently, by any route"), kept
+// just under an hour so cron jitter can't push a beat to 90 min. The
+// danger override keeps its own fast 25-min spacing — safety never waits.
+const HEARTBEAT_GAP = 55 * MIN;
 
 // The idle-down ladder: silence duration → minimum gap between SPOKEN
 // check-ins. Order matters (first match wins, scanned from the top).
@@ -321,7 +333,7 @@ Deno.serve(async (req) => {
       .eq('source', SOURCE)
       .order('created_at', { ascending: false })
       .limit(1);
-    if (!skipRateLimit && lastBeat?.length && now.getTime() - Date.parse(lastBeat[0].created_at) < 25 * MIN) {
+    if (!skipRateLimit && lastBeat?.length && now.getTime() - Date.parse(lastBeat[0].created_at) < HEARTBEAT_GAP) {
       return json({ skipped: 'spoke recently', ...(dryRun ? { cgmProbe } : {}) });
     }
 
@@ -372,7 +384,7 @@ Deno.serve(async (req) => {
       voiceProbe = { commsAlertArm: age(alertArm), plannerChatArm: age(chatArm) };
     }
 
-    if (lastVoice?.length && now.getTime() - Date.parse(lastVoice[0].created_at) < 25 * MIN) {
+    if (lastVoice?.length && now.getTime() - Date.parse(lastVoice[0].created_at) < HEARTBEAT_GAP) {
       const mins = Math.round((now.getTime() - Date.parse(lastVoice[0].created_at)) / MIN);
       return json({
         skipped: `he already had her attention ${mins} min ago (${lastVoice[0].source}/${lastVoice[0].channel}) — one voice at a time`,
