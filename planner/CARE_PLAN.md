@@ -172,9 +172,13 @@ the setup docs).
   a CHAT row only, leaving no alert trace, so the server saw nothing and
   spoke again. That's why the doubles looked patternless — the pattern was
   the model's action choice, invisible from outside. The server guard now
-  matches **either** a comms `companion-alert` **or** a chat row with
-  `role=assistant, source=planner` (his own words by any route, including
-  ordinary conversation — if he just had her attention, he doesn't ping).
+  matches **either** a comms `companion-alert`/`scheduled-alert` **or** a
+  chat row with `role=assistant, source=planner` (his own words by any
+  route, including ordinary conversation and his fired future reminders —
+  if he just had her attention, he doesn't ping. `scheduled-alert` added
+  2026-07-29: leaving it out let the heartbeat write a fresh unique riff
+  on a reminder minutes after it fired. Ring-transition kinds stay
+  excluded — mechanical pings aren't him speaking).
   The client now `await syncMessages()` **before** consulting its local
   archive, so its view is current at the moment of decision instead of up
   to 90s stale. Dry-run levers: `skipRateLimit` steps past the self
