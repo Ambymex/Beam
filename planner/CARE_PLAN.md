@@ -85,7 +85,12 @@ hard-edged by default (taper = core end) — a cycle or a window has a fixed
 length.
 
 **Chat storage** is localStorage (`radial-planner-chat-v1`), a 100-message
-sliding window. The vault keeps the full history in the cloud.
+sliding window. The vault keeps the full history in the cloud. **Inline
+message editing (2026-07-29)** rewrites a message's `content` in place
+(same id) and persists to that localStorage key — deliberately LOCAL only:
+the vault is first-write-wins by id (landmine 13), so an edit never
+overwrites the already-pushed copy and doesn't cross-sync. Not a bug; the
+tradeoff for not breaking the immutable-ids contract.
 
 **localStorage keys** all start `radial-planner-` (~30 of them: chat, keys for
 OpenRouter/Pinecone/Tavily/Beam, sync-key, msgsync-cursor, install-id,

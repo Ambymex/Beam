@@ -277,6 +277,36 @@
     }
   }
 
+  // Inline message editing. Fixes typos / rewrites in the archive in place.
+  // Edits are LOCAL: the cloud vault is first-write-wins by id (landmine 13),
+  // so an edited row never overwrites the copy already pushed — the change
+  // lives on this device's chat + comms history, not across the sync.
+  let editingMsgId: string | null = null;
+  let editDraft = '';
+  function startEditMessage(id: string, content: string) {
+    editingMsgId = id;
+    editDraft = content;
+  }
+  function cancelEditMessage() {
+    editingMsgId = null;
+    editDraft = '';
+  }
+  function saveEditMessage(id: string) {
+    const trimmed = editDraft.trim();
+    if (!trimmed) { cancelEditMessage(); return; }
+    messages = messages.map((m) => (m.id === id ? { ...m, content: trimmed } : m));
+    // Persist directly (not saveChat) so editing an old message doesn't yank
+    // the view to the bottom, and no pointless re-sync fires for a change the
+    // vault won't accept anyway.
+    try {
+      localStorage.setItem('radial-planner-chat-v1', JSON.stringify(messages));
+    } catch (e) {
+      console.warn('localStorage write failed:', e);
+    }
+    editingMsgId = null;
+    editDraft = '';
+  }
+
   function safeGetItem(key: string, defaultVal = ''): string {
     try {
       if (typeof localStorage !== 'undefined') {
@@ -2038,14 +2068,14 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
     </div>
   {/if}
 
-  <div class="chat-history" bind:this={scrollContainer}>
+  <div class="chat-history" class:collapsed={showSettings} bind:this={scrollContainer}>
     {#each messages as msg (msg.id)}
       <div class="message-wrap {msg.role}">
         <div class="avatar">
           {msg.role === 'assistant' ? '✦' : '✎'}
         </div>
         <div class="bubble-wrap">
-          <div class="bubble" style="position: relative; padding-right: 36px;">
+          <div class="bubble" style="position: relative; padding-right: 60px;">
             {#if msg.source}
               <div class="src-tag">via {msg.source}</div>
             {/if}
@@ -2055,18 +2085,37 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
                 <div class="cot-body">{msg.reasoning}</div>
               </details>
             {/if}
-            {@html formatMessageContent(msg.content)}
-            <button 
-              type="button" 
-              class="copy-bubble-btn" 
-              on:click={() => copyMessageText(msg.id, msg.content)}
-              aria-label="Copy message"
-              style="position: absolute; right: 6px; top: 8px; background: transparent; border: none; font-size: 13px; cursor: pointer; opacity: 0.4; transition: opacity 0.15s; padding: 4px; line-height: 1;"
-              on:mouseenter={(e) => e.currentTarget.style.opacity = '1'}
-              on:mouseleave={(e) => e.currentTarget.style.opacity = '0.4'}
-            >
-              {copiedMsgId === msg.id ? '✓' : '📋'}
-            </button>
+            {#if editingMsgId === msg.id}
+              <textarea
+                class="edit-area"
+                bind:value={editDraft}
+                rows="3"
+                aria-label="Edit message"
+                on:keydown={(e) => { if (e.key === 'Escape') cancelEditMessage(); }}
+              ></textarea>
+              <div class="edit-actions">
+                <button type="button" class="edit-cancel" on:click={cancelEditMessage}>Cancel</button>
+                <button type="button" class="edit-save" on:click={() => saveEditMessage(msg.id)}>Save</button>
+              </div>
+            {:else}
+              {@html formatMessageContent(msg.content)}
+              <div class="bubble-tools">
+                <button
+                  type="button"
+                  class="bubble-tool"
+                  on:click={() => startEditMessage(msg.id, msg.content)}
+                  aria-label="Edit message"
+                  title="Edit message"
+                >✎</button>
+                <button
+                  type="button"
+                  class="bubble-tool"
+                  on:click={() => copyMessageText(msg.id, msg.content)}
+                  aria-label="Copy message"
+                  title="Copy message"
+                >{copiedMsgId === msg.id ? '✓' : '📋'}</button>
+              </div>
+            {/if}
           </div>
           
           {#if msg.actions && msg.actions.length > 0}
@@ -2246,6 +2295,11 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
     gap: 16px;
     background: var(--surface);
   }
+  /* while the settings page is open it owns the scroll area — the chat steps
+     aside rather than fighting it for flex space */
+  .chat-history.collapsed {
+    display: none;
+  }
   .message-wrap {
     display: flex;
     gap: 10px;
@@ -2305,6 +2359,69 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     margin-bottom: 4px;
+  }
+  /* per-bubble edit + copy cluster, top-right. Always faintly visible so it's
+     tappable on touch (no hover), lifts to full on hover where available. */
+  .bubble-tools {
+    position: absolute;
+    right: 6px;
+    top: 6px;
+    display: flex;
+    gap: 2px;
+  }
+  .bubble-tool {
+    background: transparent;
+    border: none;
+    font-size: 13px;
+    line-height: 1;
+    padding: 4px;
+    cursor: pointer;
+    opacity: 0.4;
+    transition: opacity 0.15s;
+  }
+  .bubble-tool:hover,
+  .bubble-tool:focus-visible {
+    opacity: 1;
+  }
+  .edit-area {
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--surface);
+    border: 1px solid var(--border-2);
+    border-radius: 8px;
+    color: var(--text);
+    font: inherit;
+    font-size: 14px;
+    padding: 8px 10px;
+    resize: vertical;
+    outline: none;
+  }
+  .edit-area:focus {
+    border-color: var(--text-faint);
+  }
+  .edit-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .edit-save,
+  .edit-cancel {
+    border-radius: 6px;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--border);
+  }
+  .edit-cancel {
+    background: var(--surface-2);
+    color: var(--text-dim);
+  }
+  .edit-save {
+    background: var(--text);
+    color: var(--app-bg);
+    border-color: var(--text);
   }
   .actions-notif {
     display: flex;
@@ -2547,6 +2664,21 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
     display: flex;
     flex-direction: column;
     gap: 12px;
+    /* Own the scroll (landmine 15): as a flex child of the fixed overlay
+       column it must be allowed to shrink below its content (min-height: 0)
+       and scroll internally, or the lower fields fall off the bottom of the
+       phone with nothing to scroll — exactly the reported bug. */
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    overscroll-behavior: contain;
+  }
+  /* the invisible half of the trap: without this the fields compress to
+     slivers instead of overflowing into the scroll */
+  .settings-drawer > * {
+    flex: 0 0 auto;
   }
   .settings-drawer h3 {
     margin: 0;
