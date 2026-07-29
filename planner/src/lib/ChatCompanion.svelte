@@ -528,7 +528,11 @@
     }, 50);
   }
 
-  function saveSettings() {
+  // Persist every field WITHOUT dismissing the drawer — bound to each field's
+  // on:change so edits save live. Toggling a checkbox used to run the whole
+  // save-and-close and yank the settings page shut mid-edit; this is the quiet
+  // half that just writes.
+  function persistSettings() {
     try {
       localStorage.setItem('radial-planner-openrouter-key', openRouterKey.trim());
       localStorage.setItem('radial-planner-openrouter-model', selectedModel);
@@ -540,6 +544,10 @@
     } catch (e) {
       console.warn('localStorage write failed:', e);
     }
+  }
+  // The explicit "Save Settings" button: persist, then close the drawer.
+  function saveSettings() {
+    persistSettings();
     showSettings = false;
   }
 
@@ -1964,13 +1972,13 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
           type="password" 
           placeholder="sk-or-..." 
           bind:value={openRouterKey} 
-          on:change={saveSettings}
+          on:change={persistSettings}
         />
         <span class="tip">Left empty? Falls back to project .env file.</span>
       </div>
       <div class="field">
         <label for="or-model">AI Model:</label>
-        <select id="or-model" bind:value={selectedModel} on:change={saveSettings}>
+        <select id="or-model" bind:value={selectedModel} on:change={persistSettings}>
           {#each modelsList as m}
             <option value={m.id}>{m.name || m.id}</option>
           {/each}
@@ -1978,14 +1986,14 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
       </div>
       <div class="field">
         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; margin: 0; font-size: 12px; color: var(--text);">
-          <input type="checkbox" bind:checked={useHybridRouting} on:change={saveSettings} style="margin: 0; width: auto;" />
+          <input type="checkbox" bind:checked={useHybridRouting} on:change={persistSettings} style="margin: 0; width: auto;" />
           Enable Hybrid Proxy Routing (AI Studio Fallback)
         </label>
         <span class="tip">Uses free Gemini endpoint when possible. Applies only when routing via Supabase Edge Functions.</span>
       </div>
       <div class="field">
         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; margin: 0; font-size: 12px; color: var(--text);">
-          <input type="checkbox" bind:checked={enableVault} on:change={saveSettings} style="margin: 0; width: auto;" />
+          <input type="checkbox" bind:checked={enableVault} on:change={persistSettings} style="margin: 0; width: auto;" />
           Enable Semantic Vector Vault (Pinecone)
         </label>
       </div>
@@ -1998,7 +2006,7 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
             type="password" 
             placeholder="pcsk_..." 
             bind:value={pineconeKey} 
-            on:change={saveSettings}
+            on:change={persistSettings}
           />
         </div>
         <div class="field">
@@ -2008,7 +2016,7 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
             type="text" 
             placeholder="https://diary-memory-vault-..." 
             bind:value={pineconeHost} 
-            on:change={saveSettings}
+            on:change={persistSettings}
           />
         </div>
       {/if}
@@ -2020,7 +2028,7 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
           type="password"
           placeholder="tvly-..."
           bind:value={tavilyKey}
-          on:change={saveSettings}
+          on:change={persistSettings}
         />
         <span class="tip">Enables the companion to search the web autonomously.</span>
       </div>
