@@ -67,18 +67,22 @@ export function addRepeatRule(input: NewRuleInput): RepeatRule {
   };
   repeatRules.update((list) => [...list, rule]);
   persist(rule);
-  regenerateRepeats();
+  // NB: caller regenerates. When turning an existing task into a repeat, the
+  // caller must stamp that block's repeatId FIRST (so its anchor-day instance
+  // isn't duplicated), THEN call regenerateRepeats().
   return rule;
 }
 
-// Drop this series' FUTURE, still-undone instances (≥ today). Done + past
-// instances stay as the historical record.
+// Drop this series' still-undone instances STRICTLY AFTER today, so an edit
+// re-stamps the days ahead from the new definition. Today's instance is left
+// alone — it's usually the one being edited/selected, and churning its id
+// would drop the selection mid-edit. Done + past instances stay as record.
 function pruneFutureInstances(id: string): void {
   const tk = todayKey();
   days.update((all) => {
     const out = { ...all };
     for (const [key, day] of Object.entries(out)) {
-      if (key < tk) continue;
+      if (key <= tk) continue;
       const kept = day.blocks.filter((b) => !(b.repeatId === id && !b.done));
       if (kept.length !== day.blocks.length) out[key] = { ...day, blocks: kept };
     }

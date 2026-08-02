@@ -21,6 +21,10 @@ export interface BlockActions {
   setTimes: (startHours: number, coreEndHours: number) => void;
   setTravelTimes: (beforeHours: number, afterHours: number) => void;
   setVibe: (vibeId: string | null) => void;
+  // Link/unlink the selected block to a recurring-task rule (§ repeats). Used
+  // when turning a task into a repeat (stamp the id so its anchor-day instance
+  // isn't duplicated by materializeRepeats) or detaching it back to a one-off.
+  setRepeatId: (repeatId: string | null) => void;
   deselect: () => void;
   addBlock: (
     laneId: string,

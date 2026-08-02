@@ -7,6 +7,16 @@
   import { armedVibe } from './stores';
   import { VIBES } from './vibes';
   import { customVibes } from './customVibes';
+  import { get } from 'svelte/store';
+  import { currentKey } from './days';
+  import {
+    repeatRules,
+    addRepeatRule,
+    updateRepeatRule,
+    endRepeatSeries,
+    skipOccurrence,
+    regenerateRepeats,
+  } from './repeats';
 
   let draft = '';
   let lastId: number | null = null;
@@ -128,6 +138,78 @@
     $blockActions?.setVibe(vibeId);
   }
 
+  // ----- recurring tasks (§ repeats) -----
+  // The repeat control shows for real task blocks, not the emotion log lane.
+  $: canRepeat = !!sb && sb.laneId !== 'emotion';
+  // The rule behind the selected instance, if it's a repeat (reactive on the store).
+  $: rule = sb?.repeatId ? ($repeatRules.find((r) => r.id === sb.repeatId) ?? null) : null;
+  $: repeatMode = rule ? rule.freq : 'off'; // 'off' | 'daily' | 'weekly'
+  // Chip order Mon→Sun; value is JS getDay() (0=Sun).
+  const WEEKDAYS = [
+    { n: 1, l: 'M' }, { n: 2, l: 'T' }, { n: 3, l: 'W' }, { n: 4, l: 'T' },
+    { n: 5, l: 'F' }, { n: 6, l: 'S' }, { n: 0, l: 'S' },
+  ];
+
+  function ruleGeometry() {
+    return {
+      laneId: sb!.laneId,
+      startHours: sb!.startHours,
+      coreEndHours: sb!.coreEndHours,
+      taperEndHours: sb!.taperEndHours,
+      vibeId: sb!.vibeId,
+      label: sb!.label ?? '',
+    };
+  }
+  function viewedWeekday(): number {
+    const [y, m, d] = get(currentKey).split('-').map(Number);
+    return new Date(y, m - 1, d).getDay();
+  }
+  function linkNewRule(freq: 'daily' | 'weekly', weekdays: number[]) {
+    const r = addRepeatRule({ ...ruleGeometry(), freq, weekdays, anchorKey: get(currentKey) });
+    // stamp THIS block first so its anchor-day instance isn't duplicated…
+    $blockActions?.setRepeatId(r.id);
+    // …then fill the future occurrences.
+    regenerateRepeats();
+  }
+  function chooseRepeat(mode: 'off' | 'daily' | 'weekly') {
+    if (!sb) return;
+    if (mode === 'off') {
+      if (sb.repeatId) {
+        const id = sb.repeatId;
+        $blockActions?.setRepeatId(null); // keep today's as a plain one-off
+        endRepeatSeries(id); // stop future, clear future undone instances
+      }
+      return;
+    }
+    if (mode === 'daily') {
+      if (sb.repeatId) updateRepeatRule(sb.repeatId, { ...ruleGeometry(), freq: 'daily', weekdays: [] });
+      else linkNewRule('daily', []);
+      return;
+    }
+    // weekly — seed with the current rule's days, or the viewed day's weekday
+    const wd = rule?.weekdays?.length ? rule.weekdays : [viewedWeekday()];
+    if (sb.repeatId) updateRepeatRule(sb.repeatId, { ...ruleGeometry(), freq: 'weekly', weekdays: wd });
+    else linkNewRule('weekly', wd);
+  }
+  function toggleWeekday(n: number) {
+    if (!sb || !rule || rule.freq !== 'weekly') return;
+    const set = new Set(rule.weekdays);
+    if (set.has(n)) set.delete(n);
+    else set.add(n);
+    if (set.size === 0) return; // never leave a weekly repeat with no days
+    updateRepeatRule(sb.repeatId!, { ...ruleGeometry(), freq: 'weekly', weekdays: [...set] });
+  }
+  // Trash on a repeat instance removes just THIS occurrence (and won't let it
+  // regenerate); on a plain block it deletes normally.
+  function deleteSelected() {
+    if (sb?.repeatId) {
+      skipOccurrence(sb.repeatId, get(currentKey));
+      $blockActions?.deselect();
+    } else {
+      $blockActions?.remove();
+    }
+  }
+
   function hexToHSL(hex: string) {
     const h = hex.replace('#', '');
     const r = parseInt(h.substring(0, 2), 16) / 255;
@@ -194,7 +276,7 @@
     <button class="act" class:on={sb.done} on:click={() => $blockActions?.toggleDone()}>
       {sb.done ? '✓ completed' : 'completed'}
     </button>
-    <button class="act del" on:click={() => $blockActions?.remove()} aria-label="Delete block">🗑</button>
+    <button class="act del" on:click={deleteSelected} aria-label={sb.repeatId ? 'Delete this occurrence' : 'Delete block'} title={sb.repeatId ? 'Delete just this occurrence' : 'Delete block'}>🗑</button>
     <button class="act" on:click={() => $blockActions?.deselect()} aria-label="Deselect">✕</button>
   </div>
 
@@ -232,6 +314,30 @@
       <label>leave <input type="number" min="0" step="5" bind:value={travelBeforeMins} on:change={commitTravel} /> min early</label>
       <span class="dot-sep">•</span>
       <label>return <input type="number" min="0" step="5" bind:value={travelAfterMins} on:change={commitTravel} /> min after</label>
+    </div>
+  {/if}
+
+  {#if canRepeat}
+    <div class="repeat-row">
+      <span class="repeat-lbl">Repeat</span>
+      <div class="seg">
+        <button class="seg-btn" class:on={repeatMode === 'off'} on:click={() => chooseRepeat('off')}>Off</button>
+        <button class="seg-btn" class:on={repeatMode === 'daily'} on:click={() => chooseRepeat('daily')}>Every day</button>
+        <button class="seg-btn" class:on={repeatMode === 'weekly'} on:click={() => chooseRepeat('weekly')}>Weekly</button>
+      </div>
+      {#if repeatMode === 'weekly' && rule}
+        <div class="weekdays" role="group" aria-label="Repeat on weekdays">
+          {#each WEEKDAYS as wd}
+            <button
+              class="wd"
+              class:on={rule.weekdays.includes(wd.n)}
+              on:click={() => toggleWeekday(wd.n)}
+              aria-pressed={rule.weekdays.includes(wd.n)}
+              aria-label={['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][wd.n]}
+            >{wd.l}</button>
+          {/each}
+        </div>
+      {/if}
     </div>
   {/if}
 
@@ -372,6 +478,67 @@
     padding: 0 14px 2px;
     font-size: 12px;
     color: var(--text-dim);
+  }
+
+  /* recurring-task controls */
+  .repeat-row {
+    position: relative;
+    z-index: 2;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 4px 12px 4px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .repeat-lbl {
+    flex: 0 0 auto;
+  }
+  .seg {
+    display: inline-flex;
+    border: 1px solid var(--border-2);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .seg-btn {
+    background: var(--surface-2);
+    border: none;
+    border-right: 1px solid var(--border-2);
+    color: var(--text-2);
+    font-size: 12px;
+    padding: 5px 10px;
+    cursor: pointer;
+  }
+  .seg-btn:last-child {
+    border-right: none;
+  }
+  .seg-btn.on {
+    background: var(--signal);
+    color: var(--signal-contrast);
+    box-shadow: inset 0 0 6px var(--signal-glow);
+  }
+  .weekdays {
+    display: inline-flex;
+    gap: 4px;
+  }
+  .wd {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 1px solid var(--border-2);
+    background: var(--surface-2);
+    color: var(--text-2);
+    font-size: 11px;
+    cursor: pointer;
+    padding: 0;
+  }
+  .wd.on {
+    background: var(--signal);
+    color: var(--signal-contrast);
+    border-color: var(--signal);
+    box-shadow: 0 0 5px var(--signal-glow);
   }
 
   /* Add mode styles */

@@ -714,6 +714,14 @@
     blocks = blocks;
     persist();
   }
+  function setSelectedRepeatId(repeatId: string | null) {
+    const b = blocks.find((x) => x.id === selectedId);
+    if (!b) return;
+    if (repeatId) b.repeatId = repeatId;
+    else delete b.repeatId;
+    blocks = blocks;
+    persist();
+  }
   onMount(() => {
     blockActions.set({
       setLabel: setSelectedLabel,
@@ -722,6 +730,7 @@
       setTimes: setSelectedTimes,
       setTravelTimes: setSelectedTravelTimes,
       setVibe: setSelectedVibe,
+      setRepeatId: setSelectedRepeatId,
       deselect: () => (selectedId = null),
       addBlock: handleAddBlock,
     });
