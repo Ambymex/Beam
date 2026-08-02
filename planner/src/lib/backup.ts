@@ -8,6 +8,7 @@ interface BackupPayload {
     customVibes: any[];
     customCategories: any[];
     scratchpad: any[];
+    repeatRules?: any[]; // v2+ (recurring tasks)
   };
   localStorage: Record<string, string | null>;
 }
@@ -22,6 +23,7 @@ export async function exportBackup(): Promise<string> {
     const customVibes = await db.customVibes.toArray();
     const customCategories = await db.customCategories.toArray();
     const scratchpad = await db.scratchpad.toArray();
+    const repeatRules = await db.repeatRules.toArray().catch(() => []);
 
     // 2. Fetch all key settings and chat history from localStorage
     const localKeys = [
@@ -40,13 +42,14 @@ export async function exportBackup(): Promise<string> {
 
     // 3. Package it all
     const payload: BackupPayload = {
-      version: 1,
+      version: 2,
       timestamp: new Date().toISOString(),
       db: {
         days,
         customVibes,
         customCategories,
-        scratchpad
+        scratchpad,
+        repeatRules
       },
       localStorage: localData
     };
@@ -81,7 +84,7 @@ export async function importBackup(base64Str: string): Promise<boolean> {
     );
 
     const payload = JSON.parse(json) as BackupPayload;
-    if (payload.version !== 1 || !payload.db || !payload.localStorage) {
+    if ((payload.version !== 1 && payload.version !== 2) || !payload.db || !payload.localStorage) {
       throw new Error('Invalid backup format or version.');
     }
 
@@ -90,18 +93,22 @@ export async function importBackup(base64Str: string): Promise<boolean> {
     await db.customVibes.clear();
     await db.customCategories.clear();
     await db.scratchpad.clear();
+    await db.repeatRules.clear().catch(() => {});
 
     // 2. Put imported Dexie records back
     const dayPromises = payload.db.days.map((d) => db.days.put(d));
     const vibePromises = payload.db.customVibes.map((v) => db.customVibes.put(v));
     const catPromises = payload.db.customCategories.map((c) => db.customCategories.put(c));
     const scratchPromises = payload.db.scratchpad.map((s) => db.scratchpad.put(s));
+    // v2+ backups carry recurring-task rules; v1 backups simply have none
+    const repeatPromises = (payload.db.repeatRules ?? []).map((r) => db.repeatRules.put(r));
 
     await Promise.all([
       ...dayPromises,
       ...vibePromises,
       ...catPromises,
-      ...scratchPromises
+      ...scratchPromises,
+      ...repeatPromises
     ]);
 
     // 3. Restore localStorage settings & chat logs

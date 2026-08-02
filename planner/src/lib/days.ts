@@ -5,7 +5,7 @@
 // already on today's ring by first render (§13).
 
 import { writable, derived, get } from 'svelte/store';
-import { dateKey, migrateUndone, sortedKeysDesc, type DaysMap, type DayData } from './daydata';
+import { dateKey, migrateUndone, materializeRepeats, sortedKeysDesc, type DaysMap, type DayData } from './daydata';
 import { db, migrateFromLocalStorage } from './db';
 
 export const todayKey = (): string => dateKey(new Date());
@@ -32,12 +32,21 @@ async function initDays() {
       };
     }
 
-    // 3. Migrate undone blocks forward to today
+    // 3. Migrate undone blocks forward to today, then stamp recurring-task
+    //    instances onto matching upcoming days (repeat instances are exempt
+    //    from the migration above — they recur, they don't pile forward).
     const migratedMap = migrateUndone(loadedMap, todayKey());
+    let rules: import('./daydata').RepeatRule[] = [];
+    try {
+      rules = await db.repeatRules.toArray();
+    } catch (err) {
+      console.warn('[DB] repeat rules load failed (older DB?):', err);
+    }
+    const finalMap = rules.length ? materializeRepeats(migratedMap, rules, todayKey()) : migratedMap;
 
     // 4. Save any modified records back to Dexie
     const saves: Promise<any>[] = [];
-    for (const [date, data] of Object.entries(migratedMap)) {
+    for (const [date, data] of Object.entries(finalMap)) {
       const original = loadedMap[date];
       if (!original || JSON.stringify(original) !== JSON.stringify(data)) {
         saves.push(db.days.put({
@@ -54,7 +63,7 @@ async function initDays() {
 
     // 5. Update Svelte store to trigger reactive rendering
     isInitialized = true;
-    days.set(migratedMap);
+    days.set(finalMap);
 
     // 6. Trigger push sync
     void import('./sync').then((m) => m.scheduleResync()).catch(() => {});

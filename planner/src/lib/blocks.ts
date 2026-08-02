@@ -33,6 +33,11 @@ export interface Block {
   travelBeforeHours?: number; // prepend wing length ("leave by" window)
   travelAfterHours?: number; // append wing length ("get home" window)
   gcalId?: string; // Google Calendar Event ID
+  // Recurring tasks (§ repeats): a generated instance of a RepeatRule carries
+  // its rule id. Like appointments, repeat instances are date-anchored and
+  // NEVER migrate forward (they keep their own rhythm — see migrateUndone /
+  // materializeRepeats in daydata.ts). Completion is per-instance.
+  repeatId?: string;
 }
 
 export const SIZE = 400;

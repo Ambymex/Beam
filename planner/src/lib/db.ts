@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import type { DayData } from './daydata';
+import type { DayData, RepeatRule } from './daydata';
 import type { CustomVibe } from './customVibes';
 import type { CustomCategory } from './customCategories';
 
@@ -38,6 +38,9 @@ export class RadialPlannerDB extends Dexie {
     read: number; // 0 = unread, 1 = read
     synced?: number; // 0/absent = not yet in the cloud vault, 1 = uploaded (msgSync.ts)
   }, string>;
+  // Recurring-task rules (§ repeats). materializeRepeats() stamps concrete
+  // Block instances from these onto matching days.
+  repeatRules!: Table<RepeatRule, string>;
 
   constructor() {
     super('RadialPlannerDB');
@@ -84,6 +87,16 @@ export class RadialPlannerDB extends Dexie {
       notifications: 'id, date, sent',
       glucose: 'ts',
       comms: 'id, ts, read, synced',
+    });
+    this.version(7).stores({
+      days: 'date',
+      customVibes: 'id, categoryId',
+      customCategories: 'id',
+      scratchpad: 'id',
+      notifications: 'id, date, sent',
+      glucose: 'ts',
+      comms: 'id, ts, read, synced',
+      repeatRules: 'id, active',
     });
   }
 }

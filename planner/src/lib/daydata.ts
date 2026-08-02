@@ -14,6 +14,29 @@ export interface DayData {
 
 export type DaysMap = Record<string, DayData>; // key: 'YYYY-MM-DD' (local date)
 
+// A recurring-task rule (§ repeats). Lives in its own Dexie store (repeats.ts);
+// materializeRepeats() stamps concrete Block instances onto matching days.
+// Geometry fields mirror a Block so an instance is a straight copy + repeatId.
+export interface RepeatRule {
+  id: string; // 'rep_...'
+  laneId: string;
+  startHours: number;
+  coreEndHours: number;
+  taperEndHours: number;
+  vibeId: string | null;
+  label: string;
+  freq: 'daily' | 'weekly';
+  weekdays: number[]; // 0=Sun … 6=Sat — weekly only (empty for daily)
+  anchorKey: string; // 'YYYY-MM-DD' — never generate before this date
+  skip: string[]; // dates to omit (a single occurrence the user deleted)
+  active: boolean; // false = series ended; stop generating (past stays as record)
+}
+
+export function repeatMatchesDate(rule: RepeatRule, d: Date): boolean {
+  if (rule.freq === 'daily') return true;
+  return rule.weekdays.includes(d.getDay());
+}
+
 export const emptyDay = (): DayData => ({ blocks: [], symptoms: [], nextId: 1, nextSymptomId: 1, diary: '' });
 
 // Local-date key. 'YYYY-MM-DD' sorts lexicographically === chronologically,
@@ -53,8 +76,10 @@ export function migrateUndone(days: DaysMap, todayKey: string): DaysMap {
     const stay: Block[] = [];
     for (const b of day.blocks) {
       // Done blocks stay as the record; appointments are date-fixed (§8) and
-      // never migrate; emotional logs stay as historical record.
-      if (b.done || b.kind === 'appointment' || b.laneId === 'emotion') {
+      // never migrate; emotional logs stay as historical record; repeat
+      // instances keep their own rhythm (they recur on schedule, never pile
+      // forward — Ash's call, 2026-08-03).
+      if (b.done || b.kind === 'appointment' || b.laneId === 'emotion' || b.repeatId) {
         stay.push(b);
       } else {
         today.blocks.push(repairBlock({ ...b, id: nextId++, migratedFrom: b.migratedFrom ?? key }));
@@ -71,6 +96,55 @@ export function migrateUndone(days: DaysMap, todayKey: string): DaysMap {
   // LLM edits otherwise haunt the ring as unclickable >360° loops.
   for (const day of Object.values(out)) {
     day.blocks = day.blocks.map(repairBlock);
+  }
+  return out;
+}
+
+// Stamp concrete Block instances from repeat rules onto every matching day in
+// [today, today+horizon]. Idempotent: adds an instance only when that day has
+// none for the rule and the date isn't skipped, so it's safe to run on every
+// app start and after any rule edit. Generated instances carry repeatId, which
+// exempts them from migrateUndone (they recur, they don't pile forward).
+export function materializeRepeats(
+  days: DaysMap,
+  rules: RepeatRule[],
+  todayKey: string,
+  horizonDays = 21,
+): DaysMap {
+  const active = rules.filter((r) => r.active);
+  if (!active.length) return days;
+  const out: DaysMap = structuredClone(days);
+  const base = parseKey(todayKey);
+  for (let i = 0; i <= horizonDays; i++) {
+    const d = new Date(base);
+    d.setDate(base.getDate() + i);
+    const dk = dateKey(d);
+    for (const rule of active) {
+      if (dk < rule.anchorKey) continue;
+      if (rule.skip.includes(dk)) continue;
+      if (!repeatMatchesDate(rule, d)) continue;
+      const day = out[dk] ?? emptyDay();
+      // already present (generated earlier, or edited/completed in place) — leave it
+      if (day.blocks.some((b) => b.repeatId === rule.id)) {
+        out[dk] = day;
+        continue;
+      }
+      const id = day.nextId++;
+      day.blocks.push(
+        repairBlock({
+          id,
+          laneId: rule.laneId,
+          startHours: rule.startHours,
+          coreEndHours: rule.coreEndHours,
+          taperEndHours: rule.taperEndHours,
+          vibeId: rule.vibeId,
+          done: false,
+          label: rule.label,
+          repeatId: rule.id,
+        }),
+      );
+      out[dk] = day;
+    }
   }
   return out;
 }
