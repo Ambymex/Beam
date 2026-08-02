@@ -17,6 +17,10 @@
   let sheetOpen = false;
   let expandedId: string | null = null; // the category whose members are shown
   let showAll = false; // flat full-list section inside the sheet
+  // Edit mode gates the destructive controls (per-swatch delete ✕, delete
+  // category). Off by default so normal arming/adding never exposes a delete
+  // target to mash by accident — deletion is irreversible, so it's opt-in.
+  let editMode = false;
 
   // create-a-vibe form (§4/§6). targetCat = the category to file it under
   // (null = uncategorised → "yours"). Set when launched from a category row.
@@ -116,6 +120,9 @@
           <button class="more toggle-btn" class:on={showAll} on:click={() => (showAll = !showAll)}>
             {showAll ? 'categories' : 'all 77'}
           </button>
+          <button class="more toggle-btn" class:on={editMode} on:click={() => (editMode = !editMode)} aria-pressed={editMode}>
+            {editMode ? 'done' : 'edit'}
+          </button>
           <button class="more close" on:click={() => (sheetOpen = false)} aria-label="Close">✕</button>
         </div>
       </div>
@@ -197,13 +204,13 @@
                     aria-pressed={$armedVibe?.id === v.id}
                     on:click={() => armVibe(v)}
                   ></button>
-                  {#if v.id.startsWith('custom:')}
+                  {#if v.id.startsWith('custom:') && editMode}
                     <button class="own-rm" aria-label="Delete {v.emotion}" on:click={() => removeCustomVibe(v.id)}>✕</button>
                   {/if}
                 </div>
               {/each}
               <button class="add-vibe" on:click={() => openCreate(cat.id)} aria-label="Add a vibe to {cat.label}">＋</button>
-              {#if cat.custom}
+              {#if cat.custom && editMode}
                 <button class="del-cat" on:click={() => removeCustomCategory(cat.id)} aria-label="Delete category {cat.label}">delete category</button>
               {/if}
             </div>
@@ -469,20 +476,23 @@
   .own {
     position: relative;
   }
+  /* Only shown in edit mode now, so it's an intentional target: bigger, and
+     tinted destructive so it reads as "delete", not decoration. */
   .own-rm {
     position: absolute;
-    top: -5px;
-    right: -5px;
-    width: 16px;
-    height: 16px;
+    top: -6px;
+    right: -6px;
+    width: 19px;
+    height: 19px;
     border-radius: 50%;
-    background: var(--surface-3);
-    border: 1px solid var(--border);
-    color: var(--text-dim);
-    font-size: 9px;
+    background: #d96a6a;
+    border: 1px solid var(--app-bg, #fff);
+    color: #fff;
+    font-size: 10px;
     line-height: 1;
     cursor: pointer;
     padding: 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   }
 
   /* category rows — full width, stacked */

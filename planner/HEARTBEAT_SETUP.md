@@ -113,6 +113,7 @@ zero pushes; `simulateSilenceHours` also skips the planner-active guard):
 -d '{"dryRun": true, "simulateSilenceHours": 30}'   # vigil / ladder stages
 -d '{"dryRun": true, "simulateLow": true, "simulateSilenceHours": 2}'  # danger
 -d '{"dryRun": true, "skipRateLimit": true}'        # inspect the voice guard
+-d '{"dryRun": true, "probeSchedule": true}'        # dump scheduled_pushes (now-6h→) to hunt phantom/recurring pings — event_key = `${dayKey}:${blockId}:${kind}` names the source block
 ```
 
 ## One voice at a time

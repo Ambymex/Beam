@@ -119,6 +119,7 @@ Deno.serve(async (req) => {
     let simSilenceHours: number | null = null;
     let simLow = false;
     let skipRateLimit = false;
+    let probeSchedule = false;
     try {
       const body = await req.json();
       dryRun = body?.dryRun === true;
@@ -126,6 +127,7 @@ Deno.serve(async (req) => {
         if (typeof body?.simulateSilenceHours === 'number') simSilenceHours = body.simulateSilenceHours;
         simLow = body?.simulateLow === true;
         skipRateLimit = body?.skipRateLimit === true;
+        probeSchedule = body?.probeSchedule === true;
       }
     } catch {
       /* empty body is the normal cron invocation */
@@ -183,6 +185,21 @@ Deno.serve(async (req) => {
       .limit(1);
     const installId = subs?.[0]?.install_id;
     if (!installId) return json({ skipped: 'no push subscription — nowhere to speak' });
+
+    // Diagnostic: dump the raw scheduled_pushes window (now-6h forward) so a
+    // phantom/recurring push can be identified by its event_key
+    // (`${dayKey}:${blockId}:${kind}`) — that names the exact source block.
+    // dryRun-only, no writes. Caught the invisible 11am dryer sliver 2026-08-03.
+    if (dryRun && probeSchedule) {
+      const { data: rows } = await supabase
+        .from('scheduled_pushes')
+        .select('event_key, fire_at, kind, title, body, sent')
+        .eq('install_id', installId)
+        .gte('fire_at', new Date(now.getTime() - 6 * HOUR).toISOString())
+        .order('fire_at', { ascending: true })
+        .limit(200);
+      return json({ probeSchedule: true, count: rows?.length ?? 0, rows: rows ?? [] });
+    }
 
     // -- silence: her last sign of life in the vault (user-role, ANY app).
     //    created_at is the server clock (ts is client-supplied — don't trust
