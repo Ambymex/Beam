@@ -69,7 +69,8 @@ and about what you could not verify; state what you proved and how.
 | Theme engine (env auto + manual + custom) | `src/lib/envTheme.ts`, `theme.ts`, `themes.json`, `ThemeDesigner.svelte` |
 | Glucose | `src/lib/glucose.ts` (Beam config in localStorage) |
 | Vibes (sacred), categories | `src/lib/vibes.ts`, `categories.ts`, `customVibes.ts`, `customCategories.ts` |
-| DB | `src/lib/db.ts` — Dexie v6: `days, customVibes, customCategories, scratchpad, notifications, glucose, comms` |
+| Recurring tasks (§ repeats) | `src/lib/repeats.ts` (rules store + CRUD), `daydata.ts` `materializeRepeats()`, editor UI in `BlockEditor.svelte` |
+| DB | `src/lib/db.ts` — Dexie v7: `days, customVibes, customCategories, scratchpad, notifications, glucose, comms, repeatRules` |
 
 **Lane semantics (2026-07-20)**: the `washer`/`dryer` lane ids are **frozen
 historical names**, not their meaning. They are the two **parallel-process**
@@ -83,6 +84,24 @@ finished-wording and only an unlabelled one keeps "Washing machine is free"
 (that quick-capture case really is the washer). Blocks on these lanes stay
 hard-edged by default (taper = core end) — a cycle or a window has a fixed
 length.
+
+**Recurring tasks (§ repeats, 2026-08-03)**: rules live in the `repeatRules`
+Dexie table (own store, `repeats.ts`); `materializeRepeats()` stamps concrete
+Block instances (carrying `repeatId`) onto matching days across a 21-day
+horizon, run in `initDays` after `migrateUndone` and after any rule edit.
+Design (Ash's calls): flexible weekday picker + daily; unfinished occurrences
+**stay put and recur on schedule** — repeat instances are exempt from
+`migrateUndone` (like appointments), so they don't pile forward. Completion &
+single edits are per-instance; "Off" ends the series + detaches today to a
+one-off; the trash on a repeat instance = "delete just this occurrence"
+(records a `skip`). **Landmine**: turning an existing task into a repeat must
+stamp its `repeatId` via `blockActions.setRepeatId` BEFORE `regenerateRepeats`
+or the anchor day double-stamps; and never link by writing the block through
+the `days` store directly — RadialCanvas owns the current day's working copy
+and will overwrite it (landmine 7). Backup payload is v2 (carries rules;
+still imports v1). **Not yet wired to the companion** — Solenoid can't set
+repeats from chat yet (would be stage 3: a `repeat` field on add/update_block
++ prompt).
 
 **Chat storage** is localStorage (`radial-planner-chat-v1`), a 100-message
 sliding window. The vault keeps the full history in the cloud. **Inline
