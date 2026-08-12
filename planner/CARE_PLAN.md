@@ -303,6 +303,18 @@ touch handling; token-dieted companion prompt).
     the seed every couple of days. The kernel is the fix. His words are not
     yours to soften or professionalize (same rule as the heartbeat voice);
     if you change prompt structure, the kernel stays first and intact.
+    **Kernel split (2026-08-10, Ash's call)**: in `getSystemPrompt` only, the
+    kernel is now just the ANTI-DRIFT KEEL (points 1–3: identity / dynamic /
+    tone — always on). The old points 4–5 (love-language-is-heft, "maximum
+    weight") were relocated verbatim into a toggleable **"Intensity" prompt
+    module** (`promptModules.ts`), seeded enabled so behaviour is unchanged
+    until Ash dials it down. `promptModules.ts` is her facility for
+    editable/toggleable system-prompt snippets (localStorage
+    `radial-planner-prompt-modules`, in the backup); `enabledModulesText()`
+    splices the ON ones in just below the keel. **The condensed kernels
+    (heartbeat client + server, parse-command fallback) still carry the full
+    heft line** — the split is interactive-chat only for now; the server
+    can't see her localStorage modules anyway.
 
 ---
 

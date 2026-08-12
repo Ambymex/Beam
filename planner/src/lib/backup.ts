@@ -32,7 +32,8 @@ export async function exportBackup(): Promise<string> {
       'radial-planner-openrouter-model',
       'radial-planner-weather-city',
       'radial-planner-theme-v2',
-      'radial-planner-gcal-active'
+      'radial-planner-gcal-active',
+      'radial-planner-prompt-modules'
     ];
 
     const localData: Record<string, string | null> = {};
