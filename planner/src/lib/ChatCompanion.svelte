@@ -21,6 +21,7 @@
   import { fetchContext, injectMemory } from './vault';
   import { checkPendingNotifications, scheduleNotification } from './notifications';
   import { logComm, lastCompanionAlertTs } from './comms';
+  import { addRepeatRule, updateRepeatRule, endRepeatSeries, regenerateRepeats } from './repeats';
   import { starsVisible } from './theme';
   import { envThemeState } from './envTheme';
   import {
@@ -230,7 +231,7 @@
     actions?: Array<{
       type: 'add_block' | 'update_block' | 'delete_block' | 'read_scratchpad' | 'update_scratchpad' | 'update_diary' | 'add_symptom' | 'update_symptom' | 'delete_symptom' | 'show_notification' | 'schedule_notification' | 'web_search' | 'control_lights';
       targetDate?: string;
-      block?: Partial<Block>;
+      block?: Partial<Block> & { repeat?: any };
       labelToMatch?: string;
       content?: string;
       symptomId?: number;
@@ -626,6 +627,7 @@ CORE RULES:
 4. APPOINTMENTS & TRAVEL WINGS: Appointments (meetings, appointments, classes, fixed external times) are always hard-edged. They feature "travel wings" in a travel vibe: travelBeforeHours (departure wing) and travelAfterHours (get home wing) in decimal hours. (Default travel wings are 0.5h/30m each if not specified).
 5. TIMES: Represented as decimal hours from midnight (e.g. 14.5 = 2:30 PM, 9.75 = 9:45 AM). If the end time is less than the start time, it means it crosses midnight (e.g. 23.5 to 0.5 is 11:30 PM to 12:30 AM).
 6. COMPLETING TASKS: When the user says they finished something, mark it done with an update_block action setting "done": true (matched by labelToMatch). This is the real completion state the ring renders — do NOT signal completion by editing the label (no ✓/✅/"[done]" in the text). Use "done": false to un-complete if they say they hadn't actually finished.
+7. REPEATS (recurring tasks): When she wants something on a schedule ("every Monday", "daily", "every weekday", "Mondays and Thursdays"), add the "repeat" field to the block. Shape: {"freq":"daily"} for every day, or {"freq":"weekly","weekdays":[...]} with lowercase 3-letter days (mon,tue,wed,thu,fri,sat,sun) — e.g. "every Monday" = {"freq":"weekly","weekdays":["mon"]}, "weekdays" = {"freq":"weekly","weekdays":["mon","tue","wed","thu","fri"]}. Set repeat on the ONE block for that day; the app stamps every matching future day itself — never emit one add_block per occurrence. On update_block, "repeat":"off" stops the recurrence (that day's task stays as a one-off). Recurring tasks don't roll forward when unfinished — they just return on their next scheduled day.
 
 ---
 VISION & OCR INSTRUCTIONS:
@@ -690,7 +692,8 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
         "label": "descriptive label",
         "kind": "appointment" (optional),
         "travelBeforeHours": number (optional),
-        "travelAfterHours": number (optional)
+        "travelAfterHours": number (optional),
+        "repeat": {"freq":"daily"} | {"freq":"weekly","weekdays":["mon","thu"]} (optional — makes it a recurring task; see REPEATS below)
       }
     },
     {
@@ -707,7 +710,8 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
         "done": true | false (optional — mark a task complete/incomplete),
         "kind": "task" | "appointment" (optional),
         "travelBeforeHours": number (optional),
-        "travelAfterHours": number (optional)
+        "travelAfterHours": number (optional),
+        "repeat": {"freq":"daily"} | {"freq":"weekly","weekdays":["mon"]} | "off" (optional — start/change/stop recurrence; see REPEATS)
       }
     },
     {
@@ -1584,10 +1588,65 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
     return null;
   }
 
+  // Parse the companion's freeform "repeat" into a rule spec. Tolerant of the
+  // shapes a model actually emits: "daily" / "every day" / "weekdays" /
+  // "every Monday" / "mondays" / { freq, weekdays:['mon','thu'] } / [1,4].
+  // Returns a spec, 'off' (explicitly stop), or undefined (no repeat field).
+  const WD_MAP: Record<string, number> = {
+    sun: 0, sunday: 0, mon: 1, monday: 1, tue: 2, tues: 2, tuesday: 2,
+    wed: 3, weds: 3, wednesday: 3, thu: 4, thur: 4, thurs: 4, thursday: 4,
+    fri: 5, friday: 5, sat: 6, saturday: 6,
+  };
+  function toWeekday(x: any): number | null {
+    if (typeof x === 'number' && x >= 0 && x <= 6) return x;
+    if (typeof x === 'string') {
+      const s = x.trim().toLowerCase();
+      if (WD_MAP[s] !== undefined) return WD_MAP[s];
+      if (/^[0-6]$/.test(s)) return Number(s);
+    }
+    return null;
+  }
+  function parseRepeat(input: any, anchorWeekday: number): { freq: 'daily' | 'weekly'; weekdays: number[] } | 'off' | undefined {
+    if (input === undefined) return undefined;
+    if (input === null || input === false) return 'off';
+    if (Array.isArray(input)) {
+      const wds = [...new Set(input.map(toWeekday).filter((n): n is number => n !== null))];
+      return wds.length ? { freq: 'weekly', weekdays: wds } : undefined;
+    }
+    if (typeof input === 'object') {
+      const freqRaw = String(input.freq ?? '').toLowerCase();
+      const raw = input.weekdays ?? input.days ?? [];
+      const wds = [...new Set((Array.isArray(raw) ? raw : [raw]).map(toWeekday).filter((n): n is number => n !== null))];
+      if (freqRaw.startsWith('da')) return { freq: 'daily', weekdays: [] };
+      if (freqRaw.startsWith('week') || wds.length) return { freq: 'weekly', weekdays: wds.length ? wds : [anchorWeekday] };
+      return undefined;
+    }
+    if (typeof input === 'string') {
+      const s = input.trim().toLowerCase();
+      if (!s || ['off', 'none', 'never', 'no', 'false'].includes(s)) return 'off';
+      if (s.includes('weekday')) return { freq: 'weekly', weekdays: [1, 2, 3, 4, 5] };
+      const found = [...new Set(Object.entries(WD_MAP).filter(([n]) => s.includes(n)).map(([, v]) => v))];
+      if (found.length) return { freq: 'weekly', weekdays: found };
+      if (s.includes('week')) return { freq: 'weekly', weekdays: [anchorWeekday] };
+      if (s.includes('da')) return { freq: 'daily', weekdays: [] };
+      return undefined;
+    }
+    return undefined;
+  }
+  function weekdayOfKey(key: string): number {
+    const [y, m, d] = key.split('-').map(Number);
+    return new Date(y, m - 1, d).getDay();
+  }
+
   function executeActions(actions: ChatMessage['actions']) {
     if (!actions) return;
 
     let targetDateToView = '';
+    // Repeat-rule side effects: addRepeatRule is safe to call mid-update (it
+    // only touches the rules store), but update/end call days.update, so they
+    // run AFTER the main write. regen fills the future occurrences once.
+    let repeatRegenNeeded = false;
+    const deferredRepeatOps: Array<() => void> = [];
 
     days.update((all) => {
       const updated = { ...all };
@@ -1654,6 +1713,26 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
             travelBeforeHours: sanitizeTravelHours(b.travelBeforeHours),
             travelAfterHours: sanitizeTravelHours(b.travelAfterHours)
           };
+          // Recurring? Born with its repeatId so materializeRepeats never
+          // double-stamps the anchor day (same discipline as the editor UI).
+          if (b && 'repeat' in b) {
+            const spec = parseRepeat((b as any).repeat, weekdayOfKey(actualDate));
+            if (spec && spec !== 'off') {
+              const r = addRepeatRule({
+                laneId: newBlock.laneId,
+                startHours: newBlock.startHours,
+                coreEndHours: newBlock.coreEndHours,
+                taperEndHours: newBlock.taperEndHours,
+                vibeId: newBlock.vibeId,
+                label: newBlock.label ?? '',
+                freq: spec.freq,
+                weekdays: spec.weekdays,
+                anchorKey: actualDate,
+              });
+              newBlock.repeatId = r.id;
+              repeatRegenNeeded = true;
+            }
+          }
           // repairBlock enforces the geometry invariants (span ≤ 24h, taper ≤
           // core+6h) no matter what numbers the model produced.
           blocks.push(repairBlock(newBlock));
@@ -1692,9 +1771,36 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
               coreEndHours: newCoreEnd,
               taperEndHours: newTaperEnd
             });
+
+            // Repeat changes on an existing task: create / update / stop.
+            if ('repeat' in act.block) {
+              const cur = blocks[matchedIdx];
+              const spec = parseRepeat((act.block as any).repeat, weekdayOfKey(actualDate));
+              const geom = {
+                laneId: cur.laneId, startHours: cur.startHours, coreEndHours: cur.coreEndHours,
+                taperEndHours: cur.taperEndHours, vibeId: cur.vibeId, label: cur.label ?? '',
+              };
+              if (spec === 'off') {
+                if (cur.repeatId) {
+                  const id = cur.repeatId;
+                  deferredRepeatOps.push(() => endRepeatSeries(id));
+                  const { repeatId, ...plain } = cur; // detach this occurrence to a one-off
+                  blocks[matchedIdx] = plain as Block;
+                }
+              } else if (spec) {
+                if (cur.repeatId) {
+                  const id = cur.repeatId;
+                  deferredRepeatOps.push(() => updateRepeatRule(id, { ...geom, freq: spec.freq, weekdays: spec.weekdays }));
+                } else {
+                  const r = addRepeatRule({ ...geom, freq: spec.freq, weekdays: spec.weekdays, anchorKey: actualDate });
+                  blocks[matchedIdx] = { ...cur, repeatId: r.id };
+                  repeatRegenNeeded = true;
+                }
+              }
+            }
           }
         }
-        
+
         else if (act.type === 'delete_block' && act.labelToMatch) {
           const queryClean = act.labelToMatch.toLowerCase().trim();
           const matchedIdx = blocks.findIndex(b => b.label && b.label.toLowerCase().includes(queryClean));
@@ -1834,6 +1940,12 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
 
       return updated;
     });
+
+    // Repeat side effects run after the main write is committed: update/end
+    // ops touch the days store themselves (and regenerate), and a freshly
+    // created rule needs one regeneration to fill its future occurrences.
+    for (const op of deferredRepeatOps) op();
+    if (repeatRegenNeeded) regenerateRepeats();
 
     if (targetDateToView) {
       currentKey.set(targetDateToView);

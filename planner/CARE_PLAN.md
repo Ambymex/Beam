@@ -99,9 +99,13 @@ stamp its `repeatId` via `blockActions.setRepeatId` BEFORE `regenerateRepeats`
 or the anchor day double-stamps; and never link by writing the block through
 the `days` store directly — RadialCanvas owns the current day's working copy
 and will overwrite it (landmine 7). Backup payload is v2 (carries rules;
-still imports v1). **Not yet wired to the companion** — Solenoid can't set
-repeats from chat yet (would be stage 3: a `repeat` field on add/update_block
-+ prompt).
+still imports v1). **Companion can set repeats** (2026-08-10): add/update_block
+take an optional `repeat` field ({"freq":"daily"} / {"freq":"weekly",
+"weekdays":["mon"]} / "off"); `parseRepeat` in ChatCompanion is tolerant of
+strings ("every monday", "weekdays"), objects, and arrays. In executeActions,
+a created rule stamps the block's `repeatId` inline (safe mid-`days.update`);
+update/end ops are DEFERRED to after the write (they call `days.update`
+themselves), then one `regenerateRepeats()`.
 
 **Chat storage** is localStorage (`radial-planner-chat-v1`), a 100-message
 sliding window. The vault keeps the full history in the cloud. **Inline
