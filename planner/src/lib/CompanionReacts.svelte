@@ -1,7 +1,7 @@
 <script context="module" lang="ts">
   // The react vocabulary. The companion picks one (or none) per message via
   // the top-level "react" field; anything not in this list is ignored.
-  export const REACT_IDS = ['black_hearts', 'sparks', 'tungsten_strike', 'liquid_hearts', 'cherry_blossoms', 'sleepy_stars', 'rose_throw', 'soft_wish', 'containment_seal'];
+  export const REACT_IDS = ['black_hearts', 'sparks', 'tungsten_strike', 'liquid_hearts', 'cherry_blossoms', 'sleepy_stars', 'rose_throw', 'soft_wish', 'containment_seal', 'mood_ring'];
 </script>
 
 <script lang="ts">
@@ -225,6 +225,19 @@
   }
   let soft_wish: SoftWishP[] = [];
   let soft_wishTimer: ReturnType<typeof setTimeout>;
+
+  // Mood Ring — Hearts that change colour to match the UI theme, falling gentle like snowfall
+  interface MoodRingP {
+    id: number; x: number; size: number; color: string; colorMid: string; colorEnd: string;
+    glowColor: string; glowColorMid: string; glowColorEnd: string; delay: number;
+    dur: number; op: number; inDur: number; outDelay: number; outDur: number;
+    envMidDur: number; envEndDelay: number; envEndDur: number;
+    rotEnd: number; swayAmp: number; swayDur: number; swayPhase: number;
+    tx: string; ty: string;
+  }
+
+  let mood_ring: MoodRingP[] = [];
+  let mood_ringTimer: ReturnType<typeof setTimeout>;
 
   function pickBlossomSize(): number {
     // 60–75% of the ~13px ambient petal — delicate, not aggressive
@@ -521,6 +534,55 @@
       soft_wishTimer = setTimeout(() => {
         soft_wish = [];
       }, 8100);
+    } else if (type === 'mood_ring') {
+      // layer 1: Layer 1
+      const b1: MoodRingP[] = [];
+      for (let i = 0; i < 33; i++) {
+        const t = Math.random(); // depth: 0 far, 1 near
+        const size = Math.round(8 + t * 16);
+        const dur = 3.8 - t * 1.2;
+        const op = 0.75 + (0.3 + t * 0.7) * 0.05;
+        const swayDur = 1.4 + Math.random() * 1.4;
+        const delay = 0 + Math.random() * 1.5;
+        const color = 'var(--signal-contrast)';
+        const colorMid = 'var(--signal)';
+        const colorEnd = 'var(--signal)';
+        const glowColor = color;
+        const glowColorMid = colorMid;
+        const glowColorEnd = colorEnd;
+        b1.push({
+          id: burstId++,
+          x: 4 + Math.random() * 92,
+          size,
+          color,
+          colorMid,
+          colorEnd,
+          glowColor,
+          glowColorMid,
+          glowColorEnd,
+          delay,
+          dur,
+          op,
+          inDur: +(dur * 0.12).toFixed(3),
+          outDelay: +(delay + dur * 0.91).toFixed(3),
+          outDur: +(dur * 0.09).toFixed(3),
+          envMidDur: +(dur * 0.8).toFixed(3),
+          envEndDelay: +(delay + dur * 0.8).toFixed(3),
+          envEndDur: +(dur * 0.2).toFixed(3),
+          rotEnd: (Math.random() < 0.5 ? -1 : 1) * 72 * dur,
+          swayAmp: 12 + Math.random() * 8,
+          swayDur,
+          swayPhase: Math.random() * swayDur,
+          tx: `${(-0 + Math.random() * 0).toFixed(1)}vw`,
+          ty: '112vh',
+        });
+      }
+      mood_ring = b1;
+
+      clearTimeout(mood_ringTimer);
+      mood_ringTimer = setTimeout(() => {
+        mood_ring = [];
+      }, 5700);
     } else if (type === 'tungsten_strike') {
       strikeTimers.forEach(clearTimeout);
       // Drop the node first so a rapid re-fire restarts the CSS animations.
@@ -754,6 +816,28 @@
             <span class="soft_wish-shape">
             <svg viewBox="0 0 24 24" width={p.size} height={p.size} style="display:block;">
               <path fill="currentColor" d="M12 0 C13 7 17 11 24 12 C17 13 13 17 12 24 C11 17 7 13 0 12 C7 11 11 7 12 0 Z" />
+            </svg>
+            </span>
+          </span>
+        </span>
+      </span>
+    </span>
+    </span>
+  {/each}
+
+  <!-- Mood Ring, layer 1: Layer 1 -->
+  {#each mood_ring as p (p.id)}
+    <span
+      class="mood_ring"
+      style="left:{p.x}%; --size:{p.size}px; --dur:{p.dur}s; --delay:{p.delay}s; --op:{p.op}; --indur:{p.inDur}s; --outdelay:{p.outDelay}s; --outdur:{p.outDur}s; --envmiddur:{p.envMidDur}s; --envenddelay:{p.envEndDelay}s; --envenddur:{p.envEndDur}s; --tx:{p.tx}; --ty:{p.ty}; --s0:0.95; --sm:1; --s1:1.05; --c0:{p.color}; --cm:{p.colorMid}; --c1:{p.colorEnd}; --gb0:6px; --gbm:6px; --gb1:6px; --fgc0:{p.glowColor}; --fgcm:{p.glowColorMid}; --fgc1:{p.glowColorEnd}; --go:0.7; --gbr:1.55; --sway:{p.swayAmp}px; --swaydur:{p.swayDur}s; --swayphase:{p.swayPhase}s; --rot:{p.rotEnd}deg;"
+    >
+    <span class="mood_ring-scale">
+      <span class="mood_ring-color">
+        <span class="mood_ring-sway">
+          <span class="mood_ring-glow">
+            <span class="mood_ring-shape">
+            <svg viewBox="0 0 24 24" width={p.size} height={p.size} style="display:block;">
+              <path fill="currentColor" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
             </svg>
             </span>
           </span>
@@ -1465,5 +1549,117 @@
   @keyframes cs-brk-r-out {
     from { transform: translateX(0); }
     to { transform: translateX(140%); }
+  }
+
+  /* Mood Ring — layer 1: Layer 1 */
+  .mood_ring {
+    position: absolute;
+    width: var(--size);
+    height: var(--size);
+    margin-left: calc(var(--size) / -2);
+    top: calc(-1 * var(--size) - 10px);
+    --s0: 0.95;
+    --sm: 1;
+    --s1: 1.05;
+    animation:
+      mood_ring-travel-pos var(--dur) linear var(--delay) both,
+      mood_ring-in var(--indur) linear var(--delay) both,
+      mood_ring-out var(--outdur) linear var(--outdelay) forwards;
+  }
+  .mood_ring-scale {
+    display: block;
+    animation:
+      mood_ring-scale-a var(--envmiddur) linear var(--delay) both,
+      mood_ring-scale-b var(--envenddur) linear var(--envenddelay) forwards;
+  }
+  .mood_ring-color {
+    display: block;
+    color: var(--c0);
+    animation:
+      mood_ring-color-a var(--envmiddur) linear var(--delay) both,
+      mood_ring-color-b var(--envenddur) linear var(--envenddelay) forwards;
+  }
+  .mood_ring-glow {
+    display: block;
+    --glow-alpha: clamp(0%, calc(var(--go, 0.72) * var(--gbr, 1) * 100%), 100%);
+    --corona-alpha: clamp(0%, calc(var(--go, 0.72) * var(--gbr, 1) * 34%), 65%);
+    filter:
+      drop-shadow(0 0 var(--gb0) color-mix(in srgb, var(--gc0, var(--fgc0)) var(--glow-alpha), transparent))
+      drop-shadow(0 0 calc(var(--gb0) * 1.8) color-mix(in srgb, var(--gc0, var(--fgc0)) var(--corona-alpha), transparent));
+    animation:
+      mood_ring-glow-a var(--envmiddur) linear var(--delay) both,
+      mood_ring-glow-b var(--envenddur) linear var(--envenddelay) forwards;
+  }
+  .mood_ring-shape {
+    display: block;
+    animation: mood_ring-spin var(--dur) linear var(--delay) both;
+  }
+  /* adaptive readability halo: light on dark themes, soft dark on light */
+  :global([data-theme='dark']) .mood_ring-glow {
+    --gc0: rgba(255, 255, 255, 0.35);
+    --gcm: rgba(255, 255, 255, 0.35);
+    --gc1: rgba(255, 255, 255, 0.35);
+  }
+  :global([data-theme='light']) .mood_ring-glow {
+    --gc0: rgba(40, 30, 30, 0.32);
+    --gcm: rgba(40, 30, 30, 0.32);
+    --gc1: rgba(40, 30, 30, 0.32);
+  }
+  :global([data-theme='dark']) .mood_ring-shape {
+    filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.6));
+  }
+  @keyframes mood_ring-travel {
+    from { transform: translate(0, 0) scale(var(--s0, 1)); }
+    to { transform: translate(var(--tx), var(--ty)) scale(var(--s1, 1)); }
+  }
+  /* fade envelope: rise to --op over --indur, hold, fall over --outdur.
+     mood_ring-out has NO backwards fill — mood_ring-in owns the early frames. */
+  @keyframes mood_ring-in {
+    from { opacity: 0; }
+    to { opacity: var(--op); }
+  }
+  @keyframes mood_ring-out {
+    from { opacity: var(--op); }
+    to { opacity: 0; }
+  }
+  @keyframes mood_ring-travel-pos {
+    from { transform: translate(0, 0); }
+    to { transform: translate(var(--tx), var(--ty)); }
+  }
+  @keyframes mood_ring-scale-a {
+    from { transform: scale(var(--s0, 1)); }
+    to { transform: scale(var(--sm, 1)); }
+  }
+  @keyframes mood_ring-scale-b {
+    from { transform: scale(var(--sm, 1)); }
+    to { transform: scale(var(--s1, 1)); }
+  }
+  @keyframes mood_ring-color-a {
+    from { color: var(--c0); }
+    to { color: var(--cm); }
+  }
+  @keyframes mood_ring-color-b {
+    from { color: var(--cm); }
+    to { color: var(--c1); }
+  }
+  @keyframes mood_ring-glow-a {
+    from { filter: drop-shadow(0 0 var(--gb0) color-mix(in srgb, var(--gc0, var(--fgc0)) var(--glow-alpha), transparent)) drop-shadow(0 0 calc(var(--gb0) * 1.8) color-mix(in srgb, var(--gc0, var(--fgc0)) var(--corona-alpha), transparent)); }
+    to { filter: drop-shadow(0 0 var(--gbm) color-mix(in srgb, var(--gcm, var(--fgcm)) var(--glow-alpha), transparent)) drop-shadow(0 0 calc(var(--gbm) * 1.8) color-mix(in srgb, var(--gcm, var(--fgcm)) var(--corona-alpha), transparent)); }
+  }
+  @keyframes mood_ring-glow-b {
+    from { filter: drop-shadow(0 0 var(--gbm) color-mix(in srgb, var(--gcm, var(--fgcm)) var(--glow-alpha), transparent)) drop-shadow(0 0 calc(var(--gbm) * 1.8) color-mix(in srgb, var(--gcm, var(--fgcm)) var(--corona-alpha), transparent)); }
+    to { filter: drop-shadow(0 0 var(--gb1) color-mix(in srgb, var(--gc1, var(--fgc1)) var(--glow-alpha), transparent)) drop-shadow(0 0 calc(var(--gb1) * 1.8) color-mix(in srgb, var(--gc1, var(--fgc1)) var(--corona-alpha), transparent)); }
+  }
+  .mood_ring-sway {
+    display: block;
+    animation: mood_ring-sway var(--swaydur) ease-in-out calc(-1 * var(--swayphase)) infinite alternate;
+  }
+  @keyframes mood_ring-sway {
+    from { transform: translateX(calc(-1 * var(--sway))); }
+    to { transform: translateX(var(--sway)); }
+  }
+  @keyframes mood_ring-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(var(--rot)); }
   }
 </style>
