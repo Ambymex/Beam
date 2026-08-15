@@ -4,7 +4,16 @@
   // react particles composited on top exactly as they will be in the chat.
   // This component is the REFERENCE the exported code reproduces.
   import { onMount, onDestroy } from 'svelte';
-  import { THEME_ORDER, THEME_LABELS, currentTheme, canopyFor } from './theme';
+  import {
+    THEME_ORDER,
+    THEME_LABELS,
+    currentTheme,
+    importedThemes,
+    canopyFor,
+    importThemeJson,
+    isImportedTheme,
+    removeImportedTheme,
+  } from './theme';
   import { SHAPES, type ShapeDef, type CustomPathPart } from './shapes';
   import LunarMoon from './LunarMoon.svelte';
   import AtmosphericVfx from './AtmosphericVfx.svelte';
@@ -35,8 +44,13 @@
   let atmosphereRun = 0;
   let previewMode: PreviewMode = 'desktop';
   let frameScale = 1;
+  let themeFileInput: HTMLInputElement;
+  let themeImportMessage = '';
+  let themeImportError = false;
 
-  $: canopy = canopyFor($currentTheme);
+  // Imported themes can be replaced in place, so canopy metadata depends on
+  // both the selected id and the persisted custom-theme collection.
+  $: canopy = ($importedThemes, canopyFor($currentTheme));
   $: life = lifeMs(config);
   $: rate = slowMo ? 0.25 : 1;
   $: viewport = VIEWPORTS[previewMode];
@@ -152,6 +166,38 @@
     });
   }
 
+  function chooseThemeFile() {
+    themeFileInput?.click();
+  }
+
+  async function importThemeFile(event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    try {
+      const fallbackName = file.name.replace(/\.json$/i, '').replace(/[-_]+/g, ' ');
+      const themes = importThemeJson(await file.text(), fallbackName);
+      currentTheme.set(themes[0].id);
+      themeImportError = false;
+      themeImportMessage = themes.length === 1
+        ? `Imported ${themes[0].name}`
+        : `Imported ${themes.length} themes`;
+    } catch (error) {
+      themeImportError = true;
+      themeImportMessage = error instanceof Error ? error.message : 'Could not import that theme.';
+    } finally {
+      input.value = '';
+    }
+  }
+
+  function removeCurrentImportedTheme() {
+    const selected = $currentTheme;
+    const name = $importedThemes.find((theme) => theme.id === selected)?.name ?? 'Imported theme';
+    removeImportedTheme(selected);
+    themeImportError = false;
+    themeImportMessage = `Removed ${name}`;
+  }
+
   // ---- scrubbing: freeze the whole react and walk its timeline by hand ----
   function enterScrub() {
     if (scrubbing) return;
@@ -233,14 +279,43 @@
 <div class="preview">
   <div class="toolbar">
     <div class="view-options">
-      <label class="tsel">
-        Theme
-        <select bind:value={$currentTheme}>
-          {#each THEME_ORDER as key}
-            <option value={key}>{THEME_LABELS[key]}</option>
-          {/each}
-        </select>
-      </label>
+      <div class="theme-picker">
+        <label class="tsel">
+          Theme
+          <select bind:value={$currentTheme}>
+            <optgroup label="Built-in themes">
+              {#each THEME_ORDER as key}
+                <option value={key}>{THEME_LABELS[key]}</option>
+              {/each}
+            </optgroup>
+            {#if $importedThemes.length}
+              <optgroup label="Imported themes">
+                {#each $importedThemes as theme}
+                  <option value={theme.id}>{theme.name}</option>
+                {/each}
+              </optgroup>
+            {/if}
+          </select>
+        </label>
+        <button class="theme-action" type="button" on:click={chooseThemeFile} title="Import a planner theme JSON file">
+          Import theme
+        </button>
+        {#if isImportedTheme($currentTheme)}
+          <button class="theme-action remove" type="button" on:click={removeCurrentImportedTheme} title="Remove this imported theme">
+            Remove
+          </button>
+        {/if}
+        <input
+          class="theme-file"
+          bind:this={themeFileInput}
+          type="file"
+          accept="application/json,.json"
+          on:change={importThemeFile}
+        />
+        {#if themeImportMessage}
+          <span class="theme-import-message" class:error={themeImportError}>{themeImportMessage}</span>
+        {/if}
+      </div>
       <div class="view-switch" aria-label="Preview size">
         <span>View</span>
         {#each Object.entries(VIEWPORTS) as [mode, choice]}
@@ -450,6 +525,38 @@
     padding: 6px 10px;
     font-size: 13px;
   }
+  .theme-picker {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .theme-action {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 9px;
+    background: var(--surface-2);
+    color: var(--text-2);
+    font: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .theme-action:hover {
+    border-color: color-mix(in srgb, var(--signal) 48%, var(--border));
+    color: var(--signal);
+  }
+  .theme-action.remove {
+    color: var(--text-faint);
+  }
+  .theme-file { display: none; }
+  .theme-import-message {
+    max-width: 220px;
+    color: var(--signal);
+    font-size: 10px;
+    line-height: 1.25;
+  }
+  .theme-import-message.error { color: #e46767; }
   .view-switch {
     display: inline-flex;
     align-items: center;

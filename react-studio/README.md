@@ -31,6 +31,10 @@ npm run dev      # opens on port 5210 with the planner's live dev server family
 ## Using it
 
 1. Pick a **theme** in the stage toolbar to preview against any environment.
+   **Import theme** accepts the planner Theme Designer's exported JSON directly;
+   imported themes join their own picker group, persist in this browser and can
+   be removed without touching the built-ins. A file can contain one theme or a
+   `themes` array for a small comparison pack.
    The **View** switch moves between the roomy desktop stage and true-size
    393 × 852 iPhone portrait/landscape viewports, scaled to fit the editor;
    viewport-relative travel is measured against the selected frame. **Fire**
@@ -76,6 +80,38 @@ npm run dev      # opens on port 5210 with the planner's live dev server family
    If the design includes atmospheric layers, section 7 adds portable typed
    VFX data for the shared game-side renderer. The Studio's source marker is
    preview-only and is never part of that exported atmosphere config.
+
+## Custom theme JSON
+
+The simplest import is the same shape exported by the planner's Theme Designer:
+
+```json
+{
+  "name": "Qwen Night Garden",
+  "cssVars": {
+    "--gradient-start": "#101526",
+    "--gradient-end": "#302344",
+    "--app-bg": "#101526",
+    "--surface": "rgba(255, 255, 255, 0.08)",
+    "--surface-2": "rgba(255, 255, 255, 0.13)",
+    "--signal": "#d6b6ff",
+    "--signal-contrast": "#191025",
+    "--text": "#fffaff",
+    "--text-dim": "#c7bdd2",
+    "--moon-color": "#efe2ff",
+    "--star-color": "#ffffff",
+    "--stars-active": "1"
+  },
+  "canopy": { "stars": true }
+}
+```
+
+For several variations, wrap theme objects in `{ "themes": [ ... ] }` (a bare
+array is accepted too). Canopy flags are optional: `stars`, `petals`, `aurora`,
+`storm`, and `meteor`. React Studio accepts only CSS variables already used by
+the planner, ignores unknown/non-string values, and rejects URL-bearing CSS.
+Importing the same theme name again replaces that local version, which makes
+iteration with a local model pleasantly quick.
 
 ## Scope
 
