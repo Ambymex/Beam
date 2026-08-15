@@ -47,6 +47,8 @@
   let themeFileInput: HTMLInputElement;
   let themeImportMessage = '';
   let themeImportError = false;
+  let showThemePaste = false;
+  let pastedThemeJson = '';
 
   // Imported themes can be replaced in place, so canopy metadata depends on
   // both the selected id and the persisted custom-theme collection.
@@ -168,6 +170,40 @@
 
   function chooseThemeFile() {
     themeFileInput?.click();
+  }
+
+  function toggleThemePaste() {
+    showThemePaste = !showThemePaste;
+    themeImportMessage = '';
+    themeImportError = false;
+  }
+
+  function importPastedTheme() {
+    if (!pastedThemeJson.trim()) {
+      themeImportError = true;
+      themeImportMessage = 'Paste the Theme Designer JSON first.';
+      return;
+    }
+    try {
+      const themes = importThemeJson(pastedThemeJson, 'Pasted Theme');
+      currentTheme.set(themes[0].id);
+      themeImportError = false;
+      themeImportMessage = themes.length === 1
+        ? `Imported ${themes[0].name}`
+        : `Imported ${themes.length} themes`;
+      pastedThemeJson = '';
+      showThemePaste = false;
+    } catch (error) {
+      themeImportError = true;
+      themeImportMessage = error instanceof Error ? error.message : 'Could not import that theme.';
+    }
+  }
+
+  function onThemePasteKeydown(event: KeyboardEvent) {
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+      event.preventDefault();
+      importPastedTheme();
+    }
   }
 
   async function importThemeFile(event: Event) {
@@ -297,8 +333,18 @@
             {/if}
           </select>
         </label>
+        <button
+          class="theme-action primary"
+          class:active={showThemePaste}
+          type="button"
+          on:click={toggleThemePaste}
+          aria-expanded={showThemePaste}
+          title="Paste JSON copied from the planner Theme Designer"
+        >
+          Paste theme
+        </button>
         <button class="theme-action" type="button" on:click={chooseThemeFile} title="Import a planner theme JSON file">
-          Import theme
+          Import file
         </button>
         {#if isImportedTheme($currentTheme)}
           <button class="theme-action remove" type="button" on:click={removeCurrentImportedTheme} title="Remove this imported theme">
@@ -312,7 +358,7 @@
           accept="application/json,.json"
           on:change={importThemeFile}
         />
-        {#if themeImportMessage}
+        {#if themeImportMessage && !showThemePaste}
           <span class="theme-import-message" class:error={themeImportError}>{themeImportMessage}</span>
         {/if}
       </div>
@@ -337,6 +383,31 @@
       <button class="tbtn" class:on={slowMo} on:click={toggleSlowMo} title="Quarter-speed study mode">¼×</button>
     </div>
   </div>
+
+  {#if showThemePaste}
+    <section class="theme-paste-panel" aria-label="Paste a custom theme">
+      <div class="theme-paste-copy">
+        <strong>Paste Theme Designer JSON</strong>
+        <span>Copy the exported code from the planner, paste it here, then import. Ctrl/Cmd + Enter also works.</span>
+      </div>
+      <label class="theme-paste-field">
+        <span>Theme JSON</span>
+        <textarea
+          bind:value={pastedThemeJson}
+          on:keydown={onThemePasteKeydown}
+          spellcheck="false"
+          placeholder={'{\n  "name": "Custom Glassmorphism Theme",\n  "cssVars": { ... }\n}'}
+        ></textarea>
+      </label>
+      <div class="theme-paste-actions">
+        <button class="theme-action primary" type="button" on:click={importPastedTheme}>Import pasted theme</button>
+        <button class="theme-action" type="button" on:click={toggleThemePaste}>Cancel</button>
+        {#if themeImportMessage}
+          <span class="theme-import-message" class:error={themeImportError}>{themeImportMessage}</span>
+        {/if}
+      </div>
+    </section>
+  {/if}
 
   <div class="stage-shell" class:device-mode={viewport.device} bind:this={frameEl}>
     <div
@@ -546,6 +617,12 @@
     border-color: color-mix(in srgb, var(--signal) 48%, var(--border));
     color: var(--signal);
   }
+  .theme-action.primary,
+  .theme-action.active {
+    border-color: color-mix(in srgb, var(--signal) 58%, var(--border));
+    background: color-mix(in srgb, var(--signal) 12%, var(--surface-2));
+    color: var(--signal);
+  }
   .theme-action.remove {
     color: var(--text-faint);
   }
@@ -557,6 +634,69 @@
     line-height: 1.25;
   }
   .theme-import-message.error { color: #e46767; }
+  .theme-paste-panel {
+    display: grid;
+    grid-template-columns: minmax(170px, 0.42fr) minmax(280px, 1fr);
+    gap: 10px 14px;
+    padding: 12px;
+    border: 1px solid color-mix(in srgb, var(--signal) 34%, var(--border));
+    border-radius: 12px;
+    background:
+      linear-gradient(145deg, color-mix(in srgb, var(--signal) 7%, transparent), transparent 55%),
+      var(--surface-2);
+    box-shadow: 0 10px 30px color-mix(in srgb, var(--app-bg) 38%, transparent);
+  }
+  .theme-paste-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    color: var(--text-dim);
+    font-size: 11px;
+    line-height: 1.45;
+  }
+  .theme-paste-copy strong {
+    color: var(--signal);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.45px;
+  }
+  .theme-paste-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    color: var(--text-dim);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.45px;
+  }
+  .theme-paste-field textarea {
+    width: 100%;
+    min-height: 116px;
+    resize: vertical;
+    box-sizing: border-box;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 9px 10px;
+    background: color-mix(in srgb, var(--app-bg) 72%, transparent);
+    color: var(--text);
+    font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
+    outline: none;
+  }
+  .theme-paste-field textarea:focus {
+    border-color: color-mix(in srgb, var(--signal) 65%, var(--border));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--signal) 12%, transparent);
+  }
+  .theme-paste-actions {
+    grid-column: 2;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex-wrap: wrap;
+  }
+  @media (max-width: 860px) {
+    .theme-paste-panel { grid-template-columns: 1fr; }
+    .theme-paste-actions { grid-column: 1; }
+  }
   .view-switch {
     display: inline-flex;
     align-items: center;

@@ -31,10 +31,12 @@ npm run dev      # opens on port 5210 with the planner's live dev server family
 ## Using it
 
 1. Pick a **theme** in the stage toolbar to preview against any environment.
-   **Import theme** accepts the planner Theme Designer's exported JSON directly;
-   imported themes join their own picker group, persist in this browser and can
-   be removed without touching the built-ins. A file can contain one theme or a
-   `themes` array for a small comparison pack.
+   **Paste theme** accepts the planner Theme Designer's copied JSON directly;
+   paste the exported code and press **Import pasted theme** (or Ctrl/Cmd + Enter).
+   **Import file** remains available for saved JSON. Imported themes join their
+   own picker group, persist in this browser and can be removed without touching
+   the built-ins. A paste or file can contain one theme or a `themes` array for
+   a small comparison pack.
    The **View** switch moves between the roomy desktop stage and true-size
    393 × 852 iPhone portrait/landscape viewports, scaled to fit the editor;
    viewport-relative travel is measured against the selected frame. **Fire**
@@ -83,7 +85,8 @@ npm run dev      # opens on port 5210 with the planner's live dev server family
 
 ## Custom theme JSON
 
-The simplest import is the same shape exported by the planner's Theme Designer:
+The simplest import is the same shape copied by the planner's Theme Designer.
+Open **Paste theme** in the stage toolbar and paste it as-is:
 
 ```json
 {
