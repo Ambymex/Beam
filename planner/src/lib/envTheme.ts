@@ -1,5 +1,6 @@
 import { writable, get } from 'svelte/store';
 import { topCelestialEvent } from './celestialDates';
+import { getSolarPhase } from './solar';
 import PALETTES_JSON from './themes.json';
 
 const PALETTES = PALETTES_JSON as Record<string, Record<string, string>>;
@@ -76,8 +77,12 @@ function readCity(): WeatherCity | null {
   }
 }
 
+// Default location when none is configured, so real solar geometry and weather
+// work out of the box (change it in the Sky & Weather settings). Melbourne, VIC.
+export const DEFAULT_CITY: WeatherCity = { lat: -37.8136, lon: 144.9631, name: 'Melbourne, VIC' };
+
 // UI-facing state: the configured city and a human line about the last check.
-export const weatherCity = writable<WeatherCity | null>(readCity());
+export const weatherCity = writable<WeatherCity | null>(readCity() ?? DEFAULT_CITY);
 export const lastWeatherCheck = writable<string>('');
 
 export function setWeatherCity(lat: number, lon: number, name: string) {
@@ -142,11 +147,8 @@ async function fetchWithTimeout(url: string, timeoutMs = 2500): Promise<Response
 let weatherCache: { isStorm: boolean, isHeatwave: boolean, fetchTime: number } | null = null;
 async function fetchWeather() {
   try {
-    if (typeof localStorage === 'undefined') return;
-    const raw = localStorage.getItem(CITY_KEY);
-    if (!raw) return;
-    const { lat, lon } = JSON.parse(raw);
-    
+    const { lat, lon } = readCity() ?? DEFAULT_CITY;
+
     const res = await fetchWithTimeout(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code`);
     const data = await res.json();
     const temp = data.current.temperature_2m;
@@ -215,16 +217,12 @@ function buildVars(base: string, params: Record<string, string>) {
 
 export function updateTheme() {
   const d = new Date();
-  const h = d.getHours() + d.getMinutes() / 60;
-  
-  let solarPhase = 'day';
-  if (h >= 5 && h < 7) solarPhase = 'pre_dawn';
-  else if (h >= 7 && h < 9) solarPhase = 'sunrise';
-  else if (h >= 9 && h < 17) solarPhase = 'day';
-  else if (h >= 17 && h < 19) solarPhase = 'sunset';
-  else if (h >= 19 && h < 20) solarPhase = 'twilight';
-  else solarPhase = 'night';
-  
+
+  // Real solar altitude at the configured location (see solar.ts) — tracks the
+  // true sunrise/sunset by season and latitude instead of fixed clock hours.
+  const city = readCity() ?? DEFAULT_CITY;
+  const solarPhase: string = getSolarPhase(d, city.lat, city.lon);
+
   const lunar = getLunarPhase(d);
   
   // Base theme from solar/lunar
