@@ -11,7 +11,8 @@ export type SymptomCategory =
   | 'joint_muscle_pain'
   | 'hives'
   | 'skin_itchiness'
-  | 'itchy_eyes';
+  | 'itchy_eyes'
+  | 'watery_eyes';
 
 export const SYMPTOM_CATEGORIES: { id: SymptomCategory; label: string }[] = [
   { id: 'sneezing', label: 'Sneezing' },
@@ -20,6 +21,7 @@ export const SYMPTOM_CATEGORIES: { id: SymptomCategory; label: string }[] = [
   { id: 'hives', label: 'Hives' },
   { id: 'skin_itchiness', label: 'Skin itchiness' },
   { id: 'itchy_eyes', label: 'Itchy eyes' },
+  { id: 'watery_eyes', label: 'Watery eyes' },
 ];
 
 export interface Symptom {

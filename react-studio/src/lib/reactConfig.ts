@@ -502,6 +502,11 @@ const preset = (
   atmosphere: [],
 });
 
+// Reed's owl feather (design by Ash & Morrow) — the silhouette the shipped
+// ruffled_feathers react uses. Framed in a 0 0 90 90 box.
+const FEATHER_D =
+  'M 85.273 64.939 c -4.371 -2.768 -10.221 -2.687 -15.188 -1.264 c 3.745 -1.843 8.026 -2.92 12.228 -2.462 c -4.324 -4.977 -9.854 -9.654 -15.948 -13.823 c -6.795 -0.985 -13.601 -1.106 -20.425 0.214 c 3.187 -3.115 6.481 -5.32 9.878 -6.637 c -6.639 -3.606 -12.397 -6.198 -18.764 -8.289 c -3.434 -0.199 -7.845 0.632 -10.55 2.546 c 1.582 -1.821 3.777 -3.037 5.99 -3.978 c -7.282 -2.081 -13.716 -2.893 -18.179 -2.072 c 7.506 10.821 18.393 19.545 29.417 26.487 c 5.739 3.591 11.728 6.808 17.868 9.729 c -6.306 -2.537 -12.502 -5.386 -18.502 -8.644 c -0.199 -0.109 -0.396 -0.221 -0.595 -0.331 c -6.111 -3.661 -11.963 -7.737 -17.37 -12.365 C 15.052 35.406 6.321 24.408 2.976 11.438 c -0.532 -1.973 -3.446 -1.154 -2.911 0.789 c 2.187 7.204 5.801 13.635 10.343 19.385 C 9.97 42.936 15.122 54.305 23.882 63.144 c 0.824 -3.741 2.399 -6.727 4.818 -8.866 c 0.011 4.902 1.067 10.013 2.792 15.258 c 5.994 4.182 11.854 7.062 19.467 8.68 c -0.778 -2.926 -0.277 -6.079 0.609 -9.106 c -0.015 1.955 0.296 3.883 1.014 5.579 c 0.711 1.7 1.816 3.137 3.153 4.271 c 0.067 0.057 0.124 0.12 0.179 0.186 c 10.636 1.5 22.311 0.037 34.086 -5.613 C 88.909 70.616 87.295 67.74 85.273 64.939 z';
+
 export const PRESETS: Record<string, ReactConfig> = {
   lunar_focus: preset(
     'lunar_focus',
@@ -584,6 +589,93 @@ export const PRESETS: Record<string, ReactConfig> = {
       glowColors: ['#ffcde4'],
     },
   ),
+  // Reed's own react (design by Ash & Morrow). Two burst layers: a crisp
+  // startled poof of feathers, then a few slower stragglers settling after.
+  // The shipped react adds an up-then-settle nuance; here it's the tweakable
+  // Studio starting point, following how cherry_blossoms represents a puff.
+  ruffled_feathers: {
+    id: 'ruffled_feathers',
+    label: 'Ruffled Feathers',
+    register:
+      'Pearl-clutching owl energy — startled dignity: feathers puff outward in scandalized surprise, then settle into a soft fallout. Surprise, fluster, "I beg your pardon?"',
+    atmosphere: [],
+    layers: [
+      {
+        ...DEFAULT_LAYER,
+        name: 'Startle (hero)',
+        direction: 'burst',
+        travelEase: 'easeOut',
+        count: 15,
+        spawnWindow: 0.3,
+        durMin: 2.8,
+        durMax: 4.1,
+        shape: 'custom',
+        customShapeName: 'Feather',
+        customViewBox: '0 0 90 90',
+        customPath: FEATHER_D,
+        customPaths: [{ d: FEATHER_D }],
+        sizeMin: 15,
+        sizeMax: 28,
+        depthLink: true,
+        colorMode: 'fixed',
+        // wintery owl palette: ivory → silver → blue-grey, with a rare ink-blue
+        colors: ['#f4f1ea', '#eceef2', '#dbe0e7', '#c6ceda', '#aeb8c6', '#4a5a78'],
+        opacityMin: 0.78,
+        opacityMax: 1,
+        fadeInPct: 8,
+        fadeOutPct: 80,
+        scaleFrom: 0.4,
+        scaleMid: 1.06,
+        scaleTo: 1,
+        sizeEnvelope: true,
+        envelopeMidPct: 16,
+        spin: true,
+        rotMax: 50,
+        swayAmp: 12,
+        swayMin: 1.3,
+        swayMax: 2.5,
+        glowMode: 'adaptive',
+        glowBlur: 4,
+      },
+      {
+        ...DEFAULT_LAYER,
+        name: 'Stragglers (settle)',
+        direction: 'burst',
+        travelEase: 'softInOut',
+        count: 3,
+        spawnWindow: 0.5,
+        layerDelay: 0.4,
+        durMin: 5,
+        durMax: 6.2,
+        shape: 'custom',
+        customShapeName: 'Feather',
+        customViewBox: '0 0 90 90',
+        customPath: FEATHER_D,
+        customPaths: [{ d: FEATHER_D }],
+        sizeMin: 13,
+        sizeMax: 20,
+        depthLink: true,
+        colorMode: 'fixed',
+        colors: ['#dbe0e7', '#c6ceda', '#aeb8c6'],
+        opacityMin: 0.5,
+        opacityMax: 0.8,
+        fadeInPct: 8,
+        fadeOutPct: 68,
+        scaleFrom: 0.4,
+        scaleMid: 1.04,
+        scaleTo: 1,
+        sizeEnvelope: true,
+        envelopeMidPct: 14,
+        spin: true,
+        rotMax: 30,
+        swayAmp: 16,
+        swayMin: 1.6,
+        swayMax: 3,
+        glowMode: 'adaptive',
+        glowBlur: 4,
+      },
+    ],
+  },
   liquid_hearts: preset(
     'liquid_hearts',
     'Liquid Hearts',

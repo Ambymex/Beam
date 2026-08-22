@@ -458,15 +458,14 @@
       return;
     }
 
-    // 3. Empty lane → start drawing a new block.
-    const innermost = LANES[LANES.length - 1].rInner;
-    if (r < innermost || r > RIM_RADIUS) {
-      selectedId = null; // tap in the hub/void deselects
-      return;
-    }
+    // 3. Empty lane → deselect only. Drawing a NEW block by touch is deliberately
+    //    disabled (Ash, 2026-08-23): stray/accidental taps on the ring were
+    //    spawning tiny near-invisible "ghost tasks". New tasks are now added only
+    //    through explicit UI — the add bar (Start now / ＋ Add) or the chat
+    //    companion — while touch on the ring stays free to select/edit/move/
+    //    delete/complete existing blocks. To restore touch-draw, re-enable the
+    //    `create` gesture here (the drag machinery below is intact).
     selectedId = null;
-    create = { laneId: laneAtRadius(r).id, startHours: hours, sweepDeg: 0, lastAngle: angle };
-    svgEl.setPointerCapture(ev.pointerId);
   }
 
   function onPointerMove(ev: PointerEvent) {

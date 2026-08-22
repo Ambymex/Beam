@@ -53,11 +53,16 @@ export function parseKey(k: string): Date {
   return new Date(y, m - 1, d);
 }
 
-// Keys present in the map plus today, most-recent first.
+// Keys present in the map up to and including today, most-recent first.
+// Future days are deliberately excluded: they belong to the gallery's separate
+// "Ahead" lane. Since recurring tasks began seeding concrete blocks onto future
+// days (materializeRepeats), those days now live in the map too — without this
+// filter they'd sort to the TOP of the past-facing grid and shove today down
+// into the middle, so the wrong day reads as "today".
 export function sortedKeysDesc(days: DaysMap, todayKey: string): string[] {
   const set = new Set(Object.keys(days));
   set.add(todayKey);
-  return [...set].sort().reverse();
+  return [...set].filter((k) => k <= todayKey).sort().reverse();
 }
 
 // Silent migration (§13 / "forgive, don't nag"): every NOT-done block on a day

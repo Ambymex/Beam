@@ -728,7 +728,7 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
       "type": "add_symptom",
       "targetDate": "YYYY-MM-DD",
       "symptom": {
-        "category": "sneezing" | "stuffy_nose" | "joint_muscle_pain" | "hives" | "skin_itchiness" | "itchy_eyes",
+        "category": "sneezing" | "stuffy_nose" | "joint_muscle_pain" | "hives" | "skin_itchiness" | "itchy_eyes" | "watery_eyes",
         "severity": 1 | 2 | 3 | 4 | 5,
         "timeHours": number,
         "note": "optional details" (optional)
@@ -739,7 +739,7 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
       "targetDate": "YYYY-MM-DD",
       "symptomId": number,
       "symptom": {
-        "category": "sneezing" | "stuffy_nose" | "joint_muscle_pain" | "hives" | "skin_itchiness" | "itchy_eyes" (optional),
+        "category": "sneezing" | "stuffy_nose" | "joint_muscle_pain" | "hives" | "skin_itchiness" | "itchy_eyes" | "watery_eyes" (optional),
         "severity": 1 | 2 | 3 | 4 | 5 (optional),
         "timeHours": number (optional),
         "note": "optional details" (optional)

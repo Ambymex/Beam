@@ -91,6 +91,49 @@ currentKey.subscribe(async (key) => {
   }
 });
 
+// ----- day rollover watcher -----
+// The day the running app currently treats as "today". Nothing else re-derives
+// the date once the module has loaded: `viewingToday` reacts to currentKey, not
+// to the wall clock, and iOS suspends the PWA's timers while backgrounded. So a
+// left-open app would strand itself on yesterday — currentKey stuck, the "Today"
+// chip never appearing — and "Start now" would drop immediate tasks onto the
+// wrong ring until a hard close re-ran this module. This watcher closes that gap.
+let activeToday = todayKey();
+
+async function rolloverIfNewDay() {
+  if (typeof window === 'undefined' || !isInitialized) return;
+  const tk = todayKey();
+  if (tk === activeToday) return; // still the same day
+  const prevToday = activeToday;
+  activeToday = tk;
+
+  // Re-run the exact cold-start refresh: undone work follows the user onto the
+  // new today, and recurring tasks materialise for it (both idempotent).
+  const migrated = migrateUndone(get(days), tk);
+  let rules: import('./daydata').RepeatRule[] = [];
+  try {
+    rules = await db.repeatRules.toArray();
+  } catch (err) {
+    console.warn('[DB] repeat rules load failed during rollover:', err);
+  }
+  days.set(rules.length ? materializeRepeats(migrated, rules, tk) : migrated);
+
+  // Carry the user onto the new today only if they were sitting on the old one
+  // (don't yank them out of a day they navigated to deliberately). Changing
+  // currentKey also clears the stale `viewingToday` state downstream.
+  if (get(currentKey) === prevToday) currentKey.set(tk);
+}
+
+if (typeof window !== 'undefined') {
+  // Catch midnight passing while the app stays open and awake.
+  setInterval(() => void rolloverIfNewDay(), 30_000);
+  // iOS freezes timers while backgrounded; re-check the moment we're visible
+  // again (same reason envTheme re-checks the sky on resume).
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void rolloverIfNewDay();
+  });
+}
+
 // The selected day's data (always defined; empty if untouched).
 export const currentDay = derived(
   [days, currentKey],
