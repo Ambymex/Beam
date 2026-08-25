@@ -84,7 +84,9 @@ export function migrateUndone(days: DaysMap, todayKey: string): DaysMap {
       // never migrate; emotional logs stay as historical record; repeat
       // instances keep their own rhythm (they recur on schedule, never pile
       // forward — Ash's call, 2026-08-03).
-      if (b.done || b.kind === 'appointment' || b.laneId === 'emotion' || b.repeatId) {
+      // emotion + appetite are passive logs — they stay as the historical record
+      // and never pile forward (medication IS a reminder lane, so it migrates).
+      if (b.done || b.kind === 'appointment' || b.laneId === 'emotion' || b.laneId === 'appetite' || b.repeatId) {
         stay.push(b);
       } else {
         today.blocks.push(repairBlock({ ...b, id: nextId++, migratedFrom: b.migratedFrom ?? key }));

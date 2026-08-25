@@ -642,7 +642,7 @@ VISION & OCR INSTRUCTIONS:
 ---
 ---
 PLANNER SPECS:
-- Lanes: "main" (default tasks), "washer" and "dryer" (the two PARALLEL-PROCESS lanes), "emotion" (emotional tracking lane), "symptom" (MCAS symptoms tracker).
+- Lanes: "main" (default tasks), "washer" and "dryer" (the two PARALLEL-PROCESS lanes), "emotion" (emotional tracking lane), "medication" (meds — a REMINDER lane: it pings at its time and can repeat, e.g. a daily dose), "appetite" (appetite/hunger tracking — a PASSIVE LOG like emotion: no pings, no repeats, stays as the record), "symptom" (MCAS symptoms tracker).
 - PARALLEL-PROCESS LANES: the "washer"/"dryer" ids are historical. These two lanes hold ANYTHING that runs on its own clock alongside her day without her attention: a laundry cycle, yes — but equally a delivery window, an oven timer, a download, a battery charging, a parking meter. READ THE BLOCK'S LABEL for what it actually is; NEVER assume laundry from the lane id (a 4-hour block on "washer" labelled "Woolies delivery" is a delivery window, not a suspiciously long wash). Blocks on these two lanes are hard-edged by default — a cycle or a window has a fixed length, so no taper.
 - Date Context: The user is currently looking at the day ring for: ${viewDate}. Unless they specify another date, add/update blocks on this viewed date.
 - Real-world Today Reference: Resolve relative terms (e.g. "tomorrow", "next Tuesday", "in 3 days") relative to the user's real-world today's date: ${realDate}.
@@ -689,7 +689,7 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
       "type": "add_block",
       "targetDate": "YYYY-MM-DD",
       "block": {
-        "laneId": "main" | "washer" | "dryer" | "emotion" | "symptom",
+        "laneId": "main" | "washer" | "dryer" | "emotion" | "medication" | "appetite" | "symptom",
         "startHours": number,
         "coreEndHours": number,
         "taperEndHours": number,
@@ -706,7 +706,7 @@ You MUST respond with a single, valid JSON object. Do not output conversational 
       "targetDate": "YYYY-MM-DD",
       "labelToMatch": "label string to search and replace",
       "block": {
-        "laneId": "main" | "washer" | "dryer" | "emotion" | "symptom" (optional),
+        "laneId": "main" | "washer" | "dryer" | "emotion" | "medication" | "appetite" | "symptom" (optional),
         "startHours": number (optional),
         "coreEndHours": number (optional),
         "taperEndHours": number (optional),

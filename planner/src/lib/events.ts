@@ -99,7 +99,9 @@ export function vibeToEmoji(hex: string): string {
 export function eventsForDay(dayKey: string, blocks: Block[]): TransitionEvent[] {
   const out: TransitionEvent[] = [];
   for (const b of blocks) {
-    if (b.done || b.laneId === 'emotion') continue; // done or emotion = no ping
+    // done, or a passive-log lane (emotion / appetite) = no ping. Medication is
+    // a reminder lane, so it falls through to the ordinary block-start ping below.
+    if (b.done || b.laneId === 'emotion' || b.laneId === 'appetite') continue;
     const label = b.label?.trim();
 
     if (isAppointment(b)) {
