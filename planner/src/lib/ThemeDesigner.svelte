@@ -3,6 +3,7 @@
   import { customThemeStore } from './theme';
   import { envThemeState, debugThemeOverride } from './envTheme';
   import { savedThemes, saveNamedTheme, deleteNamedTheme } from './savedThemes';
+  import { buildThemeVars } from './themeConfig';
 
   const dispatch = createEventDispatcher<{ close: void }>();
 
@@ -54,15 +55,6 @@
   let pickerL = 50;
   let pickerHex = '#ff0000';
 
-  // Convert Hex to RGBA utility for glow shadows
-  function hexToRgba(hex: string, alpha: number): string {
-    const clean = hex.replace('#', '');
-    const r = parseInt(clean.substring(0, 2), 16);
-    const g = parseInt(clean.substring(2, 4), 16);
-    const b = parseInt(clean.substring(4, 6), 16);
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-  }
-
   // Helper to convert rgb/rgba/hex to hex color for HTML input validation
   function colorToHex(color: string): string {
     color = color.trim();
@@ -92,41 +84,12 @@
     return map[color.toLowerCase()] || '#000000';
   }
 
-  // Helper to interpolate between two hex colors
-  function interpolateHex(color1: string, color2: string, ratio = 0.5): string {
-    const hex1 = colorToHex(color1).replace('#', '');
-    const hex2 = colorToHex(color2).replace('#', '');
-    
-    const r1 = parseInt(hex1.substring(0, 2), 16);
-    const g1 = parseInt(hex1.substring(2, 4), 16);
-    const b1 = parseInt(hex1.substring(4, 6), 16);
-    
-    const r2 = parseInt(hex2.substring(0, 2), 16);
-    const g2 = parseInt(hex2.substring(2, 4), 16);
-    const b2 = parseInt(hex2.substring(4, 6), 16);
-    
-    const r = Math.round(r1 + (r2 - r1) * ratio).toString(16).padStart(2, '0');
-    const g = Math.round(g1 + (g2 - g1) * ratio).toString(16).padStart(2, '0');
-    const b = Math.round(b1 + (b2 - b1) * ratio).toString(16).padStart(2, '0');
-    
-    return `#${r}${g}${b}`;
-  }
-
   onMount(() => {
     // If a custom theme is already saved in localStorage/store, load it first
     const currentCustom = $customThemeStore;
 
     if (currentCustom) {
-      applyConfig(currentCustom);
-      const matchingTheme = $savedThemes.find(theme => {
-        const entries = Object.entries(theme.cssVars);
-        return entries.length === Object.keys(currentCustom).length
-          && entries.every(([key, value]) => currentCustom[key] === value);
-      });
-      if (matchingTheme) {
-        selectedThemeId = matchingTheme.id;
-        themeName = matchingTheme.name;
-      }
+      syncCustomTheme(currentCustom);
     } else {
       loadFromComputedStyle();
     }
@@ -155,7 +118,10 @@
       }
     };
     const unsubEnv = envThemeState.subscribe(syncWithEnv);
-    const unsubCustom = customThemeStore.subscribe(syncWithEnv);
+    const unsubCustom = customThemeStore.subscribe(vars => {
+      if (initialized && vars) syncCustomTheme(vars);
+      syncWithEnv();
+    });
 
     return () => {
       unsubEnv();
@@ -163,6 +129,19 @@
       clearTimeout(envSyncTimeout);
     };
   });
+
+  function syncCustomTheme(vars: Record<string, string>) {
+    applyConfig(vars);
+    const matchingTheme = $savedThemes.find(theme => {
+      const entries = Object.entries(theme.cssVars);
+      return entries.length === Object.keys(vars).length
+        && entries.every(([key, value]) => vars[key] === value);
+    });
+    if (matchingTheme) {
+      selectedThemeId = matchingTheme.id;
+      themeName = matchingTheme.name;
+    }
+  }
 
   function loadFromComputedStyle() {
     const style = getComputedStyle(document.documentElement);
@@ -261,31 +240,12 @@
   }
 
   function getConfigVars(): Record<string, string> {
-    return {
-      '--gradient-start': gradientStart,
-      '--gradient-end': gradientEnd,
-      '--ambient-gradient': `linear-gradient(135deg, ${gradientStart} 0%, ${gradientEnd} 100%)`,
-      '--app-bg': gradientStart,
-      '--glass-bg': hexToRgba(glassHex, glassOpacity),
-      '--glass-border': hexToRgba(glassHex, Math.min(1, glassOpacity + 0.25)),
-      '--glass-blur': `${glassBlurPx}px`,
-      '--surface': hexToRgba(surfaceHex, surfaceOpacity),
-      '--surface-2': hexToRgba(surface2Hex, surface2Opacity),
-      '--surface-3': hexToRgba(interpolateHex(surface2Hex, '#ffffff', 0.2), Math.min(1, surface2Opacity * 1.3)),
-      '--signal': signalHex,
-      '--signal-glow': hexToRgba(signalHex, signalGlowOpacity),
-      '--signal-contrast': signalContrast,
-      '--border': `rgba(255, 255, 255, ${borderOpacity})`,
-      '--border-2': `rgba(255, 255, 255, ${border2Opacity})`,
-      '--hairline': `rgba(255, 255, 255, ${hairlineOpacity})`,
-      '--text': textHex,
-      '--text-2': interpolateHex(textHex, textDimHex, 0.4),
-      '--text-dim': textDimHex,
-      '--text-faint': textFaintHex,
-      '--moon-color': moonHex,
-      '--star-color': starHex,
-      '--stars-active': starsOn ? '1' : '0',
-    };
+    return buildThemeVars({
+      gradientStart, gradientEnd, glassHex, glassOpacity, glassBlurPx,
+      surfaceHex, surfaceOpacity, surface2Hex, surface2Opacity,
+      signalHex, signalGlowOpacity, signalContrast, moonHex, starHex, starsOn,
+      borderOpacity, border2Opacity, hairlineOpacity, textHex, textDimHex, textFaintHex,
+    });
   }
 
   function saveCustomTheme() {

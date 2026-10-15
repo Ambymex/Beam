@@ -202,7 +202,11 @@
 <!-- Always mounted, merely hidden when closed: the companion's heartbeat and
      scheduled-alert checker live in its onMount and must survive the overlay
      being dismissed. -->
-<ChatCompanion visible={showCompanion} on:close={() => (showCompanion = false)} />
+<ChatCompanion
+  visible={showCompanion}
+  on:close={() => (showCompanion = false)}
+  on:openThemeDesigner={() => { showCompanion = false; showDesigner = true; }}
+/>
 {#if showSearch}
   <Search on:close={() => (showSearch = false)} />
 {/if}

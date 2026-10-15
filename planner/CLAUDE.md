@@ -56,7 +56,9 @@ the origin's (very low) alpha — always specify it explicitly.
 4. **Adding a new theme-designer-editable CSS var?** Add it to `CUSTOM_KEYS` in
    `theme.ts` (cleanup list) AND make `ThemeDesigner.svelte` parse it back in
    both `loadFromComputedStyle()` and `applyConfig()` — values that don't
-   round-trip get silently clobbered by the next slider move.
+   round-trip get silently clobbered by the next slider move. Update the shared
+   controls/renderer in `themeConfig.ts` and the tool schema in
+   `companionThemes.ts` so UI and companion-created themes stay compatible.
 5. **Block geometry has invariants** (`normalizedSpan`/`repairBlock` in
    `src/lib/blocks.ts`). Rendering and hit-testing must use the same normalized
    numbers. Don't bypass them with raw `startHours/coreEndHours`.

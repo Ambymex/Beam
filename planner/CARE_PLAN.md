@@ -256,6 +256,20 @@ per-layer arrays/classes over shared keyframes.)
 - **Custom themes / Designer**: landmine 4 in CLAUDE.md is law — every
   designer-editable var must be in `CUSTOM_KEYS` AND round-trip through
   `loadFromComputedStyle()` and `applyConfig()`.
+- **Saved themes and companion design**: `savedThemes.ts` owns the named
+  local library (included in backups). `themeConfig.ts` renders the designer
+  controls for both the UI and the companion; `companionThemes.ts` validates
+  his `read_themes`, `save_theme`, and `apply_theme` actions and supplies the
+  prompt schema. Palette details are read on demand, not added to every
+  turn. Saves create new named entries; `apply: true` also applies them.
+  Chat results report actual success/errors and feed back into later model
+  context. Reads follow the configured direct/proxy route with a repeated-read
+  guard. Theme actions run outside the date-specific planner writer and
+  cannot create days or move the viewed date. The identity kernel and
+  heartbeat action allowlist remain as before. No edge-function deployment
+  is needed: the client supplies these tool instructions to both routes.
+  `npm run test:companion-themes` exercises the real chat/UI with fake model
+  replies in isolated browser profiles and blocks external requests.
 - Ash hand-tunes palettes in `themes.json` (e.g. pre_dawn) — her values win;
   don't "correct" them.
 

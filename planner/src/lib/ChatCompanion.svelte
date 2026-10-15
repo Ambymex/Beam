@@ -25,6 +25,7 @@
   import { promptModules, addPromptModule, updatePromptModule, removePromptModule, enabledModulesText } from './promptModules';
   import { starsVisible } from './theme';
   import { envThemeState } from './envTheme';
+  import { executeThemeAction, getThemeToolContext, isThemeAction, THEME_TOOL_PROMPT, type CompanionThemeAction } from './companionThemes';
   import {
     registerChatAdapter,
     scheduleMsgSync,
@@ -37,7 +38,7 @@
     type ChatSyncMessage
   } from './msgSync';
 
-  const dispatch = createEventDispatcher<{ close: void }>();
+  const dispatch = createEventDispatcher<{ close: void; openThemeDesigner: void }>();
 
   // The component stays mounted from app boot and merely hides when "closed"
   // (App.svelte drives this) — the heartbeat interval and scheduled-alert
@@ -230,7 +231,7 @@
     // CompanionReacts.svelte). Stored for the record; only fired on arrival.
     react?: string;
     actions?: Array<{
-      type: 'add_block' | 'update_block' | 'delete_block' | 'read_scratchpad' | 'update_scratchpad' | 'update_diary' | 'add_symptom' | 'update_symptom' | 'delete_symptom' | 'show_notification' | 'schedule_notification' | 'web_search' | 'control_lights';
+      type: 'add_block' | 'update_block' | 'delete_block' | 'read_scratchpad' | 'update_scratchpad' | 'update_diary' | 'add_symptom' | 'update_symptom' | 'delete_symptom' | 'show_notification' | 'schedule_notification' | 'web_search' | 'control_lights' | CompanionThemeAction['type'];
       targetDate?: string;
       block?: Partial<Block> & { repeat?: any };
       labelToMatch?: string;
@@ -247,7 +248,14 @@
       timeHours?: any;
       query?: string;
       preset?: string;
-    }>;
+    } & Omit<CompanionThemeAction, 'type'>>;
+  }
+
+  function messagePayload(msg: ChatMessage): string {
+    const results = msg.actions?.filter(act => isThemeAction(act) && act.themeResult).map(act => ({
+      type: act.type, status: act.themeStatus, result: act.themeResult, themeId: act.themeId,
+    }));
+    return results?.length ? `${msg.content}\n\n[Actual theme tool results]\n${JSON.stringify(results)}` : msg.content;
   }
 
   let messages: ChatMessage[] = [];
@@ -812,6 +820,8 @@ REACTS (the optional top-level "react" field): a react fires a full-screen ambie
 ${reactRegisterLines()}
 A react is EARNED. Omit the field for most messages: deploy one only when the moment genuinely warrants a physical gesture (real tenderness, a milestone reached, a hard day survived, a line crossed, something worth marking). If every message carries a react, none of them mean anything — this is the same aesthetic judgment you already exercise with emoji, where most messages need none.`;
 
+    systemPrompt += THEME_TOOL_PROMPT;
+
     if (tavilyKey) {
       systemPrompt += `\nAdditional Search action capability:
 - Since a Web Search API Key is configured, you can search the web for current or factual information (e.g. weather, MCAS scientific findings, news, external definitions). To do this, include this action in your list:
@@ -1019,7 +1029,7 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
         saveChat();
 
         if (allowedActions.length > 0) {
-          executeActions(allowedActions);
+          await executeActions(allowedActions);
         }
       }
     } catch (err) {
@@ -1062,7 +1072,7 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
 
       const payloadMessages = messages.slice(-100).map(m => ({
         role: m.role,
-        content: m.content
+        content: messagePayload(m)
       }));
 
       let activeBlocks: Block[] = [];
@@ -1079,30 +1089,35 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
 
       const systemPrompt = getSystemPrompt(viewDate, realDate, currentTime, allVibes, activeBlocks, activeSymptoms, activeDiary);
 
-      const openRouterRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openRouterKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: selectedModel,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            ...payloadMessages
-          ],
-          response_format: { type: 'json_object' },
-        }),
-      });
-
-      if (!openRouterRes.ok) {
-        const errText = await openRouterRes.text();
-        throw new Error(`OpenRouter API error: ${openRouterRes.status} ${errText}`);
+      let parsed;
+      if (!SUPABASE_URL || (openRouterKey && !useHybridRouting)) {
+        const openRouterRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openRouterKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: selectedModel,
+            messages: [{ role: 'system', content: systemPrompt }, ...payloadMessages],
+            response_format: { type: 'json_object' },
+          }),
+        });
+        if (!openRouterRes.ok) throw new Error(`OpenRouter API error: ${openRouterRes.status} ${await openRouterRes.text()}`);
+        const result = await openRouterRes.json();
+        parsed = extractLlmJson(result.choices?.[0]?.message?.content?.trim() ?? '');
+      } else {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/parse-command`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', apikey: SUPABASE_ANON, authorization: `Bearer ${SUPABASE_ANON}` },
+          body: JSON.stringify({
+            messages: payloadMessages, currentDate: realDate, currentTime, vibes: allVibes,
+            systemPromptOverride: systemPrompt, useProxy: useHybridRouting,
+          }),
+        });
+        if (!res.ok) throw new Error(`Companion service error: ${res.status} ${await res.text()}`);
+        parsed = await res.json();
       }
-
-      const result = await openRouterRes.json();
-      const completionText = result.choices?.[0]?.message?.content?.trim() ?? '';
-      const parsed = extractLlmJson(completionText);
 
       const bgReact = resolveReact(parsed);
       const assistantMsg: ChatMessage = {
@@ -1119,7 +1134,7 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
       if (bgReact) reactLayer?.fire(bgReact);
 
       if (parsed.actions && parsed.actions.length > 0) {
-        executeActions(parsed.actions);
+        await executeActions(parsed.actions);
       }
     } catch (err: any) {
       console.error('[Companion] Failed to complete background search response:', err);
@@ -1141,6 +1156,25 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
       timestamp: new Date().toISOString()
     };
     await submitBackgroundMessage(msg);
+  }
+
+  let themeReadInProgress = false;
+  async function runThemeRead() {
+    // The follow-up already has the full palette context. Prevent a repeated
+    // read action from starting an unbounded chain of paid model requests.
+    if (themeReadInProgress) throw new Error('Theme details were already supplied in this tool turn. Use those settings to continue.');
+    themeReadInProgress = true;
+    try {
+      const msg: ChatMessage = {
+        id: 'themes_res_' + crypto.randomUUID(),
+        role: 'user',
+        content: `THEME DESIGNER CONTENT (requested via read_themes):\n${JSON.stringify(getThemeToolContext())}\n\nContinue the conversation using these current settings. Use save_theme to create a named look and apply_theme to switch to one.`,
+        timestamp: new Date().toISOString(),
+      };
+      await submitBackgroundMessage(msg);
+    } finally {
+      themeReadInProgress = false;
+    }
   }
 
   async function runWebSearch(query: string) {
@@ -1271,7 +1305,7 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
       // re-bills tokens without adding context.
       const payloadMessages = messages.slice(-30).map(m => ({
         role: m.role,
-        content: m.content
+        content: messagePayload(m)
       }));
 
       // If we have an image, format the current prompt using OpenRouter's multimodal format
@@ -1454,7 +1488,7 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
 
       // Execute actions
       if (parsed.actions && parsed.actions.length > 0) {
-        executeActions(parsed.actions);
+        await executeActions(parsed.actions);
       }
 
     } catch (err: any) {
@@ -1671,9 +1705,7 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
     return new Date(y, m - 1, d).getDay();
   }
 
-  function executeActions(actions: ChatMessage['actions']) {
-    if (!actions) return;
-
+  function executePlannerActions(plannerActions: NonNullable<ChatMessage['actions']>) {
     let targetDateToView = '';
     // Repeat-rule side effects: addRepeatRule is safe to call mid-update (it
     // only touches the rules store), but update/end call days.update, so they
@@ -1684,7 +1716,7 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
     days.update((all) => {
       const updated = { ...all };
 
-      for (const act of actions) {
+      for (const act of plannerActions) {
         const rawDate = act.targetDate || (act.block as any)?.targetDate || (act.symptom as any)?.targetDate;
 
         // These action types carry no targetDate by design — a missing date
@@ -1985,11 +2017,64 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
     }
   }
 
+  async function executeActions(actions: ChatMessage['actions']) {
+    if (!Array.isArray(actions)) return;
+    const validActions = actions.filter(act => act && typeof act === 'object');
+    const themeActions = validActions.filter(isThemeAction);
+    for (const act of themeActions) {
+      if (act.type === 'read_themes') continue;
+      try {
+        act.themeResult = executeThemeAction(act);
+        act.themeStatus = 'success';
+      } catch (err) {
+        act.themeStatus = 'error';
+        act.themeResult = err instanceof Error ? err.message : 'Could not complete the theme action.';
+        errorMsg = act.themeResult;
+      }
+    }
+
+    // Theme actions belong to the app, not a planner date. A theme-only turn
+    // must not create a blank day or move the ring to a model-supplied date.
+    const plannerActions = validActions.filter(act => !isThemeAction(act));
+    if (plannerActions.length > 0) executePlannerActions(plannerActions);
+
+    if (themeActions.length > 0) {
+      messages = [...messages];
+      saveChat();
+    }
+    const reads = themeActions.filter(act => act.type === 'read_themes');
+    if (reads.length > 0) {
+      try {
+        if (themeReadInProgress) throw new Error('Theme details were already supplied in this tool turn. Use those settings to continue.');
+        for (const act of reads) {
+          act.themeStatus = 'success';
+          act.themeResult = 'Read the current look and saved themes.';
+        }
+        messages = [...messages];
+        saveChat();
+        await runThemeRead();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Could not read themes.';
+        for (const act of reads) {
+          act.themeStatus = 'error';
+          act.themeResult = message;
+        }
+        errorMsg = message;
+        messages = [...messages];
+        saveChat();
+      }
+    }
+  }
+
   // Human label for an action pill. Every action type gets its own wording —
   // the old ternary chain's catch-all rendered any newer type (notifications,
   // lights, search…) as `Deleted "undefined" on undefined`.
   function actionPillLabel(act: any): string {
+    if (isThemeAction(act) && act.themeResult) return `${act.themeStatus === 'error' ? 'Theme action failed: ' : ''}${act.themeResult}`;
     switch (act.type) {
+      case 'read_themes': return 'Read the current look and saved themes';
+      case 'save_theme': return `Save theme “${act.name || ''}”`;
+      case 'apply_theme': return `Apply theme “${act.name || act.themeId || act.preset || ''}”`;
       case 'read_scratchpad': return 'Read your Scratch Pad notes';
       case 'update_scratchpad': return 'Updated your Scratch Pad notes';
       case 'update_diary': return `Updated the Daily Diary for ${act.targetDate}`;
@@ -2008,6 +2093,10 @@ Otherwise: { "message": "your response/thoughts", "actions": [ ... ] }`;
   }
 
   function handleActionClick(act: any) {
+    if (isThemeAction(act)) {
+      dispatch('openThemeDesigner');
+      return;
+    }
     if (act.type === 'update_scratchpad' || act.type === 'update_diary' || act.type === 'read_scratchpad') {
       // Just confirm and let the user open notes/diary manually
       return;

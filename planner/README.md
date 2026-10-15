@@ -33,6 +33,7 @@ npm run dev        # http://localhost:5173
 npm run build      # production build into dist/
 npm run check      # svelte-check (types)
 npm run test:themes # saved-theme browser regression checks (Puppeteer)
+npm run test:companion-themes # companion theme tools through both chat routes
 ```
 
 In **Theme → Saved themes**, name your current look and tap **Save new**.
@@ -43,6 +44,15 @@ are included in backup exports. Themes are stored on this device and browser;
 use a backup to transfer them to another device. For browser tests, set
 `PUPPETEER_EXECUTABLE_PATH` if using a system Chromium instead of Puppeteer's
 downloaded browser.
+
+The companion can also design and save themes through chat: try **“Create
+and save a theme of your own”** or **“Apply your saved theme.”** His
+`read_themes`, `save_theme`, and `apply_theme` actions use the same designer
+controls and saved library. Saving creates a new named theme; applying it is
+separate unless he includes `apply: true`. Tap a theme action result to open
+the designer. The chat records the actual result, including validation or
+storage errors. Theme instructions travel with both direct OpenRouter and
+proxy requests, so this feature needs no new Supabase deployment.
 
 ## What's built so far
 

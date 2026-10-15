@@ -43,6 +43,10 @@ const DEFAULT_STATE: EnvThemeState = {
 
 export const envThemeState = writable<EnvThemeState>(DEFAULT_STATE);
 
+export function presetHasStars(name: string): boolean {
+  return ['pre_dawn', 'twilight', 'night_new', 'night_full', 'solar_eclipse', 'lunar_eclipse', 'aurora'].includes(name);
+}
+
 function getInitialDebugOverride(): string | null {
   try {
     if (typeof localStorage === 'undefined') return null;
@@ -285,13 +289,7 @@ export function updateTheme() {
     vars['--ambient-gradient'] = `linear-gradient(135deg, ${vars['--gradient-start']} 0%, ${vars['--gradient-end']} 100%)`;
   }
   
-  const isStars = activePal === 'pre_dawn' || 
-                  activePal === 'twilight' || 
-                  activePal === 'night_new' || 
-                  activePal === 'night_full' || 
-                  activePal === 'solar_eclipse' || 
-                  activePal === 'lunar_eclipse' || 
-                  activePal === 'aurora';
+  const isStars = presetHasStars(activePal);
   
   envThemeState.set({
     themeName,
