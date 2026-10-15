@@ -140,9 +140,9 @@
 
   // ----- recurring tasks (§ repeats) -----
   // The repeat control shows for real task blocks, not the emotion log lane.
-  // Passive-log lanes don't repeat (they record what happened). Medication is a
-  // reminder lane, so it stays repeatable for daily-dose schedules.
-  $: canRepeat = !!sb && sb.laneId !== 'emotion' && sb.laneId !== 'appetite';
+  // The emotion lane is a passive log (records what happened), so it doesn't
+  // repeat. Everything else, medication included, is repeatable.
+  $: canRepeat = !!sb && sb.laneId !== 'emotion';
   // The rule behind the selected instance, if it's a repeat (reactive on the store).
   $: rule = sb?.repeatId ? ($repeatRules.find((r) => r.id === sb.repeatId) ?? null) : null;
   $: repeatMode = rule ? rule.freq : 'off'; // 'off' | 'daily' | 'weekly'
@@ -366,7 +366,6 @@
       <option value="dryer">Dryer</option>
       <option value="emotion">Emotion</option>
       <option value="medication">Medication</option>
-      <option value="appetite">Appetite</option>
     </select>
 
     <label class="appt-check">

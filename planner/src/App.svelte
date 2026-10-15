@@ -9,13 +9,14 @@
   import Search from './lib/Search.svelte';
   import ChatCompanion from './lib/ChatCompanion.svelte';
   import SymptomEditor from './lib/SymptomEditor.svelte';
+  import AppetiteEditor from './lib/AppetiteEditor.svelte';
   import ScratchPad from './lib/ScratchPad.svelte';
   import Diary from './lib/Diary.svelte';
   import ThemeDesigner from './lib/ThemeDesigner.svelte';
   import CommsPanel from './lib/CommsPanel.svelte';
   import { unreadComms } from './lib/comms';
   import { currentKey, todayKey } from './lib/days';
-  import { cascadeMode, appointmentMode, symptomActions } from './lib/daystate';
+  import { cascadeMode, appointmentMode, symptomActions, appetiteActions } from './lib/daystate';
   import { theme, toggleTheme, envLabel, customThemeStore, starsVisible } from './lib/theme';
   import { startEnvTheme, stopEnvTheme, envThemeState, debugThemeOverride } from './lib/envTheme';
   import { startGlucose, stopGlucose } from './lib/glucose';
@@ -87,6 +88,12 @@
     const timeHours = now.getHours() + now.getMinutes() / 60;
     $symptomActions?.addSymptom(timeHours, 1, 'sneezing');
   }
+
+  function onAddAppetite() {
+    const now = new Date();
+    const timeHours = now.getHours() + now.getMinutes() / 60;
+    $appetiteActions?.addAppetite(timeHours, 'normal');
+  }
 </script>
 
 <main class:storm-mode={$envThemeState.isStorm}>
@@ -108,6 +115,7 @@
 
   <header class="bar glass-panel">
     <button class="chip" on:click={onAddSymptom} aria-label="Log symptom now">Symptom</button>
+    <button class="chip" on:click={onAddAppetite} aria-label="Log appetite now">Appetite</button>
     <button class="chip" on:click={() => (showGallery = true)} aria-label="Open day gallery">Days</button>
     <button class="chip" on:click={() => (showCapture = true)} aria-label="Open capture list">List</button>
     <button class="chip" on:click={() => (showCycle = true)} aria-label="Open cycle settings">Cycle</button>
@@ -172,6 +180,7 @@
 
   <BlockEditor />
   <SymptomEditor />
+  <AppetiteEditor />
 
   <div class="tray-wrap glass-panel">
     <Palette />

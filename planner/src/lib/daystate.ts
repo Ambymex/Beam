@@ -7,9 +7,11 @@
 import { writable } from 'svelte/store';
 import type { Block } from './blocks';
 import type { Symptom, SymptomCategory } from './symptoms';
+import type { AppetiteEntry, AppetiteLevel } from './appetite';
 
 export const selectedBlockStore = writable<Block | null>(null);
 export const selectedSymptomStore = writable<Symptom | null>(null);
+export const selectedAppetiteStore = writable<AppetiteEntry | null>(null);
 
 export interface BlockActions {
   setLabel: (text: string) => void;
@@ -47,6 +49,15 @@ export interface SymptomActions {
 }
 
 export const symptomActions = writable<SymptomActions | null>(null);
+
+export interface AppetiteActions {
+  addAppetite: (timeHours: number, level: AppetiteLevel) => void;
+  updateAppetite: (level: AppetiteLevel, timeHours: number, note?: string) => void;
+  remove: () => void;
+  deselect: () => void;
+}
+
+export const appetiteActions = writable<AppetiteActions | null>(null);
 
 // Cascade vs nudge (§9). Default OFF = "nudge just this" (drag moves only the
 // grabbed block). When ON = "push my day": dragging a block also shoves

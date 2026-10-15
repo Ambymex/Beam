@@ -3,12 +3,17 @@
 
 import { repairBlock, type Block } from './blocks';
 import type { Symptom } from './symptoms';
+import type { AppetiteEntry } from './appetite';
 
 export interface DayData {
   blocks: Block[];
   symptoms: Symptom[];
+  // Appetite log (tracker ring, mirrors symptoms). Optional so day-rows saved
+  // before this feature read back cleanly as an empty log.
+  appetite?: AppetiteEntry[];
   nextId: number;
   nextSymptomId: number;
+  nextAppetiteId?: number;
   diary?: string; // Daily reflection/notes
 }
 
@@ -37,7 +42,7 @@ export function repeatMatchesDate(rule: RepeatRule, d: Date): boolean {
   return rule.weekdays.includes(d.getDay());
 }
 
-export const emptyDay = (): DayData => ({ blocks: [], symptoms: [], nextId: 1, nextSymptomId: 1, diary: '' });
+export const emptyDay = (): DayData => ({ blocks: [], symptoms: [], appetite: [], nextId: 1, nextSymptomId: 1, nextAppetiteId: 1, diary: '' });
 
 // Local-date key. 'YYYY-MM-DD' sorts lexicographically === chronologically,
 // which the migration and gallery rely on.
@@ -84,9 +89,9 @@ export function migrateUndone(days: DaysMap, todayKey: string): DaysMap {
       // never migrate; emotional logs stay as historical record; repeat
       // instances keep their own rhythm (they recur on schedule, never pile
       // forward — Ash's call, 2026-08-03).
-      // emotion + appetite are passive logs — they stay as the historical record
-      // and never pile forward (medication IS a reminder lane, so it migrates).
-      if (b.done || b.kind === 'appointment' || b.laneId === 'emotion' || b.laneId === 'appetite' || b.repeatId) {
+      // emotion is a passive log — it stays as the historical record and never
+      // piles forward (medication IS a reminder lane, so it migrates like main).
+      if (b.done || b.kind === 'appointment' || b.laneId === 'emotion' || b.repeatId) {
         stay.push(b);
       } else {
         today.blocks.push(repairBlock({ ...b, id: nextId++, migratedFrom: b.migratedFrom ?? key }));

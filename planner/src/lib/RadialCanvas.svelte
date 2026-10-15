@@ -30,9 +30,17 @@
     severityOpacity,
     symptomContains,
   } from './symptoms';
+  import {
+    type AppetiteEntry,
+    type AppetiteLevel,
+    APPETITE_ARC_HOURS,
+    APPETITE_FILL,
+    appetiteOpacity,
+    appetiteContains,
+  } from './appetite';
   import { currentKey, currentDay, saveDay } from './days';
   import { todayKey } from './days';
-  import { selectedBlockStore, blockActions, cascadeMode, appointmentMode, selectedSymptomStore, symptomActions } from './daystate';
+  import { selectedBlockStore, blockActions, cascadeMode, appointmentMode, selectedSymptomStore, symptomActions, selectedAppetiteStore, appetiteActions } from './daystate';
   import { computeMove, computeResizeStart, computeResizeCore, angDiffHours } from './cascade';
   import { palette, theme, moonCycle, envLabel } from './theme';
   import {
@@ -209,35 +217,43 @@
   let nextId = 1;
   let symptoms: Symptom[] = [];
   let nextSymptomId = 1;
+  let appetite: AppetiteEntry[] = [];
+  let nextAppetiteId = 1;
   let loadedKey = '';
   let selectedId: number | null = null;
   let selectedSymptomId: number | null = null;
+  let selectedAppetiteId: number | null = null;
 
-  // Synchronise canvas blocks and symptoms with store changes (AI companion, database updates)
+  // Synchronise canvas blocks, symptoms and appetite with store changes (AI companion, database updates)
   $: if (!create && !taperDragId && !edit && !wingDrag) {
     const storeBlocks = $currentDay.blocks;
     const storeSymptoms = $currentDay.symptoms || [];
-    
+    const storeAppetite = $currentDay.appetite || [];
+
     const blocksChanged = JSON.stringify(blocks) !== JSON.stringify(storeBlocks);
     const symptomsChanged = JSON.stringify(symptoms) !== JSON.stringify(storeSymptoms);
+    const appetiteChanged = JSON.stringify(appetite) !== JSON.stringify(storeAppetite);
     const keyChanged = $currentKey !== loadedKey;
 
-    if (blocksChanged || symptomsChanged || keyChanged) {
+    if (blocksChanged || symptomsChanged || appetiteChanged || keyChanged) {
       blocks = structuredClone(storeBlocks);
       nextId = $currentDay.nextId;
       symptoms = structuredClone(storeSymptoms);
       nextSymptomId = $currentDay.nextSymptomId || 1;
-      
+      appetite = structuredClone(storeAppetite);
+      nextAppetiteId = $currentDay.nextAppetiteId || 1;
+
       if (keyChanged) {
         selectedId = null;
         selectedSymptomId = null;
+        selectedAppetiteId = null;
         loadedKey = $currentKey;
       }
     }
   }
 
   function persist() {
-    saveDay(loadedKey, structuredClone(blocks), nextId, structuredClone(symptoms), nextSymptomId);
+    saveDay(loadedKey, structuredClone(blocks), nextId, structuredClone(symptoms), nextSymptomId, undefined, structuredClone(appetite), nextAppetiteId);
   }
 
   const MIN_SWEEP_DEG = 1.5; // ignore an accidental tap-as-drag
@@ -440,12 +456,23 @@
       }
     }
 
-    // 2. Tapping a block/symptom: select it
+    // 2. Tapping a symptom / appetite marker / block: select it. The three
+    //    editors are mutually exclusive, so a selection clears the other two.
     const symLane = LANES.find(l => l.id === 'symptom')!;
     const symHit = [...symptoms].reverse().find((s) => symptomContains(s, r, hours, symLane.rInner, symLane.rOuter));
     if (symHit) {
       selectedSymptomId = symHit.id;
       selectedId = null;
+      selectedAppetiteId = null;
+      svgEl.setPointerCapture(ev.pointerId);
+      return;
+    }
+    const appLane = LANES.find(l => l.id === 'appetite')!;
+    const appHit = [...appetite].reverse().find((e) => appetiteContains(e, r, hours, appLane.rInner, appLane.rOuter));
+    if (appHit) {
+      selectedAppetiteId = appHit.id;
+      selectedId = null;
+      selectedSymptomId = null;
       svgEl.setPointerCapture(ev.pointerId);
       return;
     }
@@ -454,6 +481,8 @@
       wasAlreadySelected = hit.id === selectedId; // before we change selection
       tapCandidateId = hit.id; // resolved on pointer-up if no drag happened
       selectedId = hit.id;
+      selectedSymptomId = null;
+      selectedAppetiteId = null;
       svgEl.setPointerCapture(ev.pointerId);
       return;
     }
@@ -739,6 +768,7 @@
         symptoms = [...symptoms, { id, timeHours, severity, category }];
         selectedSymptomId = id;
         selectedId = null;
+        selectedAppetiteId = null; // keep the three editors mutually exclusive
         persist();
       },
       updateSymptom: (severity: 1 | 2 | 3 | 4 | 5, category: SymptomCategory, timeHours: number, note?: string) => {
@@ -758,10 +788,36 @@
       },
       deselect: () => (selectedSymptomId = null),
     });
+    appetiteActions.set({
+      addAppetite: (timeHours: number, level: AppetiteLevel) => {
+        const id = nextAppetiteId++;
+        appetite = [...appetite, { id, timeHours, level }];
+        selectedAppetiteId = id;
+        selectedId = null;
+        selectedSymptomId = null;
+        persist();
+      },
+      updateAppetite: (level: AppetiteLevel, timeHours: number, note?: string) => {
+        const e = appetite.find(x => x.id === selectedAppetiteId);
+        if (!e) return;
+        e.level = level;
+        e.timeHours = timeHours;
+        e.note = note;
+        appetite = appetite;
+        persist();
+      },
+      remove: () => {
+        appetite = appetite.filter(x => x.id !== selectedAppetiteId);
+        selectedAppetiteId = null;
+        persist();
+      },
+      deselect: () => (selectedAppetiteId = null),
+    });
   });
   onDestroy(() => {
     blockActions.set(null);
     symptomActions.set(null);
+    appetiteActions.set(null);
   });
 
   $: createLane = create ? LANES.find((l) => l.id === create!.laneId)! : null;
@@ -782,6 +838,9 @@
   $: selectedSymptom = symptoms.find(s => s.id === selectedSymptomId) ?? null;
   $: selectedSymptomStore.set(selectedSymptom);
   const symLane = LANES.find(l => l.id === 'symptom')!;
+  $: selectedAppetite = appetite.find(e => e.id === selectedAppetiteId) ?? null;
+  $: selectedAppetiteStore.set(selectedAppetite);
+  const appLane = LANES.find(l => l.id === 'appetite')!;
 
   // The selected block's label — a floating header (§6), shown only when
   // selected. It floats OVER the ring (covering stuff is fine) with a subtle
@@ -955,6 +1014,25 @@
     {#if s.id === selectedSymptomId}
       <path
         d={annularSector(C, C, symLane.rInner, symLane.rOuter, a0, a1)}
+        fill="none"
+        stroke={pal.signal}
+        stroke-width="1.5"
+      />
+    {/if}
+  {/each}
+
+  <!-- appetite log: same opacity-encoded arcs as symptoms, one ring out -->
+  {#each appetite as e (e.id)}
+    {@const a0 = hoursToAngle(e.timeHours - APPETITE_ARC_HOURS / 2)}
+    {@const a1 = hoursToAngle(e.timeHours + APPETITE_ARC_HOURS / 2)}
+    <path
+      d={annularSector(C, C, appLane.rInner, appLane.rOuter, a0, a1)}
+      fill={APPETITE_FILL}
+      opacity={appetiteOpacity(e.level)}
+    />
+    {#if e.id === selectedAppetiteId}
+      <path
+        d={annularSector(C, C, appLane.rInner, appLane.rOuter, a0, a1)}
         fill="none"
         stroke={pal.signal}
         stroke-width="1.5"

@@ -199,6 +199,19 @@
     {#if layer.direction === 'converge'}
       <p class="hint">Particles begin scattered around the frame, settle into a focused cloud by 72% of travel, then hold still. Fade-out timing decides how long the lock gets to breathe.</p>
     {/if}
+    {#if layer.direction === 'burst'}
+      <label class="field check">
+        <input type="checkbox" bind:checked={layer.settle} on:change={bump} />
+        <span>Settle after burst (gravity)</span>
+      </label>
+      {#if layer.settle}
+        <label class="field">
+          <span>Settle lift <b>{layer.arcApex}vh</b></span>
+          <input type="range" min="8" max="60" bind:value={layer.arcApex} on:input={bump} />
+        </label>
+        <p class="hint">Reuses the fountain arc on a centred burst: particles lift as they puff out, then gravity carries them down — the "up-then-settle" ruffle. Higher lift = more theatrical startle.</p>
+      {/if}
+    {/if}
     {#if layer.direction === 'fixed'}
       <p class="hint">Anchored to one point on the stage. Inner size, colour and glow envelopes can still breathe without moving the object itself.</p>
       <div class="pair">

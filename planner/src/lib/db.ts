@@ -8,8 +8,10 @@ export class RadialPlannerDB extends Dexie {
     date: string;
     blocks: DayData['blocks'];
     symptoms: DayData['symptoms'];
+    appetite?: DayData['appetite'];
     nextId: number;
     nextSymptomId: number;
+    nextAppetiteId?: number;
     diary?: string;
   }, string>;
 

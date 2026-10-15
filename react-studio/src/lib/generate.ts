@@ -82,6 +82,9 @@ export function generate(cfg: ReactConfig): Generated {
   const layers = cfg.layers;
   const anyFountain = layers.some((l) => l.direction === 'fountain');
   const anyConverge = layers.some((l) => l.direction === 'converge');
+  // burst-settle reuses the fountain arc (up-then-down) for the "settle" ruffle
+  const isArc = (l: LayerConfig) => l.direction === 'fountain' || (l.direction === 'burst' && l.settle);
+  const anyArc = layers.some(isArc);
   const anyLunar = layers.some((l) => l.shape === 'lunar');
   const movingLayerIndexes = layers
     .map((l, i) => l.direction === 'fixed' ? -1 : i)
@@ -138,7 +141,7 @@ ${layers.map((l, k) => l.shape === 'lunar' ? `  const ${id}Moon${k + 1}: ${Cap}M
     dur: number; op: number; inDur: number; outDelay: number; outDur: number;
     envMidDur: number; envEndDelay: number; envEndDur: number;
     rotEnd: number; swayAmp: number; swayDur: number; swayPhase: number;
-    tx: string; ty: string;${anyFountain ? ' apex: number;' : ''}${anyConverge ? ' fromX: number; fromY: number;' : ''}
+    tx: string; ty: string;${anyArc ? ' apex: number;' : ''}${anyConverge ? ' fromX: number; fromY: number;' : ''}
   }
 ${moonPresetScript}
 ${arrayNames.map((a) => `  let ${a}: ${Cap}P[] = [];`).join('\n')}
@@ -214,7 +217,7 @@ ${movingLayerIndexes.length ? `  let ${id}Timer: ReturnType<typeof setTimeout>;`
           swayDur,
           swayPhase: Math.random() * swayDur,
           tx: ${txExpr(l)},
-          ty: ${tyExpr(l)},${anyFountain ? `\n          apex: ${l.direction === 'fountain' ? `${n(l.arcApex * 0.7)} + Math.random() * ${n(l.arcApex * 0.3)}` : '0'},` : ''}${anyConverge ? `\n          fromX: ${l.direction === 'converge' ? 'Math.cos(fromAngle * Math.PI / 180) * fromDistance' : '0'},\n          fromY: ${l.direction === 'converge' ? 'Math.sin(fromAngle * Math.PI / 180) * fromDistance * 0.7' : '0'},` : ''}
+          ty: ${tyExpr(l)},${anyArc ? `\n          apex: ${isArc(l) ? `${n(l.arcApex * 0.7)} + Math.random() * ${n(l.arcApex * 0.3)}` : '0'},` : ''}${anyConverge ? `\n          fromX: ${l.direction === 'converge' ? 'Math.cos(fromAngle * Math.PI / 180) * fromDistance' : '0'},\n          fromY: ${l.direction === 'converge' ? 'Math.sin(fromAngle * Math.PI / 180) * fromDistance * 0.7' : '0'},` : ''}
         });
       }
       ${arr} = b${k + 1};`;
@@ -282,16 +285,15 @@ ${swayMarkup}
       const scaleMarkup = `    <span class="${cls}-scale">
 ${colorMarkup}
     </span>`;
-      const inner =
-        l.direction === 'fountain'
-          ? `  <span class="${id}-arc">
+      const inner = isArc(l)
+        ? `  <span class="${id}-arc">
 ${scaleMarkup}
   </span>`
-          : scaleMarkup;
+        : scaleMarkup;
       const leftAttr = l.direction === 'fixed'
         ? `left:${n(l.fixedX)}%; top:${n(l.fixedY)}%; `
         : l.direction === 'burst' || l.direction === 'converge' ? '' : 'left:{p.x}%; ';
-      const apexVar = l.direction === 'fountain' ? ' --apex:{p.apex}vh;' : '';
+      const apexVar = isArc(l) ? ' --apex:{p.apex}vh;' : '';
       const convergeVars = l.direction === 'converge' ? ' --fx:{p.fromX}vmin; --fy:{p.fromY}vmin;' : '';
       return `  <!-- ${cfg.label}, layer ${k + 1}: ${l.name} -->
   {#each ${arr} as p (p.id)}
@@ -407,7 +409,7 @@ ${inner}
     })
     .join('\n');
 
-  const arcCss = anyFountain
+  const arcCss = anyArc
     ? `
   .${id}-arc {
     display: block;

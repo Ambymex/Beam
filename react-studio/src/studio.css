@@ -23,12 +23,22 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
 }
+
+.brand-wrap {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
 .brand {
   font-family: var(--font-display, 'Outfit', sans-serif);
   font-weight: 600;
   font-size: 18px;
   color: var(--text);
+  white-space: nowrap;
 }
 .brand .sub {
   font-family: var(--font-primary);
@@ -37,10 +47,46 @@
   color: var(--text-dim);
   margin-left: 8px;
 }
+
+/* Studio Mode Switcher Pill */
+.mode-switcher {
+  display: flex;
+  align-items: center;
+  background: var(--surface-2, rgba(0, 0, 0, 0.25));
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.mode-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.mode-btn:hover {
+  color: var(--text);
+}
+
+.mode-btn.active {
+  background: var(--signal);
+  color: var(--signal-contrast, #000);
+  box-shadow: 0 0 10px var(--signal-glow, rgba(112, 214, 255, 0.35));
+}
+
 .topbar-actions {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
 }
 .drafts {
   display: flex;
@@ -48,7 +94,7 @@
   gap: 6px;
 }
 .draft-name {
-  width: 130px;
+  width: 140px;
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 8px;

@@ -34,7 +34,7 @@ self.addEventListener('activate', (e) =>
 //     (`npm run phone`).
 // The push/notification logic above is unrelated and unchanged (landmine 17
 // lockstep applies to notification shaping only).
-const SHELL_CACHE = 'radial-shell-v1';
+const SHELL_CACHE = 'radial-shell-v3';
 const SHELL_MAX_ENTRIES = 80;
 const NAV_TIMEOUT_MS = 3500;
 const DEV_PATHS = /\/(@vite|@fs|@id|src|node_modules)\/|__vite|hot-update/;

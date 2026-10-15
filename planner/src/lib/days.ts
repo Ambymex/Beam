@@ -26,8 +26,10 @@ async function initDays() {
       loadedMap[row.date] = {
         blocks: row.blocks,
         symptoms: row.symptoms,
+        appetite: row.appetite ?? [],
         nextId: row.nextId,
         nextSymptomId: row.nextSymptomId,
+        nextAppetiteId: row.nextAppetiteId ?? 1,
         diary: row.diary || ''
       };
     }
@@ -53,8 +55,10 @@ async function initDays() {
           date,
           blocks: data.blocks,
           symptoms: data.symptoms,
+          appetite: data.appetite ?? [],
           nextId: data.nextId,
           nextSymptomId: data.nextSymptomId,
+          nextAppetiteId: data.nextAppetiteId ?? 1,
           diary: data.diary || ''
         }));
       }
@@ -156,18 +160,33 @@ export function futureKeys(n = 14): string[] {
   return out;
 }
 
-// Write a day's blocks back into the map.
-export function saveDay(key: string, blocks: DayData['blocks'], nextId: number, symptoms: DayData['symptoms'], nextSymptomId: number, diary?: string) {
+// Write a day's blocks back into the map. Appetite + nextAppetiteId are optional
+// so existing callers keep working; when omitted they're preserved from the map
+// (never silently wiped), matching how diary is handled.
+export function saveDay(
+  key: string,
+  blocks: DayData['blocks'],
+  nextId: number,
+  symptoms: DayData['symptoms'],
+  nextSymptomId: number,
+  diary?: string,
+  appetite?: DayData['appetite'],
+  nextAppetiteId?: number,
+) {
   days.update((all) => {
     const existing = all[key];
     const resolvedDiary = diary !== undefined ? diary : (existing?.diary || '');
+    const resolvedAppetite = appetite !== undefined ? appetite : (existing?.appetite ?? []);
+    const resolvedNextAppetiteId = nextAppetiteId !== undefined ? nextAppetiteId : (existing?.nextAppetiteId ?? 1);
     return {
       ...all,
       [key]: {
         blocks,
         symptoms,
+        appetite: resolvedAppetite,
         nextId,
         nextSymptomId,
+        nextAppetiteId: resolvedNextAppetiteId,
         diary: resolvedDiary
       }
     };
@@ -198,8 +217,10 @@ days.subscribe((value) => {
         date: key,
         blocks: data.blocks,
         symptoms: data.symptoms,
+        appetite: data.appetite ?? [],
         nextId: data.nextId,
         nextSymptomId: data.nextSymptomId,
+        nextAppetiteId: data.nextAppetiteId ?? 1,
         diary: data.diary || ''
       }).catch((err) => console.error('[DB] Subscriber failed to save day:', err));
     }

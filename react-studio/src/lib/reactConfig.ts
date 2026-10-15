@@ -111,7 +111,10 @@ export interface LayerConfig {
   swayMax: number; // flutter period range, seconds
 
   driftX: number; // net horizontal spread, vw (fall/rise/fountain); burst radiates
-  arcApex: number; // fountain: how high the arc rises, vh
+  arcApex: number; // fountain: how high the arc rises, vh (also the burst-settle lift)
+  // burst-only: after the outward puff, let gravity carry particles down —
+  // reuses the fountain arc for the "up-then-settle" ruffle (arcApex = lift).
+  settle: boolean;
   focusRadius: number; // converge: landing-cloud radius around centre, vmin
   fixedX: number; // fixed: stage position, percent
   fixedY: number;
@@ -359,6 +362,7 @@ export const DEFAULT_LAYER: LayerConfig = {
   swayMax: 2.8,
   driftX: 0,
   arcApex: 55,
+  settle: false,
   focusRadius: 10,
   fixedX: 50,
   fixedY: 55,
@@ -604,6 +608,8 @@ export const PRESETS: Record<string, ReactConfig> = {
         ...DEFAULT_LAYER,
         name: 'Startle (hero)',
         direction: 'burst',
+        settle: true, // puff up-and-out, then gravity carries the feathers down
+        arcApex: 24,
         travelEase: 'easeOut',
         count: 15,
         spawnWindow: 0.3,
@@ -641,6 +647,8 @@ export const PRESETS: Record<string, ReactConfig> = {
         ...DEFAULT_LAYER,
         name: 'Stragglers (settle)',
         direction: 'burst',
+        settle: true,
+        arcApex: 14,
         travelEase: 'softInOut',
         count: 3,
         spawnWindow: 0.5,

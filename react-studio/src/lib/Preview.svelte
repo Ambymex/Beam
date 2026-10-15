@@ -451,6 +451,7 @@
         {@const sd = shapeDefFor(layer)}
         <div
           class="react-layer {layer.direction}"
+          class:settle={layer.direction === 'burst' && layer.settle}
           class:size-envelope={layer.sizeEnvelope}
           class:color-envelope={layer.colorMidMode !== 'hold' || layer.colorEndMode !== 'hold'}
           class:fixed-glow={layer.glowMode === 'fixed'}
@@ -967,7 +968,8 @@
   /* the fountain arc: Y rises decelerating (spending energy), tips over at
      45%, then falls accelerating (gravity). Two easings on one property —
      composed with the outer X travel, this is how CSS fakes a parabola. */
-  .react-layer.fountain .p-arc {
+  .react-layer.fountain .p-arc,
+  .react-layer.burst.settle .p-arc {
     animation: s-arc var(--dur) linear var(--delay) both;
   }
   @keyframes s-arc {

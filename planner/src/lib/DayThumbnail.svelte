@@ -8,6 +8,7 @@
   import { palette } from './theme';
   import { annularSector, hoursToAngle } from './geometry';
   import { SYMPTOM_ARC_HOURS, SYMPTOM_FILL, severityOpacity } from './symptoms';
+  import { APPETITE_ARC_HOURS, APPETITE_FILL, appetiteOpacity } from './appetite';
   import type { DayData } from './daydata';
 
   export let day: DayData;
@@ -15,6 +16,7 @@
 
   $: pal = $palette;
   const symLane = LANES.find((l) => l.id === 'symptom')!;
+  const appLane = LANES.find((l) => l.id === 'appetite')!;
 </script>
 
 <svg viewBox="0 0 400 400" class:today={isToday}>
@@ -35,6 +37,14 @@
       d={annularSector(C, C, symLane.rInner, symLane.rOuter, hoursToAngle(s.timeHours - SYMPTOM_ARC_HOURS / 2), hoursToAngle(s.timeHours + SYMPTOM_ARC_HOURS / 2))}
       fill={SYMPTOM_FILL}
       opacity={severityOpacity(s.severity)}
+    />
+  {/each}
+  <!-- appetite log markers, one ring out from symptoms — same opacity language. -->
+  {#each day.appetite ?? [] as e (e.id)}
+    <path
+      d={annularSector(C, C, appLane.rInner, appLane.rOuter, hoursToAngle(e.timeHours - APPETITE_ARC_HOURS / 2), hoursToAngle(e.timeHours + APPETITE_ARC_HOURS / 2))}
+      fill={APPETITE_FILL}
+      opacity={appetiteOpacity(e.level)}
     />
   {/each}
   <!-- "today" marked by a non-colour cue: a luminous rim (signal), never a hue
