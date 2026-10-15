@@ -2,6 +2,7 @@
   import { createEventDispatcher, onMount } from 'svelte';
   import { customThemeStore } from './theme';
   import { envThemeState, debugThemeOverride } from './envTheme';
+  import { savedThemes, saveNamedTheme, deleteNamedTheme } from './savedThemes';
 
   const dispatch = createEventDispatcher<{ close: void }>();
 
@@ -35,6 +36,11 @@
 
   let exportText = '';
   let initialized = false;
+  let themeName = '';
+  let selectedThemeId = '';
+  let themeStatus = '';
+  let themeError = false;
+  $: selectedTheme = $savedThemes.find(theme => theme.id === selectedThemeId);
 
   let savedSwatches: string[] = ['#101525', '#1a2235', '#a24df0', '#ffffff', '#94a3b8'];
   let selectedSwatch: string | null = null;
@@ -108,12 +114,19 @@
 
   onMount(() => {
     // If a custom theme is already saved in localStorage/store, load it first
-    let currentCustom: Record<string, string> | null = null;
-    const unsub = customThemeStore.subscribe(val => currentCustom = val);
-    unsub();
+    const currentCustom = $customThemeStore;
 
     if (currentCustom) {
       applyConfig(currentCustom);
+      const matchingTheme = $savedThemes.find(theme => {
+        const entries = Object.entries(theme.cssVars);
+        return entries.length === Object.keys(currentCustom).length
+          && entries.every(([key, value]) => currentCustom[key] === value);
+      });
+      if (matchingTheme) {
+        selectedThemeId = matchingTheme.id;
+        themeName = matchingTheme.name;
+      }
     } else {
       loadFromComputedStyle();
     }
@@ -129,16 +142,25 @@
     
     initialized = true;
 
-    // Subscribe to env theme updates to keep pickers in sync when custom theme is NOT active
-    const unsubEnv = envThemeState.subscribe(() => {
+    // A dropdown change can update the environment before clearing the custom
+    // theme. Watch both stores so that transition also refreshes the pickers.
+    let envSyncTimeout: ReturnType<typeof setTimeout> | undefined;
+    const syncWithEnv = () => {
+      clearTimeout(envSyncTimeout);
       if (initialized && !$customThemeStore) {
         // Wait a tick for DOM update to propagate
-        setTimeout(loadFromComputedStyle, 50);
+        envSyncTimeout = setTimeout(() => {
+          if (initialized && !$customThemeStore) loadFromComputedStyle();
+        }, 50);
       }
-    });
+    };
+    const unsubEnv = envThemeState.subscribe(syncWithEnv);
+    const unsubCustom = customThemeStore.subscribe(syncWithEnv);
 
     return () => {
       unsubEnv();
+      unsubCustom();
+      clearTimeout(envSyncTimeout);
     };
   });
 
@@ -156,7 +178,7 @@
     
     const blurVal = style.getPropertyValue('--glass-blur').trim();
     if (blurVal) {
-      glassBlurPx = parseInt(blurVal) || glassBlurPx;
+      glassBlurPx = parseInt(blurVal) || 0;
     }
     
     const parseOpacity = (property: string, fallback: number, hexMeansOpaque = false) => {
@@ -204,7 +226,7 @@
       const match = /rgba?\([^,]+,[^,]+,[^,]+,\s*([\d.]+)\)/.exec(vars['--glass-bg']);
       glassOpacity = match ? parseFloat(match[1]) : 1.0;
     }
-    if (vars['--glass-blur']) glassBlurPx = parseInt(vars['--glass-blur']) || glassBlurPx;
+    if (vars['--glass-blur']) glassBlurPx = parseInt(vars['--glass-blur']) || 0;
     const alphaOf = (val: string | undefined, fallback: number) => {
       if (!val) return fallback;
       const match = /rgba?\([^,]+,[^,]+,[^,]+,\s*([\d.]+)\)/.exec(val);
@@ -238,10 +260,8 @@
     if (vars['--stars-active'] !== undefined) starsOn = vars['--stars-active'] === '1';
   }
 
-  function saveCustomTheme() {
-    if (!initialized) return;
-    debugThemeOverride.set('custom');
-    customThemeStore.set({
+  function getConfigVars(): Record<string, string> {
+    return {
       '--gradient-start': gradientStart,
       '--gradient-end': gradientEnd,
       '--ambient-gradient': `linear-gradient(135deg, ${gradientStart} 0%, ${gradientEnd} 100%)`,
@@ -265,37 +285,64 @@
       '--moon-color': moonHex,
       '--star-color': starHex,
       '--stars-active': starsOn ? '1' : '0',
-    });
+    };
+  }
+
+  function saveCustomTheme() {
+    if (!initialized) return;
+    debugThemeOverride.set('custom');
+    customThemeStore.set(getConfigVars());
+  }
+
+  function saveTheme(update = false) {
+    if (!initialized || (update && !selectedTheme)) return;
+    try {
+      const saved = saveNamedTheme(themeName, getConfigVars(), update ? selectedThemeId : undefined);
+      selectedThemeId = saved.id;
+      themeName = saved.name;
+      saveCustomTheme();
+      themeError = false;
+      themeStatus = `${update ? 'Updated' : 'Saved'} “${saved.name}”.`;
+    } catch (err) {
+      themeError = true;
+      themeStatus = err instanceof Error ? err.message : 'Could not save this theme.';
+    }
+  }
+
+  function selectTheme() {
+    themeName = $savedThemes.find(theme => theme.id === selectedThemeId)?.name ?? '';
+    themeStatus = '';
+    themeError = false;
+  }
+
+  function applySavedTheme() {
+    if (!selectedTheme || !initialized) return;
+    applyConfig(selectedTheme.cssVars);
+    debugThemeOverride.set('custom');
+    customThemeStore.set({ ...selectedTheme.cssVars });
+    themeError = false;
+    themeStatus = `Applied “${selectedTheme.name}”.`;
+  }
+
+  function deleteTheme() {
+    if (!selectedTheme || !confirm(`Delete “${selectedTheme.name}” from saved themes? Your current look will stay as it is.`)) return;
+    try {
+      const name = selectedTheme.name;
+      deleteNamedTheme(selectedThemeId);
+      selectedThemeId = '';
+      themeName = '';
+      themeError = false;
+      themeStatus = `Deleted “${name}”.`;
+    } catch (err) {
+      themeError = true;
+      themeStatus = err instanceof Error ? err.message : 'Could not delete this theme.';
+    }
   }
 
   function exportConfig() {
     const config = {
-      name: 'Custom Glassmorphism Theme',
-      cssVars: {
-        '--gradient-start': gradientStart,
-        '--gradient-end': gradientEnd,
-        '--ambient-gradient': `linear-gradient(135deg, ${gradientStart} 0%, ${gradientEnd} 100%)`,
-        '--app-bg': gradientStart,
-        '--glass-bg': hexToRgba(glassHex, glassOpacity),
-        '--glass-border': hexToRgba(glassHex, Math.min(1, glassOpacity + 0.25)),
-        '--glass-blur': `${glassBlurPx}px`,
-        '--surface': hexToRgba(surfaceHex, surfaceOpacity),
-        '--surface-2': hexToRgba(surface2Hex, surface2Opacity),
-        '--surface-3': hexToRgba(interpolateHex(surface2Hex, '#ffffff', 0.2), Math.min(1, surface2Opacity * 1.3)),
-        '--signal': signalHex,
-        '--signal-glow': hexToRgba(signalHex, signalGlowOpacity),
-        '--signal-contrast': signalContrast,
-        '--border': `rgba(255, 255, 255, ${borderOpacity})`,
-        '--border-2': `rgba(255, 255, 255, ${border2Opacity})`,
-        '--hairline': `rgba(255, 255, 255, ${hairlineOpacity})`,
-        '--text': textHex,
-        '--text-2': interpolateHex(textHex, textDimHex, 0.4),
-        '--text-dim': textDimHex,
-        '--text-faint': textFaintHex,
-        '--moon-color': moonHex,
-        '--star-color': starHex,
-        '--stars-active': starsOn ? '1' : '0',
-      }
+      name: themeName.trim() || 'Custom Glassmorphism Theme',
+      cssVars: getConfigVars()
     };
     exportText = JSON.stringify(config, null, 2);
     navigator.clipboard.writeText(exportText).then(() => {
@@ -314,6 +361,10 @@
         return;
       }
       applyConfig(config.cssVars);
+      if (typeof config.name === 'string') themeName = config.name.trim().slice(0, 60);
+      selectedThemeId = '';
+      themeStatus = 'Imported. Tap Save new to keep this theme.';
+      themeError = false;
       saveCustomTheme();
     } catch (err) {
       // Keep silent while typing, only alert if they pasted a large invalid chunk
@@ -324,6 +375,10 @@
   }
 
   function resetToEnvTheme() {
+    selectedThemeId = '';
+    themeName = '';
+    themeStatus = 'Environmental theme restored. Your saved themes are still here.';
+    themeError = false;
     customThemeStore.set(null);
     debugThemeOverride.set(null);
     initialized = false;
@@ -534,6 +589,35 @@
   </header>
   
   <div class="content">
+    <section class="saved-themes" aria-labelledby="saved-themes-heading">
+      <h5 id="saved-themes-heading">Saved themes</h5>
+      <form on:submit|preventDefault={() => saveTheme()}>
+        <label for="theme-name">Theme name</label>
+        <div class="theme-save-row">
+          <input id="theme-name" type="text" bind:value={themeName} maxlength="60" placeholder="e.g. Midnight garden" />
+          <button class="action-btn" type="submit" disabled={!initialized || !themeName.trim()}>Save new</button>
+        </div>
+      </form>
+      {#if $savedThemes.length > 0}
+        <label for="saved-theme">Choose a saved theme</label>
+        <select id="saved-theme" bind:value={selectedThemeId} on:change={selectTheme}>
+          <option value="" disabled>Select a theme…</option>
+          {#each $savedThemes as saved (saved.id)}
+            <option value={saved.id}>{saved.name}</option>
+          {/each}
+        </select>
+        <div class="theme-actions">
+          <button class="action-btn" on:click={applySavedTheme} disabled={!initialized || !selectedTheme}>Apply</button>
+          <button class="action-btn" on:click={() => saveTheme(true)} disabled={!initialized || !selectedTheme || !themeName.trim()}>Update</button>
+          <button class="action-btn" on:click={deleteTheme} disabled={!selectedTheme}>Delete</button>
+        </div>
+        <p class="theme-hint">Edits only change a saved theme when you tap Update. Change its name to rename it, or Save new to keep a separate copy.</p>
+      {:else}
+        <p class="theme-hint">Save your current look to use it again later.</p>
+      {/if}
+      <p class="theme-status" class:error={themeError} role="status" aria-live="polite">{themeStatus}</p>
+    </section>
+
     <div class="field">
       <span>Gradient Start</span>
       <button class="color-indicator-btn" style="background: {gradientStart};" on:click={() => openColorPicker('gradientStart')} aria-label="Gradient Start color"></button>
@@ -714,7 +798,7 @@
     position: fixed;
     top: 75px;
     right: 16px;
-    width: 320px;
+    width: min(320px, calc(100vw - 32px));
     max-height: calc(100vh - 120px);
     display: flex;
     flex-direction: column;
@@ -751,11 +835,17 @@
   }
   .content {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
+    touch-action: pan-y;
+    overscroll-behavior: contain;
     padding: 14px;
     display: flex;
     flex-direction: column;
     gap: 12px;
+  }
+  .content > * {
+    flex: 0 0 auto;
   }
   .field {
     display: flex;
@@ -766,6 +856,70 @@
   }
   .field input[type="range"] {
     width: 120px;
+  }
+
+  .saved-themes {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .saved-themes h5 {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text);
+  }
+  .saved-themes form {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .saved-themes label {
+    font-size: 12px;
+    color: var(--text);
+  }
+  .theme-save-row, .theme-actions {
+    display: flex;
+    gap: 6px;
+  }
+  .theme-save-row input, .saved-themes select {
+    min-width: 0;
+    min-height: 44px;
+    box-sizing: border-box;
+    padding: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font: inherit;
+    font-size: 16px;
+  }
+  .theme-save-row input {
+    flex: 1;
+  }
+  .theme-save-row .action-btn {
+    width: auto;
+    flex-shrink: 0;
+  }
+  .saved-themes .action-btn {
+    min-height: 44px;
+  }
+  .saved-themes .action-btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+  .theme-hint, .theme-status {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--text);
+  }
+  .theme-status:empty {
+    display: none;
+  }
+  .theme-status.error {
+    font-weight: 600;
   }
 
   .actions {

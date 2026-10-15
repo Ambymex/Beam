@@ -32,7 +32,17 @@ npm install
 npm run dev        # http://localhost:5173
 npm run build      # production build into dist/
 npm run check      # svelte-check (types)
+npm run test:themes # saved-theme browser regression checks (Puppeteer)
 ```
+
+In **Theme → Saved themes**, name your current look and tap **Save new**.
+Choose a saved theme and tap **Apply** to restore it. Live edits leave the
+saved copy intact until you tap **Update**; changing the name before updating
+also renames it. Saved themes, the current custom look, and colour swatches
+are included in backup exports. Themes are stored on this device and browser;
+use a backup to transfer them to another device. For browser tests, set
+`PUPPETEER_EXECUTABLE_PATH` if using a system Chromium instead of Puppeteer's
+downloaded browser.
 
 ## What's built so far
 

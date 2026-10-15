@@ -1,4 +1,5 @@
 import { db } from './db';
+import { SAVED_THEMES_KEY } from './savedThemes';
 
 interface BackupPayload {
   version: number;
@@ -32,6 +33,9 @@ export async function exportBackup(): Promise<string> {
       'radial-planner-openrouter-model',
       'radial-planner-weather-city',
       'radial-planner-theme-v2',
+      'radial-planner-custom-theme',
+      SAVED_THEMES_KEY,
+      'radial-planner-theme-swatches',
       'radial-planner-gcal-active',
       'radial-planner-prompt-modules'
     ];
