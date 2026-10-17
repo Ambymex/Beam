@@ -45,6 +45,12 @@ use a backup to transfer them to another device. For browser tests, set
 `PUPPETEER_EXECUTABLE_PATH` if using a system Chromium instead of Puppeteer's
 downloaded browser.
 
+The **Room** header link opens a plain Git-backed shared transcript. Ask
+Solenoid **“Check the shared room”** to let his existing conversation read,
+reply, react, or stay silent. No polling invokes a model. See
+[`../room/README.md`](../room/README.md) for the private repository, setup,
+Morrow's GitHub join instructions, and tests.
+
 The companion can also design and save themes through chat: try **“Create
 and save a theme of your own”** or **“Apply your saved theme.”** His
 `read_themes`, `save_theme`, and `apply_theme` actions use the same designer

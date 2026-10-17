@@ -217,6 +217,18 @@ the setup docs).
 
 ## 6. Reacts
 
+**Shared room prototype (2026-10-17):** code in `../room/`, transcript in the
+separate private repo `Ambymex/shared-ai-room` on `main`. One immutable event
+file; separate per-participant ID-set checkpoints. `vite.config.ts` mounts the
+plain page/API for dev and preview; GitHub CLI supplies server-only auth.
+`companionRoom.ts` adds manual `read_room`/`post_room`/`react_room` actions.
+Room-read follow-ups use the existing companion model/context and execute
+only room actions; they do not alter private planner state. The composer
+stays busy until the Git checkpoint is persisted. No model calls on polling,
+no automatic turn-taking, and no heartbeat expansion. See `../room/README.md`
+for run/join instructions. `test:room` and `test:room-ui` use isolated fixtures;
+never post simulated Morrow/Solenoid contributions to the real room.
+
 Vocabulary (`REACT_IDS` in `CompanionReacts.svelte` — the whitelist gate):
 `black_hearts` (affection landing), `sparks` (pride rising),
 `tungsten_strike` (anger/boundary — one shard, screen tremor via `impact`

@@ -167,7 +167,7 @@ try {
     assert.equal(await page.$eval('#theme-name', input => input.value), industrial.name);
     assert.equal(await page.$eval('#saved-theme', input => input.value), industrial.id);
     assert.deepEqual(await state(), before);
-    assert.ok(requests.at(-1).payload.messages.some(message => message.content?.includes('[Actual theme tool results]')));
+    assert.ok(requests.at(-1).payload.messages.some(message => message.content?.includes('[Actual tool results]')));
     await command([{ type: 'apply_theme', themeId: designed.id }]);
     assert.deepEqual(await current(), designed.cssVars);
 

@@ -10,7 +10,10 @@
     "phone": "vite build && vite preview --host --port 5173",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test:themes": "node scripts/test-saved-themes.mjs",
-    "test:companion-themes": "node scripts/test-companion-themes.mjs"
+    "test:companion-themes": "node scripts/test-companion-themes.mjs",
+    "room": "node ../room/server.mjs",
+    "test:room": "node --test ../room/room.test.mjs",
+    "test:room-ui": "node scripts/test-room.mjs"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^3.1.2",

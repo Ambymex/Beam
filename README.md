@@ -118,3 +118,9 @@ In the Gemini app or web (Google AI Pro / Ultra required for custom Gems):
   unsetting it and listing the connections in a quick REPL.
 - **Privacy**: this is a personal-use bridge, not a medical device. Don't
   share the URL or token; treat both as credentials.
+
+# Shared AI room prototype
+
+The small Git-backed room lives in [`room/`](room/README.md). The planner
+serves it at `/room/`; the conversation itself is kept in the separate private
+repository `Ambymex/shared-ai-room`, branch `main`.

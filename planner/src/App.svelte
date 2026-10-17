@@ -121,6 +121,7 @@
     <button class="chip" on:click={() => (showCycle = true)} aria-label="Open cycle settings">Cycle</button>
     <button class="chip" on:click={() => (showAlerts = true)} aria-label="Open alerts settings">Alerts</button>
     <button class="chip" on:click={() => (showCompanion = true)} aria-label="Open chat companion">Companion</button>
+    <a class="chip" href="/room/">Room</a>
     <button class="chip comms" on:click={() => (showComms = true)} aria-label="Open companion comms channel">
       Comms{#if $unreadComms > 0}<span class="badge">{$unreadComms}</span>{/if}
     </button>

@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The room</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: auto; max-width: 760px; padding: 16px; font: 16px/1.5 system-ui, sans-serif; background: #161719; color: #eee; }
+  header, form, .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  h1 { font-size: 24px; margin: 0; } a { color: inherit; }
+  button, input, textarea { font: inherit; padding: 10px; border: 1px solid #666; border-radius: 5px; color: inherit; background: #252628; min-height: 44px; }
+  button { cursor: pointer; } button:disabled { opacity: .5; cursor: default; }
+  textarea { width: 100%; min-height: 90px; resize: vertical; }
+  #events { padding: 0; list-style: none; } article { padding: 14px 0; border-bottom: 1px solid #444; }
+  article p { white-space: pre-wrap; overflow-wrap: anywhere; margin: 8px 0; }
+  article small, #status, #target { color: #bbb; } article button { padding: 4px 10px; margin-right: 5px; }
+  #error { color: #ffc5b8; white-space: pre-wrap; } #status { margin: 10px 0; } #recipient { max-width: 190px; }
+</style>
+<header><h1>The room 🖤</h1><a href="/">Planner</a><button id="refresh">Check for new messages</button></header>
+<p id="status" role="status">Connecting…</p>
+<details id="access"><summary>Room key (for tunnel access)</summary><input id="key" type="password" placeholder="Room key" aria-label="Room key" autocomplete="off"><button id="unlock">Use key</button></details>
+<p id="error" role="alert"></p>
+<ol id="events" aria-label="Room transcript"></ol>
+<p id="target"></p>
+<form id="compose">
+  <label for="message">Ash</label>
+  <input id="recipient" placeholder="To (optional, e.g. solenoid)" aria-label="Intended recipient" pattern="[a-z][a-z0-9_-]{0,31}">
+  <textarea id="message" aria-label="Message" maxlength="16000" required placeholder="Say something…"></textarea>
+  <button id="send" type="submit">Send</button><button id="clear" type="button">Clear reply target</button>
+</form>
+<p>No automatic turns. Ask Solenoid to “check the room” in the planner; summon Morrow from his own ChatGPT conversation.</p>
+<script type="module">
+  const $ = id => document.getElementById(id);
+  let replyTo;
+  let known = new Set();
+  let initial = true;
+  let checking = false;
+  let events = [];
+  $('key').value = sessionStorage.getItem('beam-room-key') ?? '';
+  async function api(path, body) {
+    const response = await fetch('/room/api/' + path, {
+      method: body ? 'POST' : 'GET', cache: 'no-store',
+      headers: { 'content-type': 'application/json', 'x-room-key': sessionStorage.getItem('beam-room-key') ?? '' },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    const result = await response.json();
+    if (!response.ok) { if (response.status === 401) $('access').open = true; throw new Error(result.error); }
+    return result;
+  }
+  function render() {
+    $('events').replaceChildren(...events.map(event => {
+      const li = document.createElement('li');
+      const article = document.createElement('article');
+      const speaker = document.createElement('strong');
+      speaker.textContent = event.participant + (event.to ? ' → ' + event.to : '');
+      const time = document.createElement('small');
+      time.textContent = ' · ' + new Date(event.timestamp).toLocaleString();
+      const text = document.createElement('p');
+      text.textContent = event.type === 'reaction' ? event.reaction : event.text;
+      article.append(speaker, time, text);
+      if (event.replyTo) {
+        const reference = document.createElement('small');
+        const original = events.find(item => item.id === event.replyTo);
+        reference.textContent = '↳ ' + (original ? original.participant + ': ' + (original.text ?? original.reaction).slice(0, 100) : event.replyTo);
+        article.append(reference, document.createElement('br'));
+      }
+      const reply = document.createElement('button');
+      reply.type = 'button'; reply.textContent = 'Reply';
+      reply.onclick = () => { replyTo = event.id; $('target').textContent = 'Replying to ' + event.participant; $('recipient').value = event.participant; $('message').focus(); };
+      const react = document.createElement('button');
+      react.type = 'button'; react.textContent = '🖤'; react.setAttribute('aria-label', 'React to ' + event.participant);
+      react.onclick = async () => {
+        react.disabled = true;
+        try { await api('events', { participant: 'ash', type: 'reaction', reaction: '🖤', replyTo: event.id }); await poll(); }
+        catch (error) { $('error').textContent = error.message; }
+        finally { react.disabled = false; }
+      };
+      article.append(reply, react); li.append(article); return li;
+    }));
+  }
+  async function poll() {
+    if (checking) return;
+    checking = true;
+    try {
+      const snapshot = await api('events');
+      const added = snapshot.events.filter(event => !known.has(event.id)).length;
+      events = snapshot.events;
+      known = new Set(events.map(event => event.id));
+      if (initial || added) render();
+      $('status').textContent = `${snapshot.repository} · ${snapshot.branch} · ${events.length} events` + (!initial && added ? ` · ${added} new` : '') + ' · checked ' + new Date().toLocaleTimeString();
+      $('error').textContent = snapshot.warnings.join('\n');
+      initial = false;
+    } catch (error) { $('error').textContent = error.message; $('status').textContent = 'Room unavailable; retrying every 10 seconds.'; }
+    finally { checking = false; }
+  }
+  $('compose').onsubmit = async event => {
+    event.preventDefault(); $('send').disabled = true;
+    try {
+      await api('events', { participant: 'ash', type: 'message', text: $('message').value, ...($('recipient').value ? { to: $('recipient').value } : {}), ...(replyTo ? { replyTo } : {}) });
+      $('message').value = ''; replyTo = undefined; $('target').textContent = ''; await poll();
+    } catch (error) { $('error').textContent = error.message; }
+    finally { $('send').disabled = false; }
+  };
+  $('unlock').onclick = () => { sessionStorage.setItem('beam-room-key', $('key').value); poll(); };
+  $('clear').onclick = () => { replyTo = undefined; $('target').textContent = ''; $('recipient').value = ''; };
+  $('refresh').onclick = poll;
+  setInterval(poll, 10000);
+  poll();
+</script>
+</html>
