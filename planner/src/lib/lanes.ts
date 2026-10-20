@@ -23,6 +23,16 @@ export const LANES: Lane[] = [
   { id: 'symptom',    label: 'Symptom',    rInner: 52,  rOuter: 62  },
 ];
 
+// Passive log rings record historical state (mood/vibe, food & fuel intake,
+// symptom windows) rather than actionable to-do tasks. Blocks on these lanes
+// stay anchored to the day they were logged and never migrate forward as
+// "undone work" at midnight rollover.
+export const PASSIVE_LOG_LANES = new Set<string>(['emotion', 'appetite', 'symptom']);
+
+export function isPassiveLogLane(laneId: string): boolean {
+  return PASSIVE_LOG_LANES.has(laneId);
+}
+
 export const RIM_RADIUS = 182; // outer edge of the main lane
 export const LABEL_RADIUS = 194; // hour numbers sit just outside the rim
 export const HUB_RADIUS = 50; // centre circle: date + env state

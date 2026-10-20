@@ -24,10 +24,18 @@ export function isRoomAction(action: { type: string }): action is RoomAction {
   return ['read_room', 'post_room', 'react_room'].includes(action.type);
 }
 
+function getRoomKey(): string {
+  try {
+    return localStorage.getItem('beam-room-key') || sessionStorage.getItem('beam-room-key') || '';
+  } catch {
+    return sessionStorage.getItem('beam-room-key') ?? '';
+  }
+}
+
 async function request(path: string, body?: unknown): Promise<any> {
   const response = await fetch('/room/api/' + path, {
     method: body ? 'POST' : 'GET', cache: 'no-store',
-    headers: { 'content-type': 'application/json', 'x-room-key': sessionStorage.getItem('beam-room-key') ?? '' },
+    headers: { 'content-type': 'application/json', 'x-room-key': getRoomKey() },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   if (!response.headers.get('content-type')?.includes('application/json')) {

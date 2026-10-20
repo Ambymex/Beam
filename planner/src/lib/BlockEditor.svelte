@@ -3,6 +3,7 @@
   // delete it. Appears only when a block is selected; colour stays primary, the
   // text is the index. Drives RadialCanvas via the daystate action store.
   import { selectedBlockStore, blockActions } from './daystate';
+  import { isPassiveLogLane } from './lanes';
   import { resolveVibe } from './categories';
   import { armedVibe } from './stores';
   import { VIBES } from './vibes';
@@ -139,10 +140,10 @@
   }
 
   // ----- recurring tasks (§ repeats) -----
-  // The repeat control shows for real task blocks, not the emotion log lane.
-  // The emotion lane is a passive log (records what happened), so it doesn't
-  // repeat. Everything else, medication included, is repeatable.
-  $: canRepeat = !!sb && sb.laneId !== 'emotion';
+  // The repeat control shows for real task blocks, not passive log lanes.
+  // Passive lanes (emotion, appetite, symptom) record what happened on a day,
+  // so they don't repeat. Everything else, medication included, is repeatable.
+  $: canRepeat = !!sb && !isPassiveLogLane(sb.laneId);
   // The rule behind the selected instance, if it's a repeat (reactive on the store).
   $: rule = sb?.repeatId ? ($repeatRules.find((r) => r.id === sb.repeatId) ?? null) : null;
   $: repeatMode = rule ? rule.freq : 'off'; // 'off' | 'daily' | 'weekly'

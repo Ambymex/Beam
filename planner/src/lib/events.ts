@@ -17,6 +17,7 @@
 
 import type { Block } from './blocks';
 import { isAppointment, departureHours } from './blocks';
+import { isPassiveLogLane } from './lanes';
 import { parseKey } from './daydata';
 import { resolveVibe } from './categories';
 
@@ -99,9 +100,9 @@ export function vibeToEmoji(hex: string): string {
 export function eventsForDay(dayKey: string, blocks: Block[]): TransitionEvent[] {
   const out: TransitionEvent[] = [];
   for (const b of blocks) {
-    // done or emotion (a passive log) = no ping. Medication is a reminder lane,
-    // so it falls through to the ordinary block-start ping below.
-    if (b.done || b.laneId === 'emotion') continue;
+    // done or passive log lanes (emotion, appetite, symptom) = no ping. Medication
+    // is a reminder lane, so it falls through to the ordinary block-start ping below.
+    if (b.done || isPassiveLogLane(b.laneId)) continue;
     const label = b.label?.trim();
 
     if (isAppointment(b)) {

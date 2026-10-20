@@ -2,6 +2,8 @@
 // can be unit-tested; the Svelte stores and persistence live in days.ts.
 
 import { repairBlock, type Block } from './blocks';
+import { collapseDoubledDiaryHeaders } from './diaryDedupe';
+import { isPassiveLogLane } from './lanes';
 import type { Symptom } from './symptoms';
 import type { AppetiteEntry } from './appetite';
 
@@ -15,6 +17,7 @@ export interface DayData {
   nextSymptomId: number;
   nextAppetiteId?: number;
   diary?: string; // Daily reflection/notes
+  ledger?: string; // End-of-day Daily Summary / Ledger written by Companion
 }
 
 export type DaysMap = Record<string, DayData>; // key: 'YYYY-MM-DD' (local date)
@@ -77,6 +80,33 @@ export function sortedKeysDesc(days: DaysMap, todayKey: string): string[] {
 // gently following the user forward until it's done.
 export function migrateUndone(days: DaysMap, todayKey: string): DaysMap {
   const out: DaysMap = structuredClone(days);
+
+  // First, heal any passive-log blocks (emotion, appetite, symptom) that were
+  // previously migrated forward before appetite/symptom were added to
+  // PASSIVE_LOG_LANES: return them to their original `migratedFrom` day so
+  // historical records stay intact and today's ring stays clean.
+  for (const key of Object.keys(out)) {
+    const day = out[key];
+    const remaining: Block[] = [];
+    for (const b of day.blocks) {
+      if (isPassiveLogLane(b.laneId) && b.migratedFrom && b.migratedFrom !== key) {
+        const originKey = b.migratedFrom;
+        const originDay = out[originKey] ?? emptyDay();
+        const { migratedFrom: _dropped, ...cleanBlock } = b;
+        originDay.blocks.push(
+          repairBlock({
+            ...cleanBlock,
+            id: originDay.nextId++,
+          }),
+        );
+        out[originKey] = originDay;
+      } else {
+        remaining.push(b);
+      }
+    }
+    day.blocks = remaining;
+  }
+
   const today = out[todayKey] ?? emptyDay();
   let nextId = today.nextId;
 
@@ -86,12 +116,10 @@ export function migrateUndone(days: DaysMap, todayKey: string): DaysMap {
     const stay: Block[] = [];
     for (const b of day.blocks) {
       // Done blocks stay as the record; appointments are date-fixed (§8) and
-      // never migrate; emotional logs stay as historical record; repeat
-      // instances keep their own rhythm (they recur on schedule, never pile
-      // forward — Ash's call, 2026-08-03).
-      // emotion is a passive log — it stays as the historical record and never
-      // piles forward (medication IS a reminder lane, so it migrates like main).
-      if (b.done || b.kind === 'appointment' || b.laneId === 'emotion' || b.repeatId) {
+      // never migrate; passive telemetry logs (emotion, appetite, symptom) stay
+      // on their historical day and never pile forward; repeat instances keep
+      // their own rhythm (medication IS a reminder lane, so it migrates like main).
+      if (b.done || b.kind === 'appointment' || isPassiveLogLane(b.laneId) || b.repeatId) {
         stay.push(b);
       } else {
         today.blocks.push(repairBlock({ ...b, id: nextId++, migratedFrom: b.migratedFrom ?? key }));
@@ -108,6 +136,9 @@ export function migrateUndone(days: DaysMap, todayKey: string): DaysMap {
   // LLM edits otherwise haunt the ring as unclickable >360° loops.
   for (const day of Object.values(out)) {
     day.blocks = day.blocks.map(repairBlock);
+    if (day.diary) {
+      day.diary = collapseDoubledDiaryHeaders(day.diary);
+    }
   }
   return out;
 }

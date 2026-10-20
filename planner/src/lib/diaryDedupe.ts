@@ -12,6 +12,7 @@
 function paraKey(p: string): string {
   return p
     .replace(/\*?Companion Reflection \(\d{1,2}:\d{2}\):?\*?/gi, '')
+    .replace(/\*?Daily Summary\s*\/?\s*Ledger(?:\s*\([^)]*\))?:?\*?/gi, '')
     .replace(/[*_#>`~[\]()\-—|]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
@@ -29,19 +30,33 @@ function splitParas(text: string): string[] {
 // legitimate repeat ("Tired again.") shouldn't be silently swallowed.
 const MIN_KEY_LEN = 12;
 
+const LEADING_HEADER_RE =
+  /^(?:\s*(?:\*{1,2}|_)?(?:Companion Reflection|Daily Summary\s*\/?\s*Ledger|End[-\s]of[-\s]Day\s+Ledger)(?:\s*\([^)]*\))?:?(?:\*{1,2}|_)?\s*)+/i;
+
+const DOUBLED_HEADER_RE =
+  /((?:\*{1,2}|_)?(?:Companion Reflection|Daily Summary\s*\/?\s*Ledger)\s*\([^)]+\):?(?:\*{1,2}|_)?)\s*(?:\*{1,2}|_)?(?:Companion Reflection|Daily Summary\s*\/?\s*Ledger)\s*\([^)]+\):?(?:\*{1,2}|_)?/gi;
+
+export function stripLeadingDiaryHeader(text: string): string {
+  return text.replace(LEADING_HEADER_RE, '').trim();
+}
+
+export function collapseDoubledDiaryHeaders(text: string): string {
+  return text.replace(DOUBLED_HEADER_RE, '$1');
+}
+
 // Reduce an incoming update_diary payload to the genuinely NEW paragraphs:
 // anything already present in the existing diary (in normalized form) is
 // dropped. Returns '' when the payload adds nothing.
 export function novelDiaryContent(existing: string, incoming: string): string {
   const existingTrim = existing.trim();
-  let inc = incoming.trim();
+  let inc = stripLeadingDiaryHeader(incoming);
   if (!existingTrim) return inc;
   if (!inc) return '';
 
   // Fast path: the model echoed the entire diary verbatim with additions —
   // strip the echoed copy outright before paragraph comparison.
   if (inc.includes(existingTrim)) {
-    inc = inc.replace(existingTrim, '').trim();
+    inc = stripLeadingDiaryHeader(inc.replace(existingTrim, ''));
     if (!inc) return '';
   }
 
@@ -52,7 +67,7 @@ export function novelDiaryContent(existing: string, incoming: string): string {
     if (key.length < MIN_KEY_LEN) return true; // too short to judge — keep
     return !existingKey.includes(key);
   });
-  return kept.join('\n\n');
+  return stripLeadingDiaryHeader(kept.join('\n\n'));
 }
 
 // One-shot cleanup for a diary that has already accumulated duplicates:
@@ -60,7 +75,8 @@ export function novelDiaryContent(existing: string, incoming: string): string {
 export function dedupeDiary(text: string): string {
   const seen: string[] = [];
   const kept: string[] = [];
-  for (const p of splitParas(text)) {
+  for (const rawP of splitParas(collapseDoubledDiaryHeaders(text))) {
+    const p = collapseDoubledDiaryHeaders(rawP);
     const key = paraKey(p);
     if (key.length === 0) continue; // orphan header/separator
     if (key.length >= MIN_KEY_LEN && seen.some((s) => s === key || s.includes(key))) continue;

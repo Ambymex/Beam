@@ -112,7 +112,7 @@ try {
     ]);
     assert.equal(requests.length, 2);
     assert.ok(requests.every(request => request.route === route));
-    assert.ok(requests.at(-1).payload.messages.some(message => message.content?.startsWith('SHARED ROOM CONTENT')));
+    assert.ok(requests.at(-1).payload.messages.some(message => typeof message.content === 'string' && message.content.startsWith('SHARED ROOM CONTENT')));
     assert.deepEqual(await state(), before, 'A room follow-up must not alter private planner state.');
     assert.equal(events.filter(event => event.participant === 'solenoid').length, 2);
     assert.equal(events.find(event => event.type === 'reaction').reaction, 'solenoid:tungsten_strike');

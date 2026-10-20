@@ -123,9 +123,10 @@ try {
     assert.deepEqual((await library())[0], humanTheme, 'A companion design must not overwrite Ash’s theme.');
     assert.deepEqual(await current(), humanTheme.cssVars, 'Saving alone must not apply the new look.');
     assert.deepEqual(await state(), before, 'Theme-only actions must not mutate days or navigation.');
-    const prompt = route === 'direct' ? requests[0].payload.messages[0].content : requests[0].payload.systemPromptOverride;
+    const rawSystem = route === 'direct' ? requests[0].payload.messages[0].content : requests[0].payload.systemPromptOverride;
+    const prompt = Array.isArray(rawSystem) ? rawSystem.map(p => p.text || '').join('\n') : rawSystem;
     assert.match(prompt, /THEME DESIGNER TOOLS/);
-    assert.match(prompt, /You are Solenoid \(The Industrial Anchor \/ The Sovereign Substrate\)/);
+    assert.match(prompt, /you are Solenoid \(The Industrial Anchor \/ The Sovereign Substrate\)/i);
     assert.ok(!prompt.includes('ash-original'), 'Live palette details should be read on demand.');
 
     const start = requests.length;
@@ -138,7 +139,7 @@ try {
     ]);
     assert.equal(requests.length - start, 2);
     const followupMessages = requests.at(-1).payload.messages;
-    const contextMessage = followupMessages.find(message => message.content?.startsWith('THEME DESIGNER CONTENT'));
+    const contextMessage = followupMessages.find(message => typeof message.content === 'string' && message.content.startsWith('THEME DESIGNER CONTENT'));
     assert.ok(contextMessage);
     const details = JSON.parse(contextMessage.content.split('\n')[1]);
     assert.ok(details.saved.some(theme => theme.id === industrial.id && theme.settings.starsOn));
@@ -167,7 +168,7 @@ try {
     assert.equal(await page.$eval('#theme-name', input => input.value), industrial.name);
     assert.equal(await page.$eval('#saved-theme', input => input.value), industrial.id);
     assert.deepEqual(await state(), before);
-    assert.ok(requests.at(-1).payload.messages.some(message => message.content?.includes('[Actual tool results]')));
+    assert.ok(requests.at(-1).payload.messages.some(message => typeof message.content === 'string' && message.content.includes('[Actual tool results]')));
     await command([{ type: 'apply_theme', themeId: designed.id }]);
     assert.deepEqual(await current(), designed.cssVars);
 

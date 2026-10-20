@@ -30,7 +30,8 @@ async function initDays() {
         nextId: row.nextId,
         nextSymptomId: row.nextSymptomId,
         nextAppetiteId: row.nextAppetiteId ?? 1,
-        diary: row.diary || ''
+        diary: row.diary || '',
+        ledger: row.ledger || ''
       };
     }
 
@@ -59,7 +60,8 @@ async function initDays() {
           nextId: data.nextId,
           nextSymptomId: data.nextSymptomId,
           nextAppetiteId: data.nextAppetiteId ?? 1,
-          diary: data.diary || ''
+          diary: data.diary || '',
+          ledger: data.ledger || ''
         }));
       }
     }
@@ -176,6 +178,7 @@ export function saveDay(
   days.update((all) => {
     const existing = all[key];
     const resolvedDiary = diary !== undefined ? diary : (existing?.diary || '');
+    const resolvedLedger = existing?.ledger || '';
     const resolvedAppetite = appetite !== undefined ? appetite : (existing?.appetite ?? []);
     const resolvedNextAppetiteId = nextAppetiteId !== undefined ? nextAppetiteId : (existing?.nextAppetiteId ?? 1);
     return {
@@ -187,7 +190,8 @@ export function saveDay(
         nextId,
         nextSymptomId,
         nextAppetiteId: resolvedNextAppetiteId,
-        diary: resolvedDiary
+        diary: resolvedDiary,
+        ledger: resolvedLedger
       }
     };
   });
@@ -221,7 +225,8 @@ days.subscribe((value) => {
         nextId: data.nextId,
         nextSymptomId: data.nextSymptomId,
         nextAppetiteId: data.nextAppetiteId ?? 1,
-        diary: data.diary || ''
+        diary: data.diary || '',
+        ledger: data.ledger || ''
       }).catch((err) => console.error('[DB] Subscriber failed to save day:', err));
     }
   }
