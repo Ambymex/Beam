@@ -10,6 +10,8 @@ interface BackupPayload {
     customCategories: any[];
     scratchpad: any[];
     repeatRules?: any[]; // v2+ (recurring tasks)
+    comms?: any[]; // v2+ (companion notification archive)
+    glucose?: any[]; // v2+ (CGM history)
   };
   localStorage: Record<string, string | null>;
 }
@@ -25,19 +27,39 @@ export async function exportBackup(): Promise<string> {
     const customCategories = await db.customCategories.toArray();
     const scratchpad = await db.scratchpad.toArray();
     const repeatRules = await db.repeatRules.toArray().catch(() => []);
+    const comms = await db.comms.toArray().catch(() => []);
+    const glucose = await db.glucose.toArray().catch(() => []);
 
     // 2. Fetch all key settings and chat history from localStorage
     const localKeys = [
       'radial-planner-chat-v1',
       'radial-planner-openrouter-key',
       'radial-planner-openrouter-model',
+      'radial-planner-hybrid-routing',
+      'radial-planner-pinecone-key',
+      'radial-planner-pinecone-host',
+      'radial-planner-vault-enabled',
+      'radial-planner-tavily-key',
+      'radial-planner-indexed-diaries-v1',
+      'radial-planner-cot-visible',
       'radial-planner-weather-city',
+      'radial-planner-theme-v1',
       'radial-planner-theme-v2',
       'radial-planner-custom-theme',
       SAVED_THEMES_KEY,
       'radial-planner-theme-swatches',
       'radial-planner-gcal-active',
-      'radial-planner-prompt-modules'
+      'radial-planner-prompt-modules',
+      'radial-planner-capture-v1',
+      'radial-planner-cycle-v1',
+      'radial-planner-beam-url',
+      'radial-planner-beam-token',
+      'radial-planner-glucose-unit',
+      'radial-planner-glucose-low',
+      'radial-planner-glucose-high',
+      'radial-planner-sync-key',
+      'radial-planner-msgsync-cursor',
+      'beam-room-key'
     ];
 
     const localData: Record<string, string | null> = {};
@@ -54,7 +76,9 @@ export async function exportBackup(): Promise<string> {
         customVibes,
         customCategories,
         scratchpad,
-        repeatRules
+        repeatRules,
+        comms,
+        glucose
       },
       localStorage: localData
     };
@@ -99,21 +123,31 @@ export async function importBackup(base64Str: string): Promise<boolean> {
     await db.customCategories.clear();
     await db.scratchpad.clear();
     await db.repeatRules.clear().catch(() => {});
+    if (Array.isArray(payload.db.comms)) {
+      await db.comms.clear().catch(() => {});
+    }
+    if (Array.isArray(payload.db.glucose)) {
+      await db.glucose.clear().catch(() => {});
+    }
 
     // 2. Put imported Dexie records back
     const dayPromises = payload.db.days.map((d) => db.days.put(d));
     const vibePromises = payload.db.customVibes.map((v) => db.customVibes.put(v));
     const catPromises = payload.db.customCategories.map((c) => db.customCategories.put(c));
     const scratchPromises = payload.db.scratchpad.map((s) => db.scratchpad.put(s));
-    // v2+ backups carry recurring-task rules; v1 backups simply have none
+    // v2+ backups carry recurring-task rules, comms, and glucose; v1 backups simply omit them
     const repeatPromises = (payload.db.repeatRules ?? []).map((r) => db.repeatRules.put(r));
+    const commsPromises = (payload.db.comms ?? []).map((c) => db.comms.put(c));
+    const glucosePromises = (payload.db.glucose ?? []).map((g) => db.glucose.put(g));
 
     await Promise.all([
       ...dayPromises,
       ...vibePromises,
       ...catPromises,
       ...scratchPromises,
-      ...repeatPromises
+      ...repeatPromises,
+      ...commsPromises,
+      ...glucosePromises
     ]);
 
     // 3. Restore localStorage settings & chat logs
