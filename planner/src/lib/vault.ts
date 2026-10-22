@@ -4,10 +4,36 @@ import { pipeline, env } from '@xenova/transformers';
 env.allowLocalModels = false;
 
 let embedderPromise: any = null;
+let liveQueryInFlight = 0;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${ms}ms`));
+    }, ms);
+    promise.then(
+      (val) => {
+        clearTimeout(timer);
+        resolve(val);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
 
 async function getEmbedder() {
   if (!embedderPromise) {
-    embedderPromise = pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
+    embedderPromise = withTimeout(
+      pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2'),
+      8000,
+      'ONNX embedder init'
+    ).catch((err) => {
+      embedderPromise = null;
+      throw err;
+    });
   }
   return embedderPromise;
 }
@@ -16,10 +42,14 @@ async function getEmbedder() {
  * Computes a 384-dimensional dense vector embedding for a given text.
  * Runs 100% client-side via WebAssembly.
  */
-export async function embedText(text: string): Promise<number[]> {
+export async function embedText(text: string, timeoutMs = 5000): Promise<number[]> {
   try {
     const embedder = await getEmbedder();
-    const result = await embedder(text, { pooling: 'mean', normalize: true });
+    const result: any = await withTimeout(
+      embedder(text, { pooling: 'mean', normalize: true }),
+      timeoutMs,
+      'ONNX embedText'
+    );
     return Array.from(result.data) as number[];
   } catch (err) {
     console.error('[Vault] Embedding generation failed:', err);
@@ -38,16 +68,22 @@ interface PineconeMatch {
 
 /**
  * Queries Pinecone for semantically relevant historical context.
+ * Bounded by a strict 3.5-second timeout so a slow CDN, WASM init, or
+ * Pinecone cold start can NEVER block a live chat reply.
  */
 export async function fetchContext(query: string, apiKey: string, indexHost: string, k = 4): Promise<string> {
   if (!apiKey || !indexHost || !query.trim()) return '';
 
+  liveQueryInFlight++;
+  const controller = new AbortController();
+  const abortTimer = setTimeout(() => controller.abort(), 3500);
+
   try {
     const cleanHost = indexHost.replace(/^https?:\/\//, '').replace(/\/$/, '');
     const url = `https://${cleanHost}/query`;
-    
-    // 1. Generate query embedding
-    const queryEmbedding = await embedText(query);
+
+    // 1. Generate query embedding (bounded to 2.5s for live chat responsiveness)
+    const queryEmbedding = await embedText(query, 2500);
 
     // 2. Query Pinecone via HTTP
     const res = await fetch(url, {
@@ -60,7 +96,8 @@ export async function fetchContext(query: string, apiKey: string, indexHost: str
         vector: queryEmbedding,
         topK: k,
         includeMetadata: true
-      })
+      }),
+      signal: controller.signal
     });
 
     if (!res.ok) {
@@ -80,8 +117,11 @@ export async function fetchContext(query: string, apiKey: string, indexHost: str
 
     return fragments.join('\n\n---\n\n');
   } catch (err) {
-    console.warn('[Vault] Failed to retrieve context from Pinecone:', err);
-    return ''; // Fallback to empty context so app continues
+    console.warn('[Vault] Failed or timed out retrieving context from Pinecone:', err);
+    return ''; // Fallback to empty context so app continues immediately
+  } finally {
+    clearTimeout(abortTimer);
+    liveQueryInFlight = Math.max(0, liveQueryInFlight - 1);
   }
 }
 
@@ -343,12 +383,16 @@ export async function syncAllDiariesToVault(
         const chunkKey = `diary_${date}_${hashDiaryChunk(entry)}`;
         if (indexed.has(chunkKey)) continue;
 
+        while (liveQueryInFlight > 0) {
+          await new Promise((r) => setTimeout(r, 300));
+        }
         const id = await upsertDiaryEntry(date, entry, apiKey, indexHost, 'diary');
         if (id) {
           indexed.add(chunkKey);
           saveIndexedHashes(indexed);
           count++;
         }
+        await new Promise((r) => setTimeout(r, 120));
       }
 
       // 2. Index explicit daily ledger if present
@@ -356,12 +400,16 @@ export async function syncAllDiariesToVault(
         const ledgerText = day.ledger.trim();
         const ledgerKey = `ledger_${date}_${hashDiaryChunk(ledgerText)}`;
         if (!indexed.has(ledgerKey)) {
+          while (liveQueryInFlight > 0) {
+            await new Promise((r) => setTimeout(r, 300));
+          }
           const id = await upsertDiaryEntry(date, ledgerText, apiKey, indexHost, 'ledger');
           if (id) {
             indexed.add(ledgerKey);
             saveIndexedHashes(indexed);
             count++;
           }
+          await new Promise((r) => setTimeout(r, 120));
         }
       }
     }

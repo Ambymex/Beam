@@ -381,9 +381,37 @@
   let messages: ChatMessage[] = [];
   let draft = '';
   let isLoading = false;
+  let loadingStage = '';
+  let activeRequestController: AbortController | null = null;
   let errorMsg = '';
   let scrollContainer: HTMLDivElement;
   let inputEl: HTMLTextAreaElement;
+
+  function cancelCurrentRequest() {
+    if (activeRequestController) {
+      activeRequestController.abort(new Error('Cancelled by user'));
+      activeRequestController = null;
+    }
+    isLoading = false;
+    isEmbedding = false;
+    loadingStage = '';
+  }
+
+  async function fetchWithAbort(url: string, init: RequestInit, timeoutMs = 70000): Promise<Response> {
+    const controller = new AbortController();
+    activeRequestController = controller;
+    const timer = setTimeout(() => {
+      controller.abort(new Error(`Request timed out after ${Math.round(timeoutMs / 1000)}s`));
+    }, timeoutMs);
+    try {
+      return await fetch(url, { ...init, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+      if (activeRequestController === controller) {
+        activeRequestController = null;
+      }
+    }
+  }
 
   // Auto-grow the composer: reset to natural height, then take the content's
   // scrollHeight up to the CSS max-height, past which the textarea scrolls.
@@ -1124,9 +1152,25 @@ ${symptomsDesc}`;
     return ctx;
   }
 
+  function coalesceAlternatingMessages(payloadMessages: Array<{ role: string; content: any }>) {
+    const out: Array<{ role: string; content: any }> = [];
+    for (const msg of payloadMessages) {
+      const prev = out[out.length - 1];
+      if (prev && prev.role === msg.role && typeof prev.content === 'string' && typeof msg.content === 'string') {
+        out[out.length - 1] = {
+          ...prev,
+          content: `${prev.content}\n\n${msg.content}`,
+        };
+      } else {
+        out.push({ ...msg });
+      }
+    }
+    return out;
+  }
+
   function attachLiveContextToPayloadMessages(payloadMessages: Array<{ role: string; content: any }>, liveContext: string) {
     if (!payloadMessages.length) return payloadMessages;
-    const copy = payloadMessages.map((m) => ({ ...m }));
+    const copy = coalesceAlternatingMessages(payloadMessages);
     const lastIdx = copy.length - 1;
     const last = copy[lastIdx];
     if (typeof last.content === 'string') {
@@ -1437,6 +1481,7 @@ CURRENT REAL TIME & SCHEDULE:
       saveChat();
     }
     isLoading = true;
+    loadingStage = options.roomOnly ? 'Reading room…' : 'Thinking…';
     errorMsg = '';
 
     try {
@@ -1450,9 +1495,10 @@ CURRENT REAL TIME & SCHEDULE:
       // For room visits (`options.roomOnly`), keep only the last 8 chat messages
       // plus the ephemeral room snapshot, and use the lean ~800-token room system
       // prompt instead of the ~6,500-token full planner prompt + 100 messages.
+      const cleanHistory = messages.filter((m) => !m.id?.startsWith('err_'));
       const historyWindow = options.roomOnly
-        ? [...messages.slice(-8), msg]
-        : messages.slice(-24);
+        ? [...cleanHistory.slice(-8), msg]
+        : cleanHistory.slice(-24);
       const payloadMessages = historyWindow.map((m, idx) => ({
         role: m.role,
         content: messagePayload(m, idx === historyWindow.length - 1),
@@ -1463,7 +1509,7 @@ CURRENT REAL TIME & SCHEDULE:
 
       if (options.roomOnly) {
         systemPromptForCall = getRoomSystemPrompt(realDate, currentTime);
-        messagesForCall = payloadMessages;
+        messagesForCall = coalesceAlternatingMessages(payloadMessages);
       } else {
         let activeBlocks: Block[] = [];
         let activeSymptoms: Symptom[] = [];
@@ -1485,7 +1531,7 @@ CURRENT REAL TIME & SCHEDULE:
       let parsed;
       let providerMeta: { provider?: string; cachedTokens?: number; promptTokens?: number; cacheWriteTokens?: number } = {};
       if (!SUPABASE_URL || (openRouterKey && !useHybridRouting)) {
-        const openRouterRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        const openRouterRes = await fetchWithAbort('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${openRouterKey}`,
@@ -1493,32 +1539,31 @@ CURRENT REAL TIME & SCHEDULE:
           },
           body: JSON.stringify({
             model: selectedModel,
-            session_id: OPENROUTER_SESSION_ID,
             messages: [
               {
                 role: 'system',
-                content: options.roomOnly
-                  ? systemPromptForCall
-                  : [{ type: 'text', text: systemPromptForCall, cache_control: { type: 'ephemeral' } }],
+                content: systemPromptForCall,
               },
               ...messagesForCall,
             ],
             response_format: { type: 'json_object' },
           }),
-        });
+        }, 70000);
         if (!openRouterRes.ok) throw new Error(`OpenRouter API error: ${openRouterRes.status} ${await openRouterRes.text()}`);
         const result = await openRouterRes.json();
         providerMeta = extractProviderMeta(result);
-        parsed = extractLlmJson(result.choices?.[0]?.message?.content?.trim() ?? '');
+        const rawContent = result.choices?.[0]?.message?.content?.trim() ?? '';
+        const rawReasoning = (result.choices?.[0]?.message?.reasoning ?? result.choices?.[0]?.message?.reasoning_content ?? '').trim();
+        parsed = extractLlmJson(rawContent || rawReasoning, { salvageProse: true });
       } else {
-        const res = await fetch(`${SUPABASE_URL}/functions/v1/parse-command`, {
+        const res = await fetchWithAbort(`${SUPABASE_URL}/functions/v1/parse-command`, {
           method: 'POST',
           headers: { 'content-type': 'application/json', apikey: SUPABASE_ANON, authorization: `Bearer ${SUPABASE_ANON}` },
           body: JSON.stringify({
             messages: messagesForCall, currentDate: realDate, currentTime, vibes: allVibes,
             systemPromptOverride: systemPromptForCall, useProxy: useHybridRouting,
           }),
-        });
+        }, 70000);
         if (!res.ok) throw new Error(`Companion service error: ${res.status} ${await res.text()}`);
         parsed = await res.json();
         providerMeta = extractProviderMeta(parsed);
@@ -1542,6 +1587,10 @@ CURRENT REAL TIME & SCHEDULE:
       saveChat();
       if (bgReact) reactLayer?.fire(bgReact);
 
+      if (!options.roomOnly) {
+        isLoading = false;
+        loadingStage = '';
+      }
       if (responseActions.length > 0) await executeActions(responseActions);
       return true;
     } catch (err: any) {
@@ -1551,7 +1600,10 @@ CURRENT REAL TIME & SCHEDULE:
     } finally {
       // The parent room read still has to persist its checkpoint after this
       // model turn. Keep the composer busy until that outer operation finishes.
-      if (!options.roomOnly) isLoading = false;
+      if (!options.roomOnly) {
+        isLoading = false;
+        loadingStage = '';
+      }
     }
   }
 
@@ -1797,6 +1849,7 @@ CURRENT REAL TIME & SCHEDULE:
     }
     errorMsg = '';
     isLoading = true;
+    loadingStage = 'Thinking…';
 
     if (!regen) {
       const userMsg: ChatMessage = {
@@ -1834,8 +1887,8 @@ CURRENT REAL TIME & SCHEDULE:
 
       // Slice messages to last 30 for API payload pruning — the system prompt
       // already carries the full day state, so deep chat history mostly
-      // re-bills tokens without adding context.
-      const recentSlice = messages.slice(-30);
+      // re-bills tokens without adding context. Exclude synthetic error bubbles.
+      const recentSlice = messages.filter((m) => !m.id?.startsWith('err_')).slice(-30);
       const payloadMessages = recentSlice.map((m, idx) => ({
         role: m.role,
         content: messagePayload(m, idx === recentSlice.length - 1)
@@ -1880,12 +1933,14 @@ CURRENT REAL TIME & SCHEDULE:
       let vaultContext = '';
       if (enableVault && pineconeKey && pineconeHost) {
         isEmbedding = true;
+        loadingStage = 'Checking memory vault…';
         try {
           vaultContext = await fetchContext(text, pineconeKey, pineconeHost, 4);
         } catch (vaultErr) {
           console.warn('[Vault] Failed fetching context:', vaultErr);
         } finally {
           isEmbedding = false;
+          loadingStage = 'Thinking…';
         }
       }
 
@@ -1907,20 +1962,22 @@ CURRENT REAL TIME & SCHEDULE:
         const apiMessages = [
           {
             role: 'system',
-            content: [{ type: 'text', text: staticSystemPrompt, cache_control: { type: 'ephemeral' } }],
+            content: staticSystemPrompt,
           },
           ...messagesWithLiveContext,
         ];
 
         // Providers occasionally return 200 with EMPTY content (safety blip,
-        // reasoning-only reply, upstream hiccup). An empty turn used to become
-        // an instant error bar; now we quietly retry a couple of times first —
-        // an empty completion bills almost nothing, and the second attempt
-        // nearly always lands.
+        // reasoning-only reply, upstream hiccup). Retry fast blips up to 2 times,
+        // and also salvage JSON/prose if the provider put the reply inside
+        // `message.reasoning` while leaving `message.content` empty.
         let completionText = '';
         let finishReason = '';
-        for (let attempt = 1; attempt <= 3; attempt++) {
-          const openRouterRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        const maxAttempts = 2;
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          loadingStage = attempt > 1 ? `Thinking (retry ${attempt}/${maxAttempts})…` : 'Thinking…';
+          const attemptStart = Date.now();
+          const openRouterRes = await fetchWithAbort('https://openrouter.ai/api/v1/chat/completions', {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${openRouterKey}`,
@@ -1928,7 +1985,6 @@ CURRENT REAL TIME & SCHEDULE:
             },
             body: JSON.stringify({
               model: selectedModel,
-              session_id: OPENROUTER_SESSION_ID,
               messages: apiMessages,
               response_format: { type: 'json_object' },
               // martini mode: temperature pinned high for this sitting only;
@@ -1943,7 +1999,7 @@ CURRENT REAL TIME & SCHEDULE:
               // chosen per-upload via the tray toggle, default off.
               ...(activeIsPdf ? { plugins: [{ id: 'file-parser', pdf: { engine: activePdfOcr ? 'mistral-ocr' : 'pdf-text' } }] } : {}),
             }),
-          });
+          }, 70000);
 
           if (!openRouterRes.ok) {
             const errText = await openRouterRes.text();
@@ -1952,24 +2008,38 @@ CURRENT REAL TIME & SCHEDULE:
 
           const result = await openRouterRes.json();
           providerMeta = extractProviderMeta(result);
-          if (visibleCot) {
-            const r = result.choices?.[0]?.message?.reasoning;
-            if (typeof r === 'string' && r.trim()) cotReasoning = r.trim();
+          const rawReasoning = (
+            result.choices?.[0]?.message?.reasoning ??
+            result.choices?.[0]?.message?.reasoning_content ??
+            ''
+          ).trim();
+          if (visibleCot && rawReasoning) {
+            cotReasoning = rawReasoning;
           }
           completionText = result.choices?.[0]?.message?.content?.trim() ?? '';
           finishReason = result.choices?.[0]?.finish_reason ?? '';
+          // If the provider placed the JSON reply inside `reasoning` while
+          // leaving `content` empty, salvage it immediately instead of retrying.
+          if (!completionText && rawReasoning && (rawReasoning.includes('"message"') || attempt === maxAttempts)) {
+            completionText = rawReasoning;
+          }
           if (completionText) break;
-          console.warn(`[Companion] Empty completion (attempt ${attempt}/3${finishReason ? `, finish_reason: ${finishReason}` : ''}) — retrying…`);
-          if (attempt < 3) await new Promise((r) => setTimeout(r, 600 * attempt));
+          console.warn(`[Companion] Empty completion (attempt ${attempt}/${maxAttempts}${finishReason ? `, finish_reason: ${finishReason}` : ''}) — retrying…`);
+          // Only retry if the empty response came back quickly (<15s)
+          if (attempt < maxAttempts && Date.now() - attemptStart < 15000) {
+            await new Promise((r) => setTimeout(r, 500));
+          } else {
+            break;
+          }
         }
         if (!completionText) {
-          throw new Error(`The model returned an empty reply three times${finishReason ? ` (finish_reason: ${finishReason}` : ''} — the provider may be having a moment. Try again, or switch models in Settings.`);
+          throw new Error(`The model returned an empty reply${finishReason ? ` (finish_reason: ${finishReason})` : ''} — the provider may be having a moment. Tap Regenerate, or switch models in Settings.`);
         }
         // interactive chat: if all JSON recovery fails, show the raw reply as
         // his message instead of an error bar (actions just come up empty)
         parsed = extractLlmJson(completionText, { salvageProse: true });
       } else {
-        const res = await fetch(`${SUPABASE_URL}/functions/v1/parse-command`, {
+        const res = await fetchWithAbort(`${SUPABASE_URL}/functions/v1/parse-command`, {
           method: 'POST',
           headers: {
             'content-type': 'application/json',
@@ -1984,7 +2054,7 @@ CURRENT REAL TIME & SCHEDULE:
             systemPromptOverride: staticSystemPrompt,
             useProxy: useHybridRouting
           }),
-        });
+        }, 70000);
 
         if (!res.ok) {
           const txt = await res.text();
@@ -2023,6 +2093,11 @@ CURRENT REAL TIME & SCHEDULE:
       saveChat();
       if (chatReact) reactLayer?.fire(chatReact);
 
+      // Clear the Thinking indicator as soon as the reply bubble is rendered;
+      // follow-up tool turns (read_themes, read_room, web_search) re-enable it if needed.
+      isLoading = false;
+      loadingStage = '';
+
       // Upsert the exchange to the Pinecone Vector Vault in the background
       if (enableVault && pineconeKey && pineconeHost) {
         injectMemory(text, assistantMsg.content, pineconeKey, pineconeHost).catch(err => {
@@ -2036,6 +2111,9 @@ CURRENT REAL TIME & SCHEDULE:
       }
 
     } catch (err: any) {
+      if (err?.name === 'AbortError' || /cancelled by user/i.test(err?.message || '')) {
+        return;
+      }
       console.error('Failed to parse command:', err);
       errorMsg = err.message || 'Could not reach the Companion service. Make sure your network is connected and API keys are set.';
       
@@ -2049,6 +2127,7 @@ CURRENT REAL TIME & SCHEDULE:
       saveChat();
     } finally {
       isLoading = false;
+      loadingStage = '';
     }
   }
 
@@ -3071,10 +3150,10 @@ CURRENT REAL TIME & SCHEDULE:
             </div>
           {/if}
 
-          <!-- Provider / cache badge + Regenerate row under assistant replies -->
-          {#if msg.role === 'assistant' && (msg.provider || (msg.id === messages[messages.length - 1]?.id && !isLoading))}
+          <!-- Provider / cache badge + Regenerate row under assistant replies (or trailing unanswered user message) -->
+          {#if (msg.role === 'assistant' && msg.provider) || (msg.id === messages[messages.length - 1]?.id && !isLoading)}
             <div class="msg-footer-bar">
-              {#if msg.provider}
+              {#if msg.role === 'assistant' && msg.provider}
                 {@const badge = formatProviderBadge(msg.provider, msg.cachedTokens, msg.promptTokens, msg.cacheWriteTokens)}
                 <span class="provider-badge {badge.kind}" title={badge.tooltip}>
                   <span class="prov-sym" aria-hidden="true">{badge.symbol}</span>
@@ -3105,7 +3184,10 @@ CURRENT REAL TIME & SCHEDULE:
       <div class="message-wrap assistant loading">
         <div class="avatar pulsing">✦</div>
         <div class="bubble pulsing-bubble">
-          Thinking...
+          <span>{loadingStage || 'Thinking…'}</span>
+          <button type="button" class="cancel-thinking-btn" on:click={cancelCurrentRequest} title="Cancel request">
+            ✕ Cancel
+          </button>
         </div>
       </div>
     {/if}
@@ -3550,6 +3632,23 @@ CURRENT REAL TIME & SCHEDULE:
   .pulsing-bubble {
     animation: bubble-pulse 1.4s infinite alternate;
     color: var(--text-faint);
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .cancel-thinking-btn {
+    background: transparent;
+    border: 1px solid var(--hairline);
+    border-radius: 6px;
+    color: var(--text-muted);
+    font-size: 11px;
+    padding: 2px 7px;
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease;
+  }
+  .cancel-thinking-btn:hover {
+    color: var(--signal);
+    border-color: var(--signal);
   }
   @keyframes av-pulse {
     from { box-shadow: 0 0 0 1px var(--signal) inset; }
