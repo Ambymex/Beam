@@ -383,11 +383,13 @@
   let isLoading = false;
   let loadingStage = '';
   let activeRequestController: AbortController | null = null;
+  let userExplicitlyCancelled = false;
   let errorMsg = '';
   let scrollContainer: HTMLDivElement;
   let inputEl: HTMLTextAreaElement;
 
   function cancelCurrentRequest() {
+    userExplicitlyCancelled = true;
     if (activeRequestController) {
       activeRequestController.abort(new Error('Cancelled by user'));
       activeRequestController = null;
@@ -400,6 +402,7 @@
   async function fetchWithAbort(url: string, init: RequestInit, timeoutMs = 70000): Promise<Response> {
     const controller = new AbortController();
     activeRequestController = controller;
+    userExplicitlyCancelled = false;
     const timer = setTimeout(() => {
       controller.abort(new Error(`Request timed out after ${Math.round(timeoutMs / 1000)}s`));
     }, timeoutMs);
@@ -540,16 +543,78 @@
   }
 
   function readFileAsDataUrl(file: File): Promise<PendingAttachment> {
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => {
-        const dataUrl = reader.result as string;
-        resolve({
-          id: 'att_' + Math.random().toString(36).slice(2) + Date.now(),
-          name: file.name,
-          dataUrl,
-          isPdf: dataUrl.startsWith('data:application/pdf') || file.type === 'application/pdf',
-        });
+        const rawDataUrl = reader.result as string;
+        if (isPdf) {
+          resolve({
+            id: 'att_' + Math.random().toString(36).slice(2) + Date.now(),
+            name: file.name,
+            dataUrl: rawDataUrl,
+            isPdf: true,
+          });
+          return;
+        }
+
+        // For images: downscale to max 1600px and transcode to JPEG (0.85 quality).
+        // Keeps payload <250KB, avoids WebKit jetsam crashes, converts HEIC/PNG to standard JPEG,
+        // and uploads in milliseconds over mobile/ngrok without OpenRouter 413 or timeout.
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const maxDim = 1600;
+            let { width, height } = img;
+            if (width > maxDim || height > maxDim) {
+              if (width > height) {
+                height = Math.round((height * maxDim) / width);
+                width = maxDim;
+              } else {
+                width = Math.round((width * maxDim) / height);
+                height = maxDim;
+              }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              resolve({
+                id: 'att_' + Math.random().toString(36).slice(2) + Date.now(),
+                name: file.name,
+                dataUrl: rawDataUrl,
+                isPdf: false,
+              });
+              return;
+            }
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressedUrl = canvas.toDataURL('image/jpeg', 0.85);
+            resolve({
+              id: 'att_' + Math.random().toString(36).slice(2) + Date.now(),
+              name: file.name,
+              dataUrl: compressedUrl,
+              isPdf: false,
+            });
+          } catch {
+            resolve({
+              id: 'att_' + Math.random().toString(36).slice(2) + Date.now(),
+              name: file.name,
+              dataUrl: rawDataUrl,
+              isPdf: false,
+            });
+          }
+        };
+        img.onerror = () => {
+          // If image decoding failed in browser, resolve with raw dataUrl
+          resolve({
+            id: 'att_' + Math.random().toString(36).slice(2) + Date.now(),
+            name: file.name,
+            dataUrl: rawDataUrl,
+            isPdf: false,
+          });
+        };
+        img.src = rawDataUrl;
       };
       reader.onerror = () => reject(reader.error);
       reader.readAsDataURL(file);
@@ -585,13 +650,17 @@
   }
   
   let modelsList: Array<{ id: string; name?: string }> = [
+    { id: 'google/gemini-2.0-flash-001', name: 'Gemini 2.0 Flash' },
+    { id: 'google/gemini-flash-1.5', name: 'Gemini 1.5 Flash' },
+    { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
+    { id: 'google/gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
+    { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet' },
+    { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini' },
     { id: 'google/gemma-2-27b-it', name: 'Gemma 2 27B' },
     { id: 'google/gemma-2-9b-it', name: 'Gemma 2 9B (Free)' },
     { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3 70B' },
     { id: 'meta-llama/llama-3.1-8b-instruct', name: 'Llama 3.1 8B (Free)' },
     { id: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen 2.5 72B' },
-    { id: 'google/gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
-    { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash' }
   ];
 
   onMount(() => {
@@ -1156,11 +1225,32 @@ ${symptomsDesc}`;
     const out: Array<{ role: string; content: any }> = [];
     for (const msg of payloadMessages) {
       const prev = out[out.length - 1];
-      if (prev && prev.role === msg.role && typeof prev.content === 'string' && typeof msg.content === 'string') {
-        out[out.length - 1] = {
-          ...prev,
-          content: `${prev.content}\n\n${msg.content}`,
+      if (prev && prev.role === msg.role) {
+        // Coalesce same-role messages so Gemini / Vertex / OpenRouter never see consecutive user or assistant messages
+        const toParts = (c: any): any[] => {
+          if (typeof c === 'string') return [{ type: 'text', text: c }];
+          if (Array.isArray(c)) return c;
+          return [{ type: 'text', text: String(c ?? '') }];
         };
+
+        const prevParts = toParts(prev.content);
+        const msgParts = toParts(msg.content);
+
+        // If all parts are text, collapse back to a single string for optimal prompt caching & model compatibility
+        const allText = prevParts.every((p: any) => p?.type === 'text') && msgParts.every((p: any) => p?.type === 'text');
+        if (allText) {
+          const prevText = prevParts.map((p: any) => p.text).join('\n\n');
+          const msgText = msgParts.map((p: any) => p.text).join('\n\n');
+          out[out.length - 1] = {
+            ...prev,
+            content: `${prevText}\n\n${msgText}`,
+          };
+        } else {
+          out[out.length - 1] = {
+            ...prev,
+            content: [...prevParts, ...msgParts],
+          };
+        }
       } else {
         out.push({ ...msg });
       }
@@ -1179,9 +1269,17 @@ ${symptomsDesc}`;
         content: `${last.content}\n\n${liveContext}`,
       };
     } else if (Array.isArray(last.content)) {
-      const parts = last.content.map((p: any, idx: number) =>
-        idx === 0 && p.type === 'text' ? { ...p, text: `${p.text}\n\n${liveContext}` } : p
-      );
+      let attached = false;
+      const parts = last.content.map((p: any) => {
+        if (!attached && p.type === 'text') {
+          attached = true;
+          return { ...p, text: `${p.text}\n\n${liveContext}` };
+        }
+        return p;
+      });
+      if (!attached) {
+        parts.unshift({ type: 'text', text: liveContext });
+      }
       copy[lastIdx] = { ...last, content: parts };
     }
     return copy;
@@ -1849,7 +1947,9 @@ CURRENT REAL TIME & SCHEDULE:
     }
     errorMsg = '';
     isLoading = true;
-    loadingStage = 'Thinking…';
+    loadingStage = activeAttachments.length > 0
+      ? (activeAttachments.some((a) => a.isPdf) ? 'Reading document…' : 'Analyzing image…')
+      : 'Thinking…';
 
     if (!regen) {
       const userMsg: ChatMessage = {
@@ -1975,7 +2075,9 @@ CURRENT REAL TIME & SCHEDULE:
         let finishReason = '';
         const maxAttempts = 2;
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-          loadingStage = attempt > 1 ? `Thinking (retry ${attempt}/${maxAttempts})…` : 'Thinking…';
+          loadingStage = attempt > 1
+            ? `Thinking (retry ${attempt}/${maxAttempts})…`
+            : (activeAttachments.length > 0 ? (activeIsPdf ? 'Reading document…' : 'Analyzing image…') : 'Thinking…');
           const attemptStart = Date.now();
           const openRouterRes = await fetchWithAbort('https://openrouter.ai/api/v1/chat/completions', {
             method: 'POST',
@@ -2111,7 +2213,7 @@ CURRENT REAL TIME & SCHEDULE:
       }
 
     } catch (err: any) {
-      if (err?.name === 'AbortError' || /cancelled by user/i.test(err?.message || '')) {
+      if (userExplicitlyCancelled || /cancelled by user/i.test(err?.message || '')) {
         return;
       }
       console.error('Failed to parse command:', err);
