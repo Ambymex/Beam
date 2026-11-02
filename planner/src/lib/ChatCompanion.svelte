@@ -3305,12 +3305,12 @@ CURRENT REAL TIME & SCHEDULE:
           <button
             type="button"
             style="padding: 3px 8px; font-size: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); cursor: pointer;"
-            on:click|stopPropagation={() => triggerHapticPulse('engine_purr', 'medium')}
+            on:click|stopPropagation={() => triggerHapticPulse('engine_purr', 'heavy')}
           >
             Test Purr 🗜️
           </button>
         </label>
-        <span class="tip">Uses resonant sub-bass acoustic haptics (iPhone bottom speaker) and vibration motor (Android) on heavy reacts and companion physical presence.</span>
+        <span class="tip">Uses resonant sub-bass acoustic haptics (iPhone bottom speaker) & vibration motor. Ensure media volume is up when testing!</span>
       </div>
       <div class="field">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
