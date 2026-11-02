@@ -46,7 +46,7 @@
     msgSyncConfigured,
     type ChatSyncMessage
   } from './msgSync';
-  import { triggerHapticPulse, hapticsEnabled, setHapticsEnabled, hapticsAudioEnabled, setHapticsAudioEnabled, type HapticStyle, type HapticIntensity } from './haptics';
+  import { triggerHapticPulse, hapticsEnabled, setHapticsEnabled, hapticIntensity, setHapticIntensity, type HapticStyle, type HapticIntensity } from './haptics';
   import { deskContent, saveDesk } from './desk';
   import { searchVault } from './vault';
 
@@ -3300,24 +3300,39 @@ CURRENT REAL TIME & SCHEDULE:
         <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; margin: 0; font-size: 12px; color: var(--text);">
           <span style="display: flex; align-items: center; gap: 8px;">
             <input type="checkbox" checked={$hapticsEnabled} on:change={(e) => setHapticsEnabled(e.currentTarget.checked)} style="margin: 0; width: auto;" />
-            Physical Haptics (Silent Taptic Purr)
+            Physical Haptics & Purr
           </span>
-          <button
-            type="button"
-            style="padding: 3px 8px; font-size: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); cursor: pointer;"
-            on:click|stopPropagation={() => triggerHapticPulse('engine_purr', 'heavy')}
-          >
-            Test Purr 🗜️
-          </button>
+          <div style="position: relative; display: inline-block;">
+            <button
+              type="button"
+              style="padding: 3px 8px; font-size: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); cursor: pointer;"
+            >
+              Test Purr 🗜️
+            </button>
+            <input
+              type="checkbox"
+              switch
+              style="position: absolute; inset: 0; opacity: 0.0001; cursor: pointer; z-index: 2; margin: 0; width: 100%; height: 100%;"
+              on:change={() => triggerHapticPulse('engine_purr', $hapticIntensity)}
+              aria-label="Test physical purr"
+            />
+          </div>
         </label>
-        <span class="tip">Silent physical vibration via iPhone Taptic Engine (iOS 17.4+) and Android vibration motor. Zero speaker noise.</span>
-      </div>
-      <div class="field" style="margin-top: -4px;">
-        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; margin: 0; font-size: 11px; color: var(--text-dim);">
-          <input type="checkbox" checked={$hapticsAudioEnabled} on:change={(e) => setHapticsAudioEnabled(e.currentTarget.checked)} style="margin: 0; width: auto;" />
-          Play Audible Sub-Bass Sound on Speaker (Optional)
-        </label>
-        <span class="tip">Leave off for pure silent purr. Turn on only if you want low acoustic speaker hum alongside the vibration.</span>
+        <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
+          <span style="font-size: 11px; color: var(--text-dim);">Purr Intensity:</span>
+          <div style="display: flex; gap: 4px;">
+            {#each ['light', 'medium', 'heavy'] as level}
+              <button
+                type="button"
+                style="padding: 2px 7px; font-size: 10px; border-radius: 4px; border: 1px solid var(--border); background: {$hapticIntensity === level ? 'var(--signal)' : 'var(--surface)'}; color: {$hapticIntensity === level ? '#fff' : 'var(--text-dim)'}; cursor: pointer;"
+                on:click={() => { setHapticIntensity(level); triggerHapticPulse('engine_purr', level); }}
+              >
+                {level === 'heavy' ? 'Max' : level.charAt(0).toUpperCase() + level.slice(1)}
+              </button>
+            {/each}
+          </div>
+        </div>
+        <span class="tip">Uses deep 48Hz acoustic cone vibration (no harsh high harmonics) paired with iOS Taptic Engine direct touch and Android vibration motor.</span>
       </div>
       <div class="field">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
