@@ -125,6 +125,71 @@ export async function fetchContext(query: string, apiKey: string, indexHost: str
   }
 }
 
+export interface VaultSearchResult {
+  text: string;
+  score: number;
+  timestamp?: string;
+  id?: string;
+}
+
+/**
+ * Actively searches Pinecone for historical memories, diary entries, and ledgers.
+ * Designed for deliberate agent tool turns (search_vault) with topK = 6 and a 6.5s timeout.
+ */
+export async function searchVault(
+  query: string,
+  apiKey: string,
+  indexHost: string,
+  k = 6
+): Promise<VaultSearchResult[]> {
+  if (!apiKey || !indexHost || !query.trim()) return [];
+
+  liveQueryInFlight++;
+  const controller = new AbortController();
+  const abortTimer = setTimeout(() => controller.abort(), 6500);
+
+  try {
+    const cleanHost = indexHost.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    const url = `https://${cleanHost}/query`;
+
+    const queryEmbedding = await embedText(query, 4000);
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Api-Key': apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        vector: queryEmbedding,
+        topK: k,
+        includeMetadata: true
+      }),
+      signal: controller.signal
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Pinecone query error: ${res.status} ${errText}`);
+    }
+
+    const data = await res.json();
+    const matches: PineconeMatch[] = data.matches || [];
+
+    return matches
+      .filter((m) => m.metadata && m.metadata.text && m.score > 0.35)
+      .map((m) => ({
+        text: m.metadata!.text!,
+        score: m.score,
+        timestamp: m.metadata?.timestamp,
+        id: m.id
+      }));
+  } finally {
+    clearTimeout(abortTimer);
+    liveQueryInFlight = Math.max(0, liveQueryInFlight - 1);
+  }
+}
+
 /**
  * Upserts a chat exchange to Pinecone.
  */

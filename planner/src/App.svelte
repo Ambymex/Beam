@@ -111,6 +111,7 @@
   let showSearch = false;
   let showCompanion = false;
   let showScratchpad = false;
+  let scratchpadTab: 'notes' | 'desk' = 'notes';
   let showDiary = false;
   let showDesigner = false;
   let showComms = false;
@@ -165,7 +166,8 @@
     </button>
     <button class="chip" on:click={() => (showSearch = true)} aria-label="Open plan search">Search</button>
     <button class="chip" on:click={() => (showDiary = true)} aria-label="Open daily diary">Diary</button>
-    <button class="chip" on:click={() => (showScratchpad = true)} aria-label="Open scratch pad notes">Notes</button>
+    <button class="chip" on:click={() => { scratchpadTab = 'notes'; showScratchpad = true; }} aria-label="Open scratch pad notes">Notes</button>
+    <button class="chip" on:click={() => { scratchpadTab = 'desk'; showScratchpad = true; }} aria-label="Open Solenoid's Desk">Desk ⚓</button>
     <button class="chip" on:click={() => (showDesigner = true)} aria-label="Open UI Theme Designer">Theme</button>
     <!-- Cascade toggle (§9): off = nudge just this; on = push my day. The "on"
          state is a non-colour cue — a luminous ring, never a hue. -->
@@ -256,12 +258,16 @@
   on:close={() => (showCompanion = false)}
   on:openThemeDesigner={() => { showCompanion = false; showDesigner = true; }}
   on:openRoom={() => { showCompanion = false; showRoom = true; }}
+  on:openScratchpad={(e) => {
+    scratchpadTab = e.detail?.tab || 'notes';
+    showScratchpad = true;
+  }}
 />
 {#if showSearch}
   <Search on:close={() => (showSearch = false)} />
 {/if}
 {#if showScratchpad}
-  <ScratchPad on:close={() => (showScratchpad = false)} />
+  <ScratchPad activeTab={scratchpadTab} on:close={() => (showScratchpad = false)} />
 {/if}
 {#if showDiary}
   <Diary on:close={() => (showDiary = false)} />

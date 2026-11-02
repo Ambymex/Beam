@@ -8,3 +8,4 @@ check.log
 *.kra
 *.kra-autosave
 *.temp
+.claude

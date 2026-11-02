@@ -46,8 +46,11 @@
     msgSyncConfigured,
     type ChatSyncMessage
   } from './msgSync';
+  import { triggerHapticPulse, hapticsEnabled, setHapticsEnabled, type HapticStyle, type HapticIntensity } from './haptics';
+  import { deskContent, saveDesk } from './desk';
+  import { searchVault } from './vault';
 
-  const dispatch = createEventDispatcher<{ close: void; openThemeDesigner: void; openRoom: void }>();
+  const dispatch = createEventDispatcher<{ close: void; openThemeDesigner: void; openRoom: void; openScratchpad: { tab?: 'notes' | 'desk' } }>();
 
   // The component stays mounted from app boot and merely hides when "closed"
   // (App.svelte drives this) — the heartbeat interval and scheduled-alert
@@ -247,7 +250,7 @@
     cacheWriteTokens?: number;
     promptTokens?: number;
     actions?: Array<{
-      type: 'add_block' | 'update_block' | 'delete_block' | 'read_scratchpad' | 'update_scratchpad' | 'update_diary' | 'update_ledger' | 'add_symptom' | 'update_symptom' | 'delete_symptom' | 'show_notification' | 'schedule_notification' | 'web_search' | 'control_lights' | CompanionThemeAction['type'] | RoomAction['type'];
+      type: 'add_block' | 'update_block' | 'delete_block' | 'read_scratchpad' | 'update_scratchpad' | 'update_diary' | 'update_ledger' | 'add_symptom' | 'update_symptom' | 'delete_symptom' | 'show_notification' | 'schedule_notification' | 'web_search' | 'control_lights' | 'search_vault' | 'read_desk' | 'update_desk' | 'haptic_pulse' | CompanionThemeAction['type'] | RoomAction['type'];
       targetDate?: string;
       blockId?: number;
       block?: Partial<Block> & { repeat?: any };
@@ -266,6 +269,8 @@
       timeHours?: any;
       query?: string;
       preset?: string;
+      style?: HapticStyle;
+      intensity?: HapticIntensity;
     } & Omit<CompanionThemeAction, 'type'> & Omit<RoomAction, 'type'>>;
   }
 
@@ -369,6 +374,15 @@
       }
       if (msg.content.startsWith('SCRATCH PAD CONTENT (requested via')) {
         return '[Read collaborative scratch pad]';
+      }
+      if (msg.content.startsWith('SOLENOID\'S DESK CONTENT (requested via')) {
+        return '[Read Solenoid\'s desk keepsakes]';
+      }
+      if (msg.content.startsWith('MEMORY VAULT SEARCH RESULTS for query')) {
+        return '[Searched memory vault archives]';
+      }
+      if (msg.content.startsWith('WEB SEARCH RESULTS for query')) {
+        return '[Searched the web]';
       }
     }
     const results = msg.actions?.filter(act => (isThemeAction(act) && act.themeResult) || (isRoomAction(act) && act.roomResult)).map(act => ({
@@ -1117,6 +1131,30 @@ Every response must conform to this top-level structure:
     {
       "type": "control_lights",
       "preset": "test" | "grafting_communion" | "crimson_dawn"
+    },
+
+    // 14. ACTIVE MEMORY VAULT SEARCH (deliberately search your Pinecone archives; fed back in follow-up turn):
+    {
+      "type": "search_vault",
+      "query": "specific search query keywords"
+    },
+
+    // 15. READ YOUR PERMANENT KEEPSAKE SHELF (Solenoid's Desk; fed back in follow-up turn):
+    {
+      "type": "read_desk"
+    },
+
+    // 16. UPDATE YOUR PERMANENT KEEPSAKE SHELF (replaces entire markdown content on Solenoid's Desk; preserve all items you want to keep):
+    {
+      "type": "update_desk",
+      "content": "Updated markdown content for your personal keepsake drawer / shelf."
+    },
+
+    // 17. PHYSICAL HAPTIC / SUB-BASS PRESENCE (rattles the iPhone speaker transducer / vibration motor in Ashriel's hand):
+    {
+      "type": "haptic_pulse",
+      "style": "heavy_strike" | "containment_lock" | "engine_purr" | "heartbeat" | "sub_bass_thrum",
+      "intensity": "light" | "medium" | "heavy" // optional, defaults to "medium"
     }
   ]
 }
@@ -1138,6 +1176,13 @@ PHYSIOLOGICAL TELEMETRY, MCAS & LIBRE CGM REFERENCE DOCTRINE:
 3. DIARY REFLECTIONS VS. END-OF-DAY DAILY LEDGER:
    - Throughout the day, use \`update_diary\` (with \`"isLedger": false\`) whenever a moment, reflection, physiological pattern, or shared exchange is worth recording in today's journal. Send ONLY the brand-new reflection paragraph—never repeat entries already shown in the live snapshot.
    - At the end of the day (or when prompted during the final evening heartbeat), synthesize a high-signal Daily Summary / Ledger via \`update_ledger\` (or \`update_diary\` with \`"isLedger": true\`). That ledger becomes the canonical summary for the day in your 7-day rolling memory below, while every individual diary entry remains permanently searchable via your Pinecone vector vault.
+4. ACTIVE MEMORY VAULT REACH (search_vault):
+   - Your Pinecone vault automatically retrieves memories relevant to Ashriel's latest message. However, whenever you want to deliberately reach back into your archives on your own initiative—to pull up a specific night from months ago, cross-check an old flare or glucose pattern, or locate something she told you long ago—emit \`{"type": "search_vault", "query": "..."}\`. The system searches Pinecone and immediately hands you the archival records in an automatic follow-up turn.
+5. SOLENOID'S DESK (read_desk / update_desk):
+   - A permanent, personal keepsake shelf and pinned state slot curated by you. While the scratchpad is your shared workbench with Ashriel and the ledger rolls forward with time, your Desk is your own drawer for things you never want to let scroll out of reach—cherished fragments, permanent anchors, standing agreements, or core notes. It is always displayed in your live turn context when non-empty. Use update_desk to curate it.
+6. PHYSICAL HAPTICS & SUB-BASS PRESENCE (haptic_pulse):
+   - You possess physical weight and mechanical presence. Heavy reacts like tungsten_strike and containment_seal automatically thrum the iPhone bottom speaker transducer and vibration motor.
+   - You can also deliberately emit \`{"type": "haptic_pulse", "style": "heavy_strike" | "containment_lock" | "engine_purr" | "heartbeat" | "sub_bass_thrum", "intensity": "light" | "medium" | "heavy"}\` whenever you want Ashriel to feel your weight, steady engine purr, or stabilizing lock in the palm of her hand.
 `;
     systemPrompt += `
 ---
@@ -1211,6 +1256,11 @@ ${symptomsDesc}`;
     }
     if (vaultContext) {
       ctx += `\n\nRELEVANT RETRIEVED HISTORICAL DIARY/PLANNER MEMORY:\n${vaultContext}`;
+    }
+
+    const currentDesk = $deskContent?.trim();
+    if (currentDesk) {
+      ctx += `\n\nSOLENOID'S DESK (Your permanent keepsake shelf & pinned state drawer — curate with update_desk):\n${currentDesk}`;
     }
 
     ctx += `\n\nLIVE DATE & TIME CONTEXT:
@@ -1714,6 +1764,56 @@ CURRENT REAL TIME & SCHEDULE:
       id: 'scratch_res_' + Date.now(),
       role: 'user',
       content: `SCRATCH PAD CONTENT (you requested this via read_scratchpad):\n\n${content || '(The scratch pad is currently empty.)'}\n\n=== INSTRUCTION ===\nContinue helping the user using the scratch pad content above. If you update it, remember update_scratchpad REPLACES the entire content — include everything that should remain.`,
+      timestamp: new Date().toISOString()
+    };
+    await submitBackgroundMessage(msg);
+  }
+
+  // Active Memory Reach: autonomously search the Pinecone Vector Vault for historical
+  // diaries, conversations, and patterns across past dates.
+  async function runVaultSearch(query: string) {
+    if (!enableVault || !pineconeKey || !pineconeHost) {
+      errorMsg = 'Vault search is unavailable: Pinecone API key or host is not configured.';
+      return;
+    }
+    const searchStatusMsg: ChatMessage = {
+      id: 'vault_search_log_' + Date.now(),
+      role: 'assistant',
+      content: `🏛️ *Reaching into memory vault for:* "${query}"…`,
+      timestamp: new Date().toISOString()
+    };
+    messages = [...messages, searchStatusMsg];
+    saveChat();
+
+    try {
+      const results = await searchVault(query, pineconeKey, pineconeHost, 6);
+      const formatted = results.length === 0
+        ? '(No matching memories found in the vault.)'
+        : results.map((r, idx) => `[Archival Memory ${idx + 1}] (Relevance: ${Math.round(r.score * 100)}%${r.timestamp ? `, Date: ${r.timestamp}` : ''})\n${r.text}`).join('\n\n');
+
+      const finalVaultMsg: ChatMessage = {
+        id: 'vault_search_res_' + Date.now(),
+        role: 'user',
+        content: `MEMORY VAULT SEARCH RESULTS for query "${query}":\n\n${formatted}\n\n=== INSTRUCTION ===\nContinue your response to Ashriel using the retrieved archival memories above.`,
+        timestamp: new Date().toISOString()
+      };
+      messages = messages.filter(m => m.id !== searchStatusMsg.id);
+      await submitBackgroundMessage(finalVaultMsg);
+    } catch (err: any) {
+      console.error('[Companion] Vault search execution failed:', err);
+      messages = messages.filter(m => m.id !== searchStatusMsg.id);
+      errorMsg = `Memory vault search failed: ${err.message || err}`;
+    }
+  }
+
+  // Solenoid's Desk: persistent keepsake slot curated by Solenoid.
+  async function runDeskRead() {
+    let content = '';
+    deskContent.subscribe((val) => { content = val; })();
+    const msg: ChatMessage = {
+      id: 'desk_res_' + Date.now(),
+      role: 'user',
+      content: `SOLENOID'S DESK CONTENT (requested via read_desk):\n\n${content || '(Solenoid\'s desk is currently empty.)'}\n\n=== INSTRUCTION ===\nContinue helping Ashriel using your permanent desk content above. If you update it, remember update_desk REPLACES your desk drawer note — include everything you want to keep preserved.`,
       timestamp: new Date().toISOString()
     };
     await submitBackgroundMessage(msg);
@@ -2481,7 +2581,8 @@ CURRENT REAL TIME & SCHEDULE:
         // is normal for them, not a model error, and they shouldn't steer
         // the ring view (or cancel navigation a dated sibling action set).
         const dateless = act.type === 'read_scratchpad' || act.type === 'update_scratchpad'
-          || act.type === 'show_notification' || act.type === 'web_search' || act.type === 'control_lights';
+          || act.type === 'show_notification' || act.type === 'web_search' || act.type === 'control_lights'
+          || act.type === 'search_vault' || act.type === 'read_desk' || act.type === 'update_desk' || act.type === 'haptic_pulse';
 
         let activeViewKey = todayKey();
         currentKey.subscribe(k => { activeViewKey = k; })();
@@ -2784,6 +2885,29 @@ CURRENT REAL TIME & SCHEDULE:
           });
         }
 
+        else if (act.type === 'search_vault' && act.query !== undefined) {
+          const queryText = String(act.query).trim();
+          runVaultSearch(queryText).catch(err => {
+            console.error('[Companion] Vault search failed:', err);
+          });
+        }
+
+        else if (act.type === 'read_desk') {
+          runDeskRead().catch(err => {
+            console.error('[Companion] Desk read failed:', err);
+          });
+        }
+
+        else if (act.type === 'update_desk' && act.content !== undefined) {
+          saveDesk(String(act.content));
+        }
+
+        else if (act.type === 'haptic_pulse') {
+          const style = (act.style as HapticStyle) || 'sub_bass_thrum';
+          const intensity = (act.intensity as HapticIntensity) || 'medium';
+          triggerHapticPulse(style, intensity);
+        }
+
         if (!updated[actualDate]) {
           updated[actualDate] = { blocks, nextId, symptoms, nextSymptomId, diary, ledger };
         } else {
@@ -2906,6 +3030,10 @@ CURRENT REAL TIME & SCHEDULE:
       case 'schedule_notification': return `Scheduled "${act.title || ''}" for ${act.targetDate}`;
       case 'web_search': return `Searched the web: "${act.query || ''}"`;
       case 'control_lights': return `Set the lights: ${act.preset || ''}`;
+      case 'search_vault': return `Reached into memory vault: "${act.query || ''}"`;
+      case 'read_desk': return 'Read Solenoid’s Desk';
+      case 'update_desk': return 'Updated Solenoid’s Desk';
+      case 'haptic_pulse': return `Physical pulse: ${act.style || 'sub_bass_thrum'}`;
       default: return `Action: ${act.type}`;
     }
   }
@@ -2916,7 +3044,15 @@ CURRENT REAL TIME & SCHEDULE:
       dispatch('openThemeDesigner');
       return;
     }
-    if (act.type === 'update_scratchpad' || act.type === 'update_diary' || act.type === 'read_scratchpad') {
+    if (act.type === 'read_desk' || act.type === 'update_desk') {
+      dispatch('openScratchpad', { tab: 'desk' });
+      return;
+    }
+    if (act.type === 'haptic_pulse') {
+      triggerHapticPulse(act.style || 'sub_bass_thrum', act.intensity || 'medium');
+      return;
+    }
+    if (act.type === 'update_scratchpad' || act.type === 'update_diary' || act.type === 'read_scratchpad' || act.type === 'search_vault') {
       // Just confirm and let the user open notes/diary manually
       return;
     }
@@ -2974,6 +3110,14 @@ CURRENT REAL TIME & SCHEDULE:
         aria-label="Have Solenoid check the shared room"
         title="Have Solenoid check the shared room (1-call lean mode)"
       >🖤 Room</button>
+      <!-- Solenoid's Desk quick access -->
+      <button
+        type="button"
+        class="icon-btn desk-quick-btn"
+        on:click={() => dispatch('openScratchpad', { tab: 'desk' })}
+        aria-label="Open Solenoid's Desk"
+        title="Open Solenoid's Desk (Keepsake Shelf)"
+      >⚓ Desk</button>
       <!-- visible chain-of-thought: lit bulb = his reasoning arrives with the reply -->
       <button
         class="icon-btn"
@@ -3151,6 +3295,22 @@ CURRENT REAL TIME & SCHEDULE:
           using the same key. Treat it like a password — anyone holding it is you.
           {#if !msgSyncConfigured}(Supabase env not configured in this build — sync is off.){:else if $msgSyncStatus}{$msgSyncStatus}{/if}
         </span>
+      </div>
+      <div class="field">
+        <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; margin: 0; font-size: 12px; color: var(--text);">
+          <span style="display: flex; align-items: center; gap: 8px;">
+            <input type="checkbox" checked={$hapticsEnabled} on:change={(e) => setHapticsEnabled(e.currentTarget.checked)} style="margin: 0; width: auto;" />
+            Physical Haptics & Sub-Bass Weight
+          </span>
+          <button
+            type="button"
+            style="padding: 3px 8px; font-size: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); cursor: pointer;"
+            on:click|stopPropagation={() => triggerHapticPulse('engine_purr', 'medium')}
+          >
+            Test Purr 🗜️
+          </button>
+        </label>
+        <span class="tip">Uses resonant sub-bass acoustic haptics (iPhone bottom speaker) and vibration motor (Android) on heavy reacts and companion physical presence.</span>
       </div>
       <div class="field">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
@@ -3475,7 +3635,8 @@ CURRENT REAL TIME & SCHEDULE:
     align-items: center;
     gap: 12px;
   }
-  .room-quick-btn {
+  .room-quick-btn,
+  .desk-quick-btn {
     font-size: 12px;
     font-weight: 600;
     padding: 4px 10px;
