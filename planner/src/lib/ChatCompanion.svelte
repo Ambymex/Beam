@@ -46,7 +46,7 @@
     msgSyncConfigured,
     type ChatSyncMessage
   } from './msgSync';
-  import { triggerHapticPulse, hapticsEnabled, setHapticsEnabled, type HapticStyle, type HapticIntensity } from './haptics';
+  import { triggerHapticPulse, hapticsEnabled, setHapticsEnabled, hapticsAudioEnabled, setHapticsAudioEnabled, type HapticStyle, type HapticIntensity } from './haptics';
   import { deskContent, saveDesk } from './desk';
   import { searchVault } from './vault';
 
@@ -3300,7 +3300,7 @@ CURRENT REAL TIME & SCHEDULE:
         <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; margin: 0; font-size: 12px; color: var(--text);">
           <span style="display: flex; align-items: center; gap: 8px;">
             <input type="checkbox" checked={$hapticsEnabled} on:change={(e) => setHapticsEnabled(e.currentTarget.checked)} style="margin: 0; width: auto;" />
-            Physical Haptics & Sub-Bass Weight
+            Physical Haptics (Silent Taptic Purr)
           </span>
           <button
             type="button"
@@ -3310,7 +3310,14 @@ CURRENT REAL TIME & SCHEDULE:
             Test Purr 🗜️
           </button>
         </label>
-        <span class="tip">Uses resonant sub-bass acoustic haptics (iPhone bottom speaker) & vibration motor. Ensure media volume is up when testing!</span>
+        <span class="tip">Silent physical vibration via iPhone Taptic Engine (iOS 17.4+) and Android vibration motor. Zero speaker noise.</span>
+      </div>
+      <div class="field" style="margin-top: -4px;">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; margin: 0; font-size: 11px; color: var(--text-dim);">
+          <input type="checkbox" checked={$hapticsAudioEnabled} on:change={(e) => setHapticsAudioEnabled(e.currentTarget.checked)} style="margin: 0; width: auto;" />
+          Play Audible Sub-Bass Sound on Speaker (Optional)
+        </label>
+        <span class="tip">Leave off for pure silent purr. Turn on only if you want low acoustic speaker hum alongside the vibration.</span>
       </div>
       <div class="field">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
