@@ -14,7 +14,6 @@
   // from the DOM when the burst ends.
 
   import { createEventDispatcher } from 'svelte';
-  import { triggerHapticPulse } from './haptics';
 
   // 'impact' fires the millisecond the tungsten shard lands so the host can
   // shake ITS OWN chrome — the tremor has to move the chat, not this layer.
@@ -593,7 +592,6 @@
         strikeTimers = [
           setTimeout(() => {
             dispatch('impact');
-            triggerHapticPulse('heavy_strike');
           }, STRIKE_DROP_MS),
           setTimeout(() => (strike = false), STRIKE_DROP_MS + STRIKE_HOLD_MS + STRIKE_FADE_MS + 100),
         ];
@@ -606,7 +604,6 @@
         sealTimers = [
           setTimeout(() => {
             dispatch('impact');
-            triggerHapticPulse('containment_lock');
           }, SEAL_IMPACT_AT),
           setTimeout(() => (seal = false), SEAL_TOTAL),
         ];

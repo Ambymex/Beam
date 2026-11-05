@@ -60,9 +60,7 @@ export async function exportBackup(): Promise<string> {
       'radial-planner-sync-key',
       'radial-planner-msgsync-cursor',
       'beam-room-key',
-      'radial-planner-solenoid-desk-v1',
-      'radial-planner-haptics-enabled',
-      'radial-planner-haptic-intensity'
+      'radial-planner-solenoid-desk-v1'
     ];
 
     const localData: Record<string, string | null> = {};
