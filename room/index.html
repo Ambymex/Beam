@@ -20,6 +20,8 @@
 <header>
   <h1>The room 🖤</h1>
   <button id="refresh" type="button">Check for new messages</button>
+  <button id="toggle-order" type="button" title="Toggle message sort order">Newest first ↓</button>
+  <button id="jump-compose" type="button" title="Jump to compose message">Write ✎</button>
   <a href="/" id="back-planner" class="btn-back" aria-label="Close room and return to planner">✕ Close / Planner</a>
 </header>
 <p id="status" role="status">Connecting…</p>
@@ -75,8 +77,20 @@
     $('access').open = false;
     return result;
   }
+  let order = 'newest';
+  try {
+    order = localStorage.getItem('beam-room-order') || 'newest';
+  } catch {}
+
+  function updateOrderButton() {
+    if ($('toggle-order')) {
+      $('toggle-order').textContent = order === 'newest' ? 'Newest first ↓' : 'Oldest first ↑';
+    }
+  }
+
   function render() {
-    $('events').replaceChildren(...events.map(event => {
+    const list = order === 'newest' ? [...events].reverse() : events;
+    $('events').replaceChildren(...list.map(event => {
       const li = document.createElement('li');
       const article = document.createElement('article');
       const speaker = document.createElement('strong');
@@ -94,7 +108,13 @@
       }
       const reply = document.createElement('button');
       reply.type = 'button'; reply.textContent = 'Reply';
-      reply.onclick = () => { replyTo = event.id; $('target').textContent = 'Replying to ' + event.participant; $('recipient').value = event.participant; $('message').focus(); };
+      reply.onclick = () => {
+        replyTo = event.id;
+        $('target').textContent = 'Replying to ' + event.participant;
+        $('recipient').value = event.participant;
+        $('compose').scrollIntoView({ behavior: 'smooth' });
+        $('message').focus();
+      };
       const react = document.createElement('button');
       react.type = 'button'; react.textContent = '🖤'; react.setAttribute('aria-label', 'React to ' + event.participant);
       react.onclick = async () => {
@@ -126,8 +146,22 @@
     try {
       await api('events', { participant: 'ash', type: 'message', text: $('message').value, ...($('recipient').value ? { to: $('recipient').value } : {}), ...(replyTo ? { replyTo } : {}) });
       $('message').value = ''; replyTo = undefined; $('target').textContent = ''; await poll();
+      if (order === 'newest') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
     } catch (error) { $('error').textContent = error.message; }
     finally { $('send').disabled = false; }
+  };
+  updateOrderButton();
+  $('toggle-order').onclick = () => {
+    order = order === 'newest' ? 'oldest' : 'newest';
+    try { localStorage.setItem('beam-room-order', order); } catch {}
+    updateOrderButton();
+    render();
+  };
+  $('jump-compose').onclick = () => {
+    $('compose').scrollIntoView({ behavior: 'smooth' });
+    $('message').focus();
   };
   $('unlock').onclick = () => { saveStoredRoomKey($('key').value); poll(); };
   $('key').onkeydown = event => { if (event.key === 'Enter') { event.preventDefault(); saveStoredRoomKey($('key').value); poll(); } };

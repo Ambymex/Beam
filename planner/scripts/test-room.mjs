@@ -96,7 +96,7 @@ try {
     await page.locator('#refresh').click();
     await page.waitForFunction(() => document.querySelectorAll('#events article').length === 2);
     assert.match(await page.$eval('#status', node => node.textContent), /1 new/);
-    assert.equal(await page.$eval('#events strong', node => node.textContent), 'morrow');
+    assert.equal(await page.$eval('#events strong', node => node.textContent), 'ash');
     assert.equal(requests.length, 0, 'Polling and posting must never summon a model.');
 
     await page.goto(url, { waitUntil: 'networkidle0' });
