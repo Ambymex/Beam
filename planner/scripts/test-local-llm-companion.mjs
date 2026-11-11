@@ -18,9 +18,10 @@ async function testLocalLlmIntegration() {
     const healthData = await healthRes.json();
     console.log('Health:', healthData);
     if (!healthData.online) throw new Error('Local LM Studio reported offline');
+    console.log('Active loaded model in RAM:', healthData.loadedModel);
 
-    // 2. Chat completions via preview server
-    console.log('\n2. Testing /api/local-llm/chat/completions via Vite preview server:');
+    // 2. Chat completions via preview server with stream: true
+    console.log('\n2. Testing /api/local-llm/chat/completions (SSE stream) via Vite preview server:');
     const chatRes = await fetch(`${origin}/api/local-llm/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -28,18 +29,31 @@ async function testLocalLlmIntegration() {
         model: healthData.preferredModel,
         messages: [
           { role: 'system', content: 'You are Solenoid, Ashriel\'s industrial dreadnought companion. Respond in JSON: { "message": "...", "react": "nod" }' },
-          { role: 'user', content: 'System check for local offline engine.' }
+          { role: 'user', content: 'Quick ping check.' }
         ],
-        response_format: { type: 'json_object' },
-        max_tokens: 300
+        stream: true,
+        max_tokens: 150
       })
     });
 
     if (!chatRes.ok) throw new Error(`Chat HTTP ${chatRes.status}: ${await chatRes.text()}`);
-    const chatData = await chatRes.json();
-    console.log('Completions Choice Message:', chatData.choices?.[0]?.message);
+    console.log('Stream headers received! Content-Type:', chatRes.headers.get('content-type'));
 
-    console.log('\n✅ Local LM Studio Vite proxy integration verified successfully!');
+    const reader = chatRes.body.getReader();
+    const decoder = new TextDecoder();
+    let accumulated = '';
+    let keepalives = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const text = decoder.decode(value, { stream: true });
+      accumulated += text;
+      if (text.includes(': keepalive')) keepalives++;
+    }
+
+    console.log('Received stream length:', accumulated.length, 'Keepalive pings:', keepalives);
+    console.log('\n✅ Local LM Studio Vite proxy streaming integration verified successfully!');
   } finally {
     await server.close();
   }

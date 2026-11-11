@@ -19,32 +19,66 @@ export function localLlmMiddleware(options = {}) {
       res.end(JSON.stringify(data));
     };
 
-    // Health check endpoint: pings LM Studio /v1/models with a short timeout
+    // Health check endpoint: queries LM Studio /api/v0/models (or /v1/models)
+    // and detects which model is currently loaded in memory.
     if (url.pathname === '/api/local-llm/health' && req.method === 'GET') {
       try {
-        const response = await fetch(`${targetUrl}/v1/models`, {
-          signal: AbortSignal.timeout(3000),
-        });
-        if (!response.ok) {
-          return sendJson(502, {
-            ok: false,
-            online: false,
-            status: response.status,
-            error: `LM Studio returned HTTP ${response.status}`,
-            models: [],
+        let loadedModel = '';
+        let models = [];
+        let detailedModels = [];
+
+        // Try /api/v0/models first (rich metadata including loaded state)
+        try {
+          const v0Res = await fetch(`${targetUrl}/api/v0/models`, {
+            signal: AbortSignal.timeout(3000),
           });
+          if (v0Res.ok) {
+            const v0Data = await v0Res.json();
+            const list = Array.isArray(v0Data?.data) ? v0Data.data : [];
+            detailedModels = list;
+            models = list.map((m) => m?.id).filter(Boolean);
+            const loaded = list.find((m) => m?.state === 'loaded');
+            if (loaded?.id) loadedModel = loaded.id;
+          }
+        } catch {
+          // fall through to v1
         }
-        const data = await response.json();
-        const rawList = Array.isArray(data?.data) ? data.data : [];
-        const models = rawList.map((m) => m?.id).filter(Boolean);
-        // Find best Gemma 4 or loaded model
-        const preferred = models.find((m) => /gemma-4/i.test(m)) ||
+
+        // Fall back to /v1/models if v0 didn't populate models
+        if (models.length === 0) {
+          const v1Res = await fetch(`${targetUrl}/v1/models`, {
+            signal: AbortSignal.timeout(3000),
+          });
+          if (!v1Res.ok) {
+            return sendJson(502, {
+              ok: false,
+              online: false,
+              status: v1Res.status,
+              error: `LM Studio returned HTTP ${v1Res.status}`,
+              models: [],
+            });
+          }
+          const v1Data = await v1Res.json();
+          const list = Array.isArray(v1Data?.data) ? v1Data.data : [];
+          models = list.map((m) => m?.id).filter(Boolean);
+        }
+
+        // Determine best model: active loaded model comes FIRST, then Gemma 4, then others
+        const preferred = loadedModel ||
+                          models.find((m) => /gemma-4/i.test(m)) ||
                           models.find((m) => /gemma/i.test(m)) ||
                           models[0] || '';
+
         return sendJson(200, {
           ok: true,
           online: true,
           models,
+          detailedModels: detailedModels.map(m => ({
+            id: m.id,
+            loaded: m.state === 'loaded',
+            contextLength: m.loaded_context_length || m.max_context_length
+          })),
+          loadedModel,
           preferredModel: preferred,
           targetUrl,
         });
@@ -76,13 +110,13 @@ export function localLlmMiddleware(options = {}) {
       }
     }
 
-    // Chat completions endpoint: proxies /v1/chat/completions
+    // Chat completions endpoint: proxies /v1/chat/completions with SSE heartbeat support
     if (url.pathname === '/api/local-llm/chat/completions' && req.method === 'POST') {
       try {
         let text = '';
         for await (const chunk of req) {
           text += chunk;
-          if (text.length > 5 * 1024 * 1024) {
+          if (text.length > 10 * 1024 * 1024) {
             return sendJson(413, { error: { message: 'Payload too large.' } });
           }
         }
@@ -97,53 +131,96 @@ export function localLlmMiddleware(options = {}) {
         }
 
         // LM Studio compatibility adjustments:
-        // 1. LM Studio rejects response_format.type === 'json_object' (only accepts 'json_schema' or 'text').
-        // Remove or relax it so prompt instructions handle the JSON framing smoothly.
+        // 1. LM Studio rejects response_format.type === 'json_object'
         if (body.response_format && body.response_format.type === 'json_object') {
           delete body.response_format;
         }
 
-        // 2. If no model specified or model is empty, try to resolve one from LM Studio
+        // 2. Resolve model: prefer currently loaded model if body.model is omitted
         if (!body.model) {
           try {
-            const mRes = await fetch(`${targetUrl}/v1/models`, { signal: AbortSignal.timeout(2000) });
-            if (mRes.ok) {
-              const mData = await mRes.json();
-              const list = Array.isArray(mData?.data) ? mData.data.map(m => m.id) : [];
-              body.model = list.find(m => /gemma-4/i.test(m)) || list[0] || 'default';
+            const v0 = await fetch(`${targetUrl}/api/v0/models`, { signal: AbortSignal.timeout(2000) });
+            if (v0.ok) {
+              const v0Data = await v0.json();
+              const loaded = v0Data?.data?.find(m => m?.state === 'loaded');
+              if (loaded?.id) body.model = loaded.id;
             }
-          } catch {
+          } catch {}
+          if (!body.model) {
             body.model = 'default';
           }
         }
 
-        // Forward to LM Studio
+        // If streaming is requested (or default for tunnel-resilience),
+        // write SSE headers and keepalive heartbeats immediately so ngrok / mobile Safari
+        // never time out while LM Studio performs prompt evaluation or token generation.
+        if (body.stream) {
+          res.writeHead(200, {
+            'content-type': 'text/event-stream; charset=utf-8',
+            'cache-control': 'no-cache, no-transform',
+            'connection': 'keep-alive',
+            'x-accel-buffering': 'no',
+          });
+
+          // Immediate ping to establish connection with zero idle delay
+          res.write(': keepalive initial\n\n');
+
+          // Send keep-alive heartbeat comment every 2.5 seconds during generation
+          const keepAliveTimer = setInterval(() => {
+            try {
+              res.write(': keepalive\n\n');
+            } catch {
+              clearInterval(keepAliveTimer);
+            }
+          }, 2500);
+
+          let lmResponse;
+          try {
+            lmResponse = await fetch(`${targetUrl}/v1/chat/completions`, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify(body),
+            });
+          } catch (fetchErr) {
+            clearInterval(keepAliveTimer);
+            res.write(`data: ${JSON.stringify({ error: { message: `LM Studio connection error: ${fetchErr.message}` } })}\n\n`);
+            return res.end();
+          }
+
+          if (!lmResponse.ok) {
+            clearInterval(keepAliveTimer);
+            const errText = await lmResponse.text();
+            res.write(`data: ${JSON.stringify({ error: { message: `LM Studio error ${lmResponse.status}: ${errText}` } })}\n\n`);
+            return res.end();
+          }
+
+          if (lmResponse.body) {
+            const reader = lmResponse.body.getReader();
+            try {
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                res.write(value);
+              }
+            } finally {
+              clearInterval(keepAliveTimer);
+              res.end();
+            }
+          } else {
+            clearInterval(keepAliveTimer);
+            res.end();
+          }
+          return;
+        }
+
+        // Non-streaming fallback
         const lmResponse = await fetch(`${targetUrl}/v1/chat/completions`, {
           method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-          },
+          headers: { 'content-type': 'application/json' },
           body: JSON.stringify(body),
         });
 
         const status = lmResponse.status;
-        const contentType = lmResponse.headers.get('content-type') || 'application/json';
-
-        if (body.stream && lmResponse.body) {
-          res.writeHead(status, {
-            'content-type': contentType,
-            'cache-control': 'no-cache',
-            'connection': 'keep-alive',
-          });
-          const reader = lmResponse.body.getReader();
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            res.write(value);
-          }
-          return res.end();
-        }
-
         const data = await lmResponse.json();
         return sendJson(status, data);
       } catch (err) {

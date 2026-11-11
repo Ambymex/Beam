@@ -507,11 +507,18 @@
 
   // Local LM Studio offline backup engine
   type LocalLlmMode = 'auto' | 'always' | 'never';
+  interface LocalLlmDetailedModel {
+    id: string;
+    loaded: boolean;
+    contextLength?: number;
+  }
   let localLlmMode: LocalLlmMode = (safeGetItem('radial-planner-local-llm-mode', 'auto') as LocalLlmMode);
-  let localLlmModel = safeGetItem('radial-planner-local-llm-model', 'gemma-4-26b-a4b-it-claude-opus-distill-v2');
+  let localLlmModel = safeGetItem('radial-planner-local-llm-model', 'gemma-4-26b-a4b-it-ultra-uncensored-heretic');
   let localLlmOnline = false;
   let localLlmChecking = false;
   let localLlmModels: string[] = [];
+  let localLlmDetailedModels: LocalLlmDetailedModel[] = [];
+  let localLlmLoadedModel = '';
   let localLlmError = '';
 
   async function checkLocalLlmHealth(): Promise<boolean> {
@@ -523,10 +530,18 @@
         const data = await res.json();
         localLlmOnline = Boolean(data.online);
         localLlmModels = Array.isArray(data.models) ? data.models : [];
-        if (data.preferredModel && (!localLlmModel || !localLlmModels.includes(localLlmModel))) {
+        localLlmDetailedModels = Array.isArray(data.detailedModels) ? data.detailedModels : [];
+        localLlmLoadedModel = data.loadedModel || '';
+
+        // If LM Studio already has a model loaded in memory, prefer that to avoid 100s reload times!
+        if (data.loadedModel && (!localLlmModel || localLlmModel !== data.loadedModel)) {
+          localLlmModel = data.loadedModel;
+          try { localStorage.setItem('radial-planner-local-llm-model', localLlmModel); } catch {}
+        } else if (data.preferredModel && (!localLlmModel || !localLlmModels.includes(localLlmModel))) {
           localLlmModel = data.preferredModel;
           try { localStorage.setItem('radial-planner-local-llm-model', localLlmModel); } catch {}
         }
+
         if (!data.online && data.error) {
           localLlmError = data.error;
         }
@@ -543,6 +558,100 @@
     } finally {
       localLlmChecking = false;
     }
+  }
+
+  // Resilient streaming runner for Local LM Studio with keep-alive heartbeat support.
+  // Avoids idle timeouts across tunnels/ngrok and mobile Safari.
+  async function streamLocalLlm(options: {
+    messages: any[];
+    model?: string;
+    temperature?: number;
+    maxTokens?: number;
+    timeoutMs?: number;
+    onStageUpdate?: (stage: string) => void;
+  }): Promise<{ completionText: string; rawReasoning: string; promptTokens?: number }> {
+    const timeoutMs = options.timeoutMs ?? 180000;
+    const targetModel = options.model || localLlmModel || 'gemma-4-26b-a4b-it-ultra-uncensored-heretic';
+
+    const lmRes = await fetchWithAbort('/api/local-llm/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: targetModel,
+        messages: options.messages,
+        ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
+        max_tokens: options.maxTokens ?? 2048,
+        stream: true,
+      }),
+    }, timeoutMs);
+
+    if (!lmRes.ok) {
+      const errText = await lmRes.text();
+      throw new Error(`Local LM Studio error: ${lmRes.status} ${errText}`);
+    }
+
+    const reader = lmRes.body?.getReader();
+    if (!reader) throw new Error('No readable stream from local LM Studio');
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let completionText = '';
+    let rawReasoning = '';
+    let tokenCount = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        if (trimmed.startsWith(':')) {
+          // Keepalive heartbeat comment from proxy during prompt prefill
+          if (!rawReasoning && !completionText && options.onStageUpdate) {
+            options.onStageUpdate('Thinking (evaluating prompt on local Gemma 26B)…');
+          }
+          continue;
+        }
+        if (trimmed === 'data: [DONE]') continue;
+        if (trimmed.startsWith('data: ')) {
+          try {
+            const parsedChunk = JSON.parse(trimmed.slice(6));
+            if (parsedChunk?.error?.message) {
+              throw new Error(parsedChunk.error.message);
+            }
+            const delta = parsedChunk?.choices?.[0]?.delta;
+            if (delta?.reasoning_content) {
+              rawReasoning += delta.reasoning_content;
+              tokenCount++;
+              if (options.onStageUpdate) {
+                options.onStageUpdate(`Thinking… (${tokenCount} tokens)`);
+              }
+            }
+            if (delta?.content) {
+              completionText += delta.content;
+              if (options.onStageUpdate) {
+                options.onStageUpdate('Drafting reply…');
+              }
+            }
+          } catch (parseErr) {
+            if (parseErr instanceof Error && parseErr.message.includes('LM Studio error')) {
+              throw parseErr;
+            }
+          }
+        }
+      }
+    }
+
+    if (!completionText && rawReasoning && (rawReasoning.includes('"message"') || rawReasoning.includes('{'))) {
+      completionText = rawReasoning;
+    }
+
+    const promptTokens = Math.round(options.messages.reduce((acc, m) => acc + (typeof m.content === 'string' ? m.content.length : 100), 0) / 4);
+    return { completionText, rawReasoning, promptTokens };
   }
 
   let showSettings = false;
@@ -1784,27 +1893,20 @@ CURRENT REAL TIME & SCHEDULE:
       const canFallbackToLocal = localLlmMode !== 'never';
 
       const callLocalForBg = async () => {
-        const lmRes = await fetchWithAbort('/api/local-llm/chat/completions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: localLlmModel || 'gemma-4-26b-a4b-it-claude-opus-distill-v2',
-            messages: [
-              { role: 'system', content: systemPromptForCall },
-              ...messagesForCall,
-            ],
-            max_tokens: 2048,
-          }),
-        }, 90000);
-        if (!lmRes.ok) throw new Error(`Local LM Studio error: ${lmRes.status} ${await lmRes.text()}`);
-        const result = await lmRes.json();
-        const rawContent = result.choices?.[0]?.message?.content?.trim() ?? '';
-        const rawReasoning = (result.choices?.[0]?.message?.reasoning ?? result.choices?.[0]?.message?.reasoning_content ?? '').trim();
+        const localMessages = [
+          { role: 'system', content: systemPromptForCall },
+          ...messagesForCall.slice(-8),
+        ];
+        const out = await streamLocalLlm({
+          messages: localMessages,
+          model: localLlmModel,
+          maxTokens: 2048,
+        });
         return {
-          parsed: extractLlmJson(rawContent || rawReasoning, { salvageProse: true }),
+          parsed: extractLlmJson(out.completionText || out.rawReasoning, { salvageProse: true }),
           providerMeta: {
             provider: `LM Studio (${localLlmModel || 'Gemma 26B'})`,
-            promptTokens: result?.usage?.prompt_tokens,
+            promptTokens: out.promptTokens,
           },
         };
       };
@@ -2431,37 +2533,25 @@ CURRENT REAL TIME & SCHEDULE:
       ];
 
       const runLocalCompletion = async () => {
-        loadingStage = activeAttachments.length > 0 ? (activeIsPdf ? 'Reading document (Local Gemma)…' : 'Analyzing image…') : 'Thinking (Local Gemma 26B)…';
-        const lmRes = await fetchWithAbort('/api/local-llm/chat/completions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: localLlmModel || 'gemma-4-26b-a4b-it-claude-opus-distill-v2',
-            messages: apiMessages,
-            ...(martiniMode ? { temperature: 1.0 } : {}),
-            max_tokens: 2048,
-          }),
-        }, 90000);
-        if (!lmRes.ok) {
-          const errText = await lmRes.text();
-          throw new Error(`Local LM Studio error: ${lmRes.status} ${errText}`);
-        }
-        const result = await lmRes.json();
-        let completionText = result.choices?.[0]?.message?.content?.trim() ?? '';
-        const rawReasoning = (
-          result.choices?.[0]?.message?.reasoning ??
-          result.choices?.[0]?.message?.reasoning_content ??
-          ''
-        ).trim();
-        if (!completionText && rawReasoning && (rawReasoning.includes('"message"') || rawReasoning.includes('{'))) {
-          completionText = rawReasoning;
-        }
+        loadingStage = activeAttachments.length > 0 ? (activeIsPdf ? 'Reading document (Local Gemma)…' : 'Analyzing image…') : 'Connecting to local Gemma 26B…';
+        // For local 26B model on desktop, keep prompt trimmed to system + last 8 turns
+        // so prompt prefill evaluation stays fast and never stalls the connection.
+        const localMessages = [
+          apiMessages[0],
+          ...apiMessages.slice(1).slice(-8),
+        ];
+        const out = await streamLocalLlm({
+          messages: localMessages,
+          model: localLlmModel,
+          temperature: martiniMode ? 1.0 : undefined,
+          onStageUpdate: (stage) => { loadingStage = stage; },
+        });
         return {
-          completionText,
-          rawReasoning,
+          completionText: out.completionText,
+          rawReasoning: out.rawReasoning,
           providerMeta: {
             provider: `LM Studio (${localLlmModel || 'Gemma 26B'})`,
-            promptTokens: result?.usage?.prompt_tokens,
+            promptTokens: out.promptTokens,
           },
         };
       };
@@ -3618,7 +3708,13 @@ CURRENT REAL TIME & SCHEDULE:
         {#if localLlmMode !== 'never'}
           <div style="margin-top: 8px;">
             <label for="local-llm-model" style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); display: block; margin-bottom: 4px;">Local Model:</label>
-            {#if localLlmModels.length > 0}
+            {#if localLlmDetailedModels.length > 0}
+              <select id="local-llm-model" bind:value={localLlmModel} on:change={persistSettings}>
+                {#each localLlmDetailedModels as m}
+                  <option value={m.id}>{m.id} {m.loaded ? '🟢 (In RAM)' : ''}</option>
+                {/each}
+              </select>
+            {:else if localLlmModels.length > 0}
               <select id="local-llm-model" bind:value={localLlmModel} on:change={persistSettings}>
                 {#each localLlmModels as m}
                   <option value={m}>{m}</option>
@@ -3628,7 +3724,7 @@ CURRENT REAL TIME & SCHEDULE:
               <input
                 id="local-llm-model"
                 type="text"
-                placeholder="e.g. gemma-4-26b-a4b-it-claude-opus-distill-v2"
+                placeholder="e.g. gemma-4-26b-a4b-it-ultra-uncensored-heretic"
                 bind:value={localLlmModel}
                 on:change={persistSettings}
               />
