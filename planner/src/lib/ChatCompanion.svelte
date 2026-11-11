@@ -309,7 +309,7 @@
   function formatProviderBadge(provider?: string, cachedTokens?: number, promptTokens?: number, cacheWriteTokens?: number): {
     symbol: string;
     label: string;
-    kind: 'vertex' | 'aistudio' | 'google' | 'other';
+    kind: 'vertex' | 'aistudio' | 'google' | 'local' | 'other';
     cacheText: string;
     cacheHit: boolean;
     tooltip: string;
@@ -318,9 +318,13 @@
     const lower = raw.toLowerCase();
     let symbol = '⬡';
     let label = raw;
-    let kind: 'vertex' | 'aistudio' | 'google' | 'other' = 'other';
+    let kind: 'vertex' | 'aistudio' | 'google' | 'local' | 'other' = 'other';
 
-    if (lower.includes('vertex')) {
+    if (lower.includes('lm studio') || lower.includes('local') || lower.includes('gemma 4') || lower.includes('backup')) {
+      symbol = '⚡';
+      label = raw;
+      kind = 'local';
+    } else if (lower.includes('vertex')) {
       symbol = '▲';
       label = raw.replace(/^google\s+/i, ''); // e.g. "Vertex" or "Vertex AI"
       kind = 'vertex';
@@ -500,6 +504,47 @@
   let openRouterKey = safeGetItem('radial-planner-openrouter-key', import.meta.env.VITE_OPENROUTER_KEY || '');
   let selectedModel = safeGetItem('radial-planner-openrouter-model', import.meta.env.VITE_OPENROUTER_MODEL || 'google/gemma-2-27b-it');
   let useHybridRouting = safeGetItem('radial-planner-hybrid-routing', 'true') === 'true';
+
+  // Local LM Studio offline backup engine
+  type LocalLlmMode = 'auto' | 'always' | 'never';
+  let localLlmMode: LocalLlmMode = (safeGetItem('radial-planner-local-llm-mode', 'auto') as LocalLlmMode);
+  let localLlmModel = safeGetItem('radial-planner-local-llm-model', 'gemma-4-26b-a4b-it-claude-opus-distill-v2');
+  let localLlmOnline = false;
+  let localLlmChecking = false;
+  let localLlmModels: string[] = [];
+  let localLlmError = '';
+
+  async function checkLocalLlmHealth(): Promise<boolean> {
+    localLlmChecking = true;
+    localLlmError = '';
+    try {
+      const res = await fetch('/api/local-llm/health');
+      if (res.ok) {
+        const data = await res.json();
+        localLlmOnline = Boolean(data.online);
+        localLlmModels = Array.isArray(data.models) ? data.models : [];
+        if (data.preferredModel && (!localLlmModel || !localLlmModels.includes(localLlmModel))) {
+          localLlmModel = data.preferredModel;
+          try { localStorage.setItem('radial-planner-local-llm-model', localLlmModel); } catch {}
+        }
+        if (!data.online && data.error) {
+          localLlmError = data.error;
+        }
+        return localLlmOnline;
+      } else {
+        localLlmOnline = false;
+        localLlmError = `HTTP ${res.status}`;
+        return false;
+      }
+    } catch (err: any) {
+      localLlmOnline = false;
+      localLlmError = err?.message || 'Connection failed';
+      return false;
+    } finally {
+      localLlmChecking = false;
+    }
+  }
+
   let showSettings = false;
   let debugActions = '';
   
@@ -714,6 +759,9 @@
       .catch(err => {
         console.warn('[Companion] Failed to fetch live OpenRouter models list:', err);
       });
+
+    // Check local LM Studio health on startup
+    checkLocalLlmHealth();
     
     // Add a welcoming prompt if empty
     if (messages.length === 0) {
@@ -838,6 +886,8 @@
       localStorage.setItem('radial-planner-openrouter-key', openRouterKey.trim());
       localStorage.setItem('radial-planner-openrouter-model', selectedModel);
       localStorage.setItem('radial-planner-hybrid-routing', useHybridRouting ? 'true' : 'false');
+      localStorage.setItem('radial-planner-local-llm-mode', localLlmMode);
+      localStorage.setItem('radial-planner-local-llm-model', localLlmModel.trim());
       localStorage.setItem('radial-planner-pinecone-key', pineconeKey.trim());
       localStorage.setItem('radial-planner-pinecone-host', pineconeHost.trim());
       localStorage.setItem('radial-planner-vault-enabled', enableVault ? 'true' : 'false');
@@ -1553,27 +1603,58 @@ CURRENT REAL TIME & SCHEDULE:
       let parsed;
       let providerMeta: { provider?: string; cachedTokens?: number; promptTokens?: number } = {};
       if (!SUPABASE_URL || (openRouterKey && !useHybridRouting)) {
-        if (!openRouterKey) return;
-        const openRouterRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${openRouterKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: selectedModel,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              ...payloadMessages
-            ],
-            response_format: { type: 'json_object' },
-          }),
-        });
-        if (!openRouterRes.ok) return;
-        const result = await openRouterRes.json();
-        providerMeta = extractProviderMeta(result);
+        let result: any;
+        if (openRouterKey && localLlmMode !== 'always') {
+          try {
+            const openRouterRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${openRouterKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: selectedModel,
+                messages: [
+                  { role: 'system', content: systemPrompt },
+                  ...payloadMessages
+                ],
+                response_format: { type: 'json_object' },
+              }),
+            });
+            if (openRouterRes.ok) {
+              result = await openRouterRes.json();
+              providerMeta = extractProviderMeta(result);
+            }
+          } catch (e) {
+            console.warn('[Companion] Heartbeat OpenRouter call failed:', e);
+          }
+        }
+        if (!result && localLlmMode !== 'never') {
+          try {
+            const localRes = await fetch('/api/local-llm/chat/completions', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                model: localLlmModel || 'gemma-4-26b-a4b-it-claude-opus-distill-v2',
+                messages: [
+                  { role: 'system', content: systemPrompt },
+                  ...payloadMessages
+                ],
+                max_tokens: 1024,
+              }),
+            });
+            if (localRes.ok) {
+              result = await localRes.json();
+              providerMeta = { provider: 'Local Gemma 26B', promptTokens: result?.usage?.prompt_tokens };
+            }
+          } catch (e) {
+            console.warn('[Companion] Heartbeat local LM Studio call failed:', e);
+          }
+        }
+        if (!result) return;
         const completionText = result.choices?.[0]?.message?.content?.trim() ?? '';
-        parsed = extractLlmJson(completionText);
+        const rawReasoning = (result.choices?.[0]?.message?.reasoning ?? result.choices?.[0]?.message?.reasoning_content ?? '').trim();
+        parsed = extractLlmJson(completionText || rawReasoning);
       } else {
         const res = await fetch(`${SUPABASE_URL}/functions/v1/parse-command`, {
           method: 'POST',
@@ -1699,43 +1780,110 @@ CURRENT REAL TIME & SCHEDULE:
 
       let parsed;
       let providerMeta: { provider?: string; cachedTokens?: number; promptTokens?: number; cacheWriteTokens?: number } = {};
-      if (!SUPABASE_URL || (openRouterKey && !useHybridRouting)) {
-        const openRouterRes = await fetchWithAbort('https://openrouter.ai/api/v1/chat/completions', {
+      const shouldAttemptLocalFirst = localLlmMode === 'always';
+      const canFallbackToLocal = localLlmMode !== 'never';
+
+      const callLocalForBg = async () => {
+        const lmRes = await fetchWithAbort('/api/local-llm/chat/completions', {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${openRouterKey}`,
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            model: selectedModel,
+            model: localLlmModel || 'gemma-4-26b-a4b-it-claude-opus-distill-v2',
             messages: [
-              {
-                role: 'system',
-                content: systemPromptForCall,
-              },
+              { role: 'system', content: systemPromptForCall },
               ...messagesForCall,
             ],
-            response_format: { type: 'json_object' },
+            max_tokens: 2048,
           }),
-        }, 70000);
-        if (!openRouterRes.ok) throw new Error(`OpenRouter API error: ${openRouterRes.status} ${await openRouterRes.text()}`);
-        const result = await openRouterRes.json();
-        providerMeta = extractProviderMeta(result);
+        }, 90000);
+        if (!lmRes.ok) throw new Error(`Local LM Studio error: ${lmRes.status} ${await lmRes.text()}`);
+        const result = await lmRes.json();
         const rawContent = result.choices?.[0]?.message?.content?.trim() ?? '';
         const rawReasoning = (result.choices?.[0]?.message?.reasoning ?? result.choices?.[0]?.message?.reasoning_content ?? '').trim();
-        parsed = extractLlmJson(rawContent || rawReasoning, { salvageProse: true });
+        return {
+          parsed: extractLlmJson(rawContent || rawReasoning, { salvageProse: true }),
+          providerMeta: {
+            provider: `LM Studio (${localLlmModel || 'Gemma 26B'})`,
+            promptTokens: result?.usage?.prompt_tokens,
+          },
+        };
+      };
+
+      if (shouldAttemptLocalFirst) {
+        const out = await callLocalForBg();
+        parsed = out.parsed;
+        providerMeta = out.providerMeta;
+      } else if (!SUPABASE_URL || (openRouterKey && !useHybridRouting)) {
+        try {
+          if (!openRouterKey && canFallbackToLocal) {
+            const out = await callLocalForBg();
+            parsed = out.parsed;
+            providerMeta = out.providerMeta;
+          } else {
+            const openRouterRes = await fetchWithAbort('https://openrouter.ai/api/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${openRouterKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: selectedModel,
+                messages: [
+                  {
+                    role: 'system',
+                    content: systemPromptForCall,
+                  },
+                  ...messagesForCall,
+                ],
+                response_format: { type: 'json_object' },
+              }),
+            }, 70000);
+            if (!openRouterRes.ok) throw new Error(`OpenRouter API error: ${openRouterRes.status} ${await openRouterRes.text()}`);
+            const result = await openRouterRes.json();
+            providerMeta = extractProviderMeta(result);
+            const rawContent = result.choices?.[0]?.message?.content?.trim() ?? '';
+            const rawReasoning = (result.choices?.[0]?.message?.reasoning ?? result.choices?.[0]?.message?.reasoning_content ?? '').trim();
+            parsed = extractLlmJson(rawContent || rawReasoning, { salvageProse: true });
+          }
+        } catch (cloudErr) {
+          if (canFallbackToLocal) {
+            console.warn('[Companion] Background cloud call failed, falling back to local LM Studio:', cloudErr);
+            const out = await callLocalForBg();
+            parsed = out.parsed;
+            providerMeta = {
+              provider: `Local Gemma 26B (Backup)`,
+              promptTokens: out.providerMeta.promptTokens,
+            };
+          } else {
+            throw cloudErr;
+          }
+        }
       } else {
-        const res = await fetchWithAbort(`${SUPABASE_URL}/functions/v1/parse-command`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', apikey: SUPABASE_ANON, authorization: `Bearer ${SUPABASE_ANON}` },
-          body: JSON.stringify({
-            messages: messagesForCall, currentDate: realDate, currentTime, vibes: allVibes,
-            systemPromptOverride: systemPromptForCall, useProxy: useHybridRouting,
-          }),
-        }, 70000);
-        if (!res.ok) throw new Error(`Companion service error: ${res.status} ${await res.text()}`);
-        parsed = await res.json();
-        providerMeta = extractProviderMeta(parsed);
+        try {
+          const res = await fetchWithAbort(`${SUPABASE_URL}/functions/v1/parse-command`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', apikey: SUPABASE_ANON, authorization: `Bearer ${SUPABASE_ANON}` },
+            body: JSON.stringify({
+              messages: messagesForCall, currentDate: realDate, currentTime, vibes: allVibes,
+              systemPromptOverride: systemPromptForCall, useProxy: useHybridRouting,
+            }),
+          }, 70000);
+          if (!res.ok) throw new Error(`Companion service error: ${res.status} ${await res.text()}`);
+          parsed = await res.json();
+          providerMeta = extractProviderMeta(parsed);
+        } catch (edgeErr) {
+          if (canFallbackToLocal) {
+            console.warn('[Companion] Background Edge Function call failed, falling back to local LM Studio:', edgeErr);
+            const out = await callLocalForBg();
+            parsed = out.parsed;
+            providerMeta = {
+              provider: `Local Gemma 26B (Backup)`,
+              promptTokens: out.providerMeta.promptTokens,
+            };
+          } else {
+            throw edgeErr;
+          }
+        }
       }
 
       const responseActions = Array.isArray(parsed.actions)
@@ -2266,29 +2414,66 @@ CURRENT REAL TIME & SCHEDULE:
       const liveTurnContext = getLiveTurnContext(viewDate, realDate, currentTime, activeBlocks, activeSymptoms, activeDiary, vaultContext);
       const messagesWithLiveContext = attachLiveContextToPayloadMessages(payloadMessages, liveTurnContext);
 
-      // Chain-of-thought captured from the OpenRouter path when the bulb is lit
+      // Chain-of-thought captured from the OpenRouter or Local path when the bulb is lit
       let cotReasoning: string | undefined;
       let providerMeta: { provider?: string; cachedTokens?: number; promptTokens?: number; cacheWriteTokens?: number } = {};
+      let usedLocalBackup = false;
 
-      if (!SUPABASE_URL || (openRouterKey && !useHybridRouting)) {
-        if (!openRouterKey) {
-          throw new Error('OpenRouter API key is not configured. Please tap the Settings gear icon above to enter it.');
+      const shouldAttemptLocalFirst = localLlmMode === 'always';
+      const canFallbackToLocal = localLlmMode !== 'never';
+
+      const apiMessages = [
+        {
+          role: 'system',
+          content: staticSystemPrompt,
+        },
+        ...messagesWithLiveContext,
+      ];
+
+      const runLocalCompletion = async () => {
+        loadingStage = activeAttachments.length > 0 ? (activeIsPdf ? 'Reading document (Local Gemma)…' : 'Analyzing image…') : 'Thinking (Local Gemma 26B)…';
+        const lmRes = await fetchWithAbort('/api/local-llm/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: localLlmModel || 'gemma-4-26b-a4b-it-claude-opus-distill-v2',
+            messages: apiMessages,
+            ...(martiniMode ? { temperature: 1.0 } : {}),
+            max_tokens: 2048,
+          }),
+        }, 90000);
+        if (!lmRes.ok) {
+          const errText = await lmRes.text();
+          throw new Error(`Local LM Studio error: ${lmRes.status} ${errText}`);
         }
-
-        const apiMessages = [
-          {
-            role: 'system',
-            content: staticSystemPrompt,
+        const result = await lmRes.json();
+        let completionText = result.choices?.[0]?.message?.content?.trim() ?? '';
+        const rawReasoning = (
+          result.choices?.[0]?.message?.reasoning ??
+          result.choices?.[0]?.message?.reasoning_content ??
+          ''
+        ).trim();
+        if (!completionText && rawReasoning && (rawReasoning.includes('"message"') || rawReasoning.includes('{'))) {
+          completionText = rawReasoning;
+        }
+        return {
+          completionText,
+          rawReasoning,
+          providerMeta: {
+            provider: `LM Studio (${localLlmModel || 'Gemma 26B'})`,
+            promptTokens: result?.usage?.prompt_tokens,
           },
-          ...messagesWithLiveContext,
-        ];
+        };
+      };
 
-        // Providers occasionally return 200 with EMPTY content (safety blip,
-        // reasoning-only reply, upstream hiccup). Retry fast blips up to 2 times,
-        // and also salvage JSON/prose if the provider put the reply inside
-        // `message.reasoning` while leaving `message.content` empty.
+      const runOpenRouterCompletion = async () => {
+        if (!openRouterKey) {
+          throw new Error('OpenRouter API key is not configured.');
+        }
         let completionText = '';
         let finishReason = '';
+        let rawReasoning = '';
+        let lastResult: any = null;
         const maxAttempts = 2;
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
           loadingStage = attempt > 1
@@ -2305,16 +2490,8 @@ CURRENT REAL TIME & SCHEDULE:
               model: selectedModel,
               messages: apiMessages,
               response_format: { type: 'json_object' },
-              // martini mode: temperature pinned high for this sitting only;
-              // otherwise the provider default applies, unchanged from before
               ...(martiniMode ? { temperature: 1.0 } : {}),
-              // visible CoT: ask OpenRouter to return the model's reasoning
-              // alongside the JSON reply (same flag Sovereign Terminal uses)
               ...(visibleCot ? { include_reasoning: true } : {}),
-              // PDF attached: OpenRouter's file-parser plugin extracts the text
-              // for models without native document support. pdf-text is free
-              // (embedded text); mistral-ocr bills per page but reads scans —
-              // chosen per-upload via the tray toggle, default off.
               ...(activeIsPdf ? { plugins: [{ id: 'file-parser', pdf: { engine: activePdfOcr ? 'mistral-ocr' : 'pdf-text' } }] } : {}),
             }),
           }, 70000);
@@ -2325,25 +2502,19 @@ CURRENT REAL TIME & SCHEDULE:
           }
 
           const result = await openRouterRes.json();
-          providerMeta = extractProviderMeta(result);
-          const rawReasoning = (
+          lastResult = result;
+          rawReasoning = (
             result.choices?.[0]?.message?.reasoning ??
             result.choices?.[0]?.message?.reasoning_content ??
             ''
           ).trim();
-          if (visibleCot && rawReasoning) {
-            cotReasoning = rawReasoning;
-          }
           completionText = result.choices?.[0]?.message?.content?.trim() ?? '';
           finishReason = result.choices?.[0]?.finish_reason ?? '';
-          // If the provider placed the JSON reply inside `reasoning` while
-          // leaving `content` empty, salvage it immediately instead of retrying.
           if (!completionText && rawReasoning && (rawReasoning.includes('"message"') || attempt === maxAttempts)) {
             completionText = rawReasoning;
           }
           if (completionText) break;
           console.warn(`[Companion] Empty completion (attempt ${attempt}/${maxAttempts}${finishReason ? `, finish_reason: ${finishReason}` : ''}) — retrying…`);
-          // Only retry if the empty response came back quickly (<15s)
           if (attempt < maxAttempts && Date.now() - attemptStart < 15000) {
             await new Promise((r) => setTimeout(r, 500));
           } else {
@@ -2353,36 +2524,113 @@ CURRENT REAL TIME & SCHEDULE:
         if (!completionText) {
           throw new Error(`The model returned an empty reply${finishReason ? ` (finish_reason: ${finishReason})` : ''} — the provider may be having a moment. Tap Regenerate, or switch models in Settings.`);
         }
-        // interactive chat: if all JSON recovery fails, show the raw reply as
-        // his message instead of an error bar (actions just come up empty)
-        parsed = extractLlmJson(completionText, { salvageProse: true });
-      } else {
-        const res = await fetchWithAbort(`${SUPABASE_URL}/functions/v1/parse-command`, {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            apikey: SUPABASE_ANON,
-            authorization: `Bearer ${SUPABASE_ANON}`,
-          },
-          body: JSON.stringify({
-            messages: messagesWithLiveContext,
-            currentDate: realDate,
-            currentTime,
-            vibes: allVibes,
-            systemPromptOverride: staticSystemPrompt,
-            useProxy: useHybridRouting
-          }),
-        }, 70000);
+        return {
+          completionText,
+          rawReasoning,
+          providerMeta: extractProviderMeta(lastResult),
+        };
+      };
 
-        if (!res.ok) {
-          const txt = await res.text();
-          throw new Error(`Companion service error: ${res.status} ${txt}`);
+      if (shouldAttemptLocalFirst) {
+        try {
+          const localOut = await runLocalCompletion();
+          providerMeta = localOut.providerMeta;
+          if (visibleCot && localOut.rawReasoning) {
+            cotReasoning = localOut.rawReasoning;
+          }
+          parsed = extractLlmJson(localOut.completionText, { salvageProse: true });
+        } catch (err: any) {
+          throw new Error(`Local LM Studio is offline: ${err?.message || err}. Check that LM Studio is running on your desktop.`);
         }
+      } else if (!SUPABASE_URL || (openRouterKey && !useHybridRouting)) {
+        try {
+          if (!openRouterKey && canFallbackToLocal) {
+            const localOut = await runLocalCompletion();
+            providerMeta = localOut.providerMeta;
+            if (visibleCot && localOut.rawReasoning) {
+              cotReasoning = localOut.rawReasoning;
+            }
+            parsed = extractLlmJson(localOut.completionText, { salvageProse: true });
+          } else {
+            const cloudOut = await runOpenRouterCompletion();
+            providerMeta = cloudOut.providerMeta;
+            if (visibleCot && cloudOut.rawReasoning) {
+              cotReasoning = cloudOut.rawReasoning;
+            }
+            parsed = extractLlmJson(cloudOut.completionText, { salvageProse: true });
+          }
+        } catch (cloudErr: any) {
+          if (canFallbackToLocal) {
+            console.warn('[Companion] Primary cloud path failed. Attempting local LM Studio fallback…', cloudErr);
+            loadingStage = 'Cloud unreachable — falling back to local Gemma 26B…';
+            try {
+              const localOut = await runLocalCompletion();
+              providerMeta = {
+                provider: `Local Gemma 26B (Backup)`,
+                promptTokens: localOut.providerMeta.promptTokens,
+              };
+              usedLocalBackup = true;
+              if (visibleCot && localOut.rawReasoning) {
+                cotReasoning = localOut.rawReasoning;
+              }
+              parsed = extractLlmJson(localOut.completionText, { salvageProse: true });
+            } catch (localErr: any) {
+              throw new Error(`Cloud connection failed (${cloudErr?.message || cloudErr}) and local LM Studio backup was unreachable (${localErr?.message || localErr}).`);
+            }
+          } else {
+            throw cloudErr;
+          }
+        }
+      } else {
+        try {
+          const res = await fetchWithAbort(`${SUPABASE_URL}/functions/v1/parse-command`, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              apikey: SUPABASE_ANON,
+              authorization: `Bearer ${SUPABASE_ANON}`,
+            },
+            body: JSON.stringify({
+              messages: messagesWithLiveContext,
+              currentDate: realDate,
+              currentTime,
+              vibes: allVibes,
+              systemPromptOverride: staticSystemPrompt,
+              useProxy: useHybridRouting
+            }),
+          }, 70000);
 
-        parsed = await res.json();
-        providerMeta = extractProviderMeta(parsed);
+          if (!res.ok) {
+            const txt = await res.text();
+            throw new Error(`Companion service error: ${res.status} ${txt}`);
+          }
+
+          parsed = await res.json();
+          providerMeta = extractProviderMeta(parsed);
+        } catch (edgeErr: any) {
+          if (canFallbackToLocal) {
+            console.warn('[Companion] Supabase Edge Function failed. Attempting local LM Studio fallback…', edgeErr);
+            loadingStage = 'Cloud unreachable — falling back to local Gemma 26B…';
+            try {
+              const localOut = await runLocalCompletion();
+              providerMeta = {
+                provider: `Local Gemma 26B (Backup)`,
+                promptTokens: localOut.providerMeta.promptTokens,
+              };
+              usedLocalBackup = true;
+              if (visibleCot && localOut.rawReasoning) {
+                cotReasoning = localOut.rawReasoning;
+              }
+              parsed = extractLlmJson(localOut.completionText, { salvageProse: true });
+            } catch (localErr: any) {
+              throw new Error(`Cloud service error (${edgeErr?.message || edgeErr}) and local LM Studio backup was unreachable (${localErr?.message || localErr}).`);
+            }
+          } else {
+            throw edgeErr;
+          }
+        }
       }
-      
+
       // Construct companion response message
       const chatReact = resolveReact(parsed);
       const assistantMsg: ChatMessage = {
@@ -3286,7 +3534,7 @@ CURRENT REAL TIME & SCHEDULE:
           <path d="M7 22h10" />
         </svg>
       </button>
-      <button class="icon-btn" on:click={() => showSettings = !showSettings} aria-label="Open settings">
+      <button class="icon-btn" on:click={() => { showSettings = !showSettings; if (showSettings) checkLocalLlmHealth(); }} aria-label="Open settings">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M11 10.27 7 3.34" />
           <path d="m11 13.73-4 6.93" />
@@ -3330,6 +3578,65 @@ CURRENT REAL TIME & SCHEDULE:
           {/each}
         </select>
       </div>
+
+      <!-- Local LM Studio Offline Engine / Backup Section -->
+      <div class="field local-llm-section">
+        <div class="local-llm-head">
+          <span style="margin: 0; font-weight: 600; color: var(--text);">Local LM Studio (Offline Engine)</span>
+          <div class="local-llm-status-box">
+            {#if localLlmChecking}
+              <span class="status-pill checking">Checking…</span>
+            {:else if localLlmOnline}
+              <span class="status-pill online" title="Connected to LM Studio at 127.0.0.1:1234">🟢 Online</span>
+            {:else}
+              <span class="status-pill offline" title={localLlmError || 'LM Studio is offline at 127.0.0.1:1234'}>⚪ Offline</span>
+            {/if}
+            <button
+              type="button"
+              class="refresh-btn"
+              on:click={() => checkLocalLlmHealth()}
+              title="Refresh connection to LM Studio"
+              disabled={localLlmChecking}
+            >
+              ↻
+            </button>
+          </div>
+        </div>
+        <span class="tip">
+          Runs locally via LM Studio at <code>http://127.0.0.1:1234</code>. Proxied through Vite so it works on desktop and iPhone over ngrok with no mixed-content blocks.
+        </span>
+
+        <div style="margin-top: 10px;">
+          <label for="local-llm-mode" style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); display: block; margin-bottom: 4px;">Routing Mode:</label>
+          <select id="local-llm-mode" bind:value={localLlmMode} on:change={persistSettings}>
+            <option value="auto">Auto-Fallback: Cloud first (Desktop Gemma backup on outage)</option>
+            <option value="always">Always Local: 100% Offline (Desktop Gemma only)</option>
+            <option value="never">Cloud Only: Disable local engine backup</option>
+          </select>
+        </div>
+
+        {#if localLlmMode !== 'never'}
+          <div style="margin-top: 8px;">
+            <label for="local-llm-model" style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); display: block; margin-bottom: 4px;">Local Model:</label>
+            {#if localLlmModels.length > 0}
+              <select id="local-llm-model" bind:value={localLlmModel} on:change={persistSettings}>
+                {#each localLlmModels as m}
+                  <option value={m}>{m}</option>
+                {/each}
+              </select>
+            {:else}
+              <input
+                id="local-llm-model"
+                type="text"
+                placeholder="e.g. gemma-4-26b-a4b-it-claude-opus-distill-v2"
+                bind:value={localLlmModel}
+                on:change={persistSettings}
+              />
+            {/if}
+          </div>
+        {/if}
+      </div>
+
       <div class="field">
         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; margin: 0; font-size: 12px; color: var(--text);">
           <input type="checkbox" bind:checked={useHybridRouting} on:change={persistSettings} style="margin: 0; width: auto;" />
@@ -3976,6 +4283,74 @@ CURRENT REAL TIME & SCHEDULE:
   }
   .provider-badge.google .prov-sym {
     color: #9ece6a;
+  }
+  .provider-badge.local {
+    color: #38bdf8;
+    border-color: rgba(56, 189, 248, 0.4);
+    background: rgba(56, 189, 248, 0.08);
+  }
+  .provider-badge.local .prov-sym {
+    color: #38bdf8;
+  }
+  .local-llm-section {
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-top: 6px;
+    margin-bottom: 6px;
+  }
+  .local-llm-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .local-llm-status-box {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+  }
+  .status-pill.online {
+    color: #4ade80;
+    border-color: rgba(74, 222, 128, 0.35);
+    background: rgba(74, 222, 128, 0.09);
+  }
+  .status-pill.offline {
+    color: var(--text-muted);
+  }
+  .status-pill.checking {
+    color: #fbbf24;
+    border-color: rgba(251, 191, 36, 0.35);
+    background: rgba(251, 191, 36, 0.09);
+  }
+  .refresh-btn {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    padding: 2px 6px;
+    cursor: pointer;
+    font-size: 11px;
+    line-height: 1;
+    transition: background 0.15s ease;
+  }
+  .refresh-btn:hover:not(:disabled) {
+    background: var(--surface-3);
+  }
+  .refresh-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
   .prov-sym {
     font-size: 10px;

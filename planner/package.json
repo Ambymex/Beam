@@ -13,7 +13,9 @@
     "test:companion-themes": "node scripts/test-companion-themes.mjs",
     "room": "node ../room/server.mjs",
     "test:room": "node --test ../room/room.test.mjs",
-    "test:room-ui": "node scripts/test-room.mjs"
+    "test:room-ui": "node scripts/test-room.mjs",
+    "test:clearing": "node scripts/test-clearing.mjs",
+    "test:local-llm": "node scripts/test-local-llm-companion.mjs"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^3.1.2",
