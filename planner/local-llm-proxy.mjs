@@ -151,10 +151,23 @@ export function localLlmMiddleware(options = {}) {
           }
         }
 
+        // Safety guard: if prompt exceeds ~22,000 characters (~5,500 tokens),
+        // trim intermediate history turns to protect LM Studio 8k context window.
+        if (Array.isArray(body.messages) && body.messages.length > 3) {
+          const totalChars = body.messages.reduce((acc, m) => acc + (typeof m.content === 'string' ? m.content.length : 100), 0);
+          if (totalChars > 22000) {
+            console.warn(`[local-llm-proxy] Incoming prompt is large (${totalChars} chars) - trimming older turns to protect 8k context window.`);
+            const system = body.messages[0];
+            const tail = body.messages.slice(-4);
+            body.messages = [system, ...tail];
+          }
+        }
+
         // If streaming is requested (or default for tunnel-resilience),
         // write SSE headers and keepalive heartbeats immediately so ngrok / mobile Safari
         // never time out while LM Studio performs prompt evaluation or token generation.
         if (body.stream) {
+          console.log(`[local-llm-proxy] Streaming chat request to LM Studio (${body.model}, ${body.messages?.length || 0} msgs, max_tokens: ${body.max_tokens || 2048})...`);
           res.writeHead(200, {
             'content-type': 'text/event-stream; charset=utf-8',
             'cache-control': 'no-cache, no-transform',
@@ -183,6 +196,7 @@ export function localLlmMiddleware(options = {}) {
             });
           } catch (fetchErr) {
             clearInterval(keepAliveTimer);
+            console.error('[local-llm-proxy] Fetch error connecting to LM Studio:', fetchErr.message);
             res.write(`data: ${JSON.stringify({ error: { message: `LM Studio connection error: ${fetchErr.message}` } })}\n\n`);
             return res.end();
           }
@@ -190,6 +204,7 @@ export function localLlmMiddleware(options = {}) {
           if (!lmResponse.ok) {
             clearInterval(keepAliveTimer);
             const errText = await lmResponse.text();
+            console.error(`[local-llm-proxy] LM Studio returned HTTP ${lmResponse.status}:`, errText);
             res.write(`data: ${JSON.stringify({ error: { message: `LM Studio error ${lmResponse.status}: ${errText}` } })}\n\n`);
             return res.end();
           }
@@ -202,6 +217,7 @@ export function localLlmMiddleware(options = {}) {
                 if (done) break;
                 res.write(value);
               }
+              console.log('[local-llm-proxy] Streaming completed successfully.');
             } finally {
               clearInterval(keepAliveTimer);
               res.end();
