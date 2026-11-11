@@ -512,12 +512,18 @@
     loaded: boolean;
     contextLength?: number;
   }
+  interface LocalLanAddress {
+    name: string;
+    address: string;
+    url: string;
+  }
   let localLlmMode: LocalLlmMode = (safeGetItem('radial-planner-local-llm-mode', 'auto') as LocalLlmMode);
   let localLlmModel = safeGetItem('radial-planner-local-llm-model', 'gemma-4-26b-a4b-it-ultra-uncensored-heretic');
   let localLlmOnline = false;
   let localLlmChecking = false;
   let localLlmModels: string[] = [];
   let localLlmDetailedModels: LocalLlmDetailedModel[] = [];
+  let localLanAddresses: LocalLanAddress[] = [];
   let localLlmLoadedModel = '';
   let localLlmError = '';
 
@@ -531,6 +537,7 @@
         localLlmOnline = Boolean(data.online);
         localLlmModels = Array.isArray(data.models) ? data.models : [];
         localLlmDetailedModels = Array.isArray(data.detailedModels) ? data.detailedModels : [];
+        localLanAddresses = Array.isArray(data.lanAddresses) ? data.lanAddresses : [];
         localLlmLoadedModel = data.loadedModel || '';
 
         // If LM Studio already has a model loaded in memory, prefer that to avoid 100s reload times!
@@ -3817,6 +3824,22 @@ CURRENT REAL TIME & SCHEDULE:
             {/if}
           </div>
         {/if}
+
+        {#if localLanAddresses.length > 0}
+          <div class="local-lan-box">
+            <span class="lan-title">🏡 LAN & Bunker Fallback (No Internet Needed)</span>
+            <span class="lan-desc">When your phone is on home Wi-Fi (or during an internet outage), open the planner directly on LAN to bypass ngrok completely:</span>
+            <div class="lan-links-list">
+              {#each localLanAddresses as lan}
+                <a href={lan.url} target="_blank" rel="noopener noreferrer" class="lan-pill">
+                  <span><strong>{lan.name}:</strong> <code>{lan.url}</code></span>
+                  <span>↗</span>
+                </a>
+              {/each}
+            </div>
+            <span class="lan-note">Tip: In Safari on that URL, tap Share ➔ "Add to Home Screen" for one-tap offline bunker access.</span>
+          </div>
+        {/if}
       </div>
 
       <div class="field">
@@ -5121,5 +5144,59 @@ CURRENT REAL TIME & SCHEDULE:
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
+  }
+  .local-lan-box {
+    margin-top: 10px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .lan-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--accent, #60a5fa);
+  }
+  .lan-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.35;
+  }
+  .lan-links-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 2px;
+  }
+  .lan-pill {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 11px;
+  }
+  .lan-pill:hover {
+    border-color: var(--accent, #60a5fa);
+    background: rgba(255, 255, 255, 0.08);
+  }
+  .lan-pill code {
+    font-family: monospace;
+    color: var(--signal, #34d399);
+  }
+  .lan-note {
+    font-size: 10px;
+    color: var(--text-faint);
+    font-style: italic;
+    margin-top: 2px;
   }
 </style>

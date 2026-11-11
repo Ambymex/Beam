@@ -2,6 +2,8 @@
 // Solenoid (Radial Day Planner) local offline engine.
 // Forwards /api/local-llm/* to local LM Studio server at http://127.0.0.1:1234
 
+import os from 'os';
+
 const DEFAULT_LM_STUDIO_URL = process.env.LM_STUDIO_URL || 'http://127.0.0.1:1234';
 
 export function localLlmMiddleware(options = {}) {
@@ -69,6 +71,21 @@ export function localLlmMiddleware(options = {}) {
                           models.find((m) => /gemma/i.test(m)) ||
                           models[0] || '';
 
+        // Detect local IPv4 addresses (LAN Wi-Fi / Ethernet / Tailscale)
+        const nets = os.networkInterfaces();
+        const lanAddresses = [];
+        for (const name of Object.keys(nets)) {
+          for (const net of nets[name] || []) {
+            if (net.family === 'IPv4' && !net.internal) {
+              lanAddresses.push({
+                name,
+                address: net.address,
+                url: `http://${net.address}:5173`,
+              });
+            }
+          }
+        }
+
         return sendJson(200, {
           ok: true,
           online: true,
@@ -80,6 +97,7 @@ export function localLlmMiddleware(options = {}) {
           })),
           loadedModel,
           preferredModel: preferred,
+          lanAddresses,
           targetUrl,
         });
       } catch (err) {
