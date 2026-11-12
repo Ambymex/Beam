@@ -708,7 +708,7 @@ async function completeJson(
       method: 'POST',
       headers: { Authorization: `Bearer ${openRouterKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: Deno.env.get('HEARTBEAT_MODEL') || Deno.env.get('OPENROUTER_MODEL') || 'google/gemma-2-27b-it',
+        model: Deno.env.get('HEARTBEAT_MODEL') || Deno.env.get('OPENROUTER_MODEL') || 'google/gemini-4-hydrogen',
         messages: apiMessages,
         response_format: { type: 'json_object' },
       }),

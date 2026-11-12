@@ -35,6 +35,7 @@ export async function exportBackup(): Promise<string> {
       'radial-planner-chat-v1',
       'radial-planner-openrouter-key',
       'radial-planner-openrouter-model',
+      'radial-planner-heartbeat-model',
       'radial-planner-hybrid-routing',
       'radial-planner-pinecone-key',
       'radial-planner-pinecone-host',

@@ -509,8 +509,10 @@
   }
 
   // OpenRouter direct settings
+  const DEFAULT_HEARTBEAT_MODEL = 'google/gemini-4-hydrogen';
   let openRouterKey = safeGetItem('radial-planner-openrouter-key', import.meta.env.VITE_OPENROUTER_KEY || '');
   let selectedModel = safeGetItem('radial-planner-openrouter-model', import.meta.env.VITE_OPENROUTER_MODEL || 'google/gemma-2-27b-it');
+  let heartbeatModel = safeGetItem('radial-planner-heartbeat-model', import.meta.env.VITE_OPENROUTER_HEARTBEAT_MODEL || DEFAULT_HEARTBEAT_MODEL);
   let useHybridRouting = safeGetItem('radial-planner-hybrid-routing', 'true') === 'true';
 
   // Local LM Studio offline backup engine
@@ -838,6 +840,9 @@
   }
   
   let modelsList: Array<{ id: string; name?: string }> = [
+    { id: 'google/gemini-4-carbon', name: 'Google: Gemini 4 Carbon' },
+    { id: 'google/gemini-4-hydrogen', name: 'Google: Gemini 4 Hydrogen' },
+    { id: 'google/gemini-4-argon', name: 'Google: Gemini 4 Argon' },
     { id: 'google/gemini-2.0-flash-001', name: 'Gemini 2.0 Flash' },
     { id: 'google/gemini-flash-1.5', name: 'Gemini 1.5 Flash' },
     { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
@@ -850,6 +855,11 @@
     { id: 'meta-llama/llama-3.1-8b-instruct', name: 'Llama 3.1 8B (Free)' },
     { id: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen 2.5 72B' },
   ];
+  for (const savedId of [selectedModel, heartbeatModel]) {
+    if (savedId && !modelsList.some(m => m.id === savedId)) {
+      modelsList.push({ id: savedId, name: savedId });
+    }
+  }
 
   onMount(() => {
     // Load chat history from localStorage
@@ -1012,6 +1022,7 @@
     try {
       localStorage.setItem('radial-planner-openrouter-key', openRouterKey.trim());
       localStorage.setItem('radial-planner-openrouter-model', selectedModel);
+      localStorage.setItem('radial-planner-heartbeat-model', heartbeatModel);
       localStorage.setItem('radial-planner-hybrid-routing', useHybridRouting ? 'true' : 'false');
       localStorage.setItem('radial-planner-local-llm-mode', localLlmMode);
       localStorage.setItem('radial-planner-local-llm-model', localLlmModel.trim());
@@ -1806,7 +1817,7 @@ CURRENT REAL TIME & SCHEDULE:
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
-                model: selectedModel,
+                model: heartbeatModel || DEFAULT_HEARTBEAT_MODEL,
                 messages: [
                   { role: 'system', content: systemPrompt },
                   ...payloadMessages
@@ -3760,12 +3771,21 @@ CURRENT REAL TIME & SCHEDULE:
         <span class="tip">Left empty? Falls back to project .env file.</span>
       </div>
       <div class="field">
-        <label for="or-model">AI Model:</label>
+        <label for="or-model">AI Model (Main Chat):</label>
         <select id="or-model" bind:value={selectedModel} on:change={persistSettings}>
           {#each modelsList as m}
             <option value={m.id}>{m.name || m.id}</option>
           {/each}
         </select>
+      </div>
+      <div class="field">
+        <label for="or-heartbeat-model">Heartbeat / Wakeup Model:</label>
+        <select id="or-heartbeat-model" bind:value={heartbeatModel} on:change={persistSettings}>
+          {#each modelsList as m}
+            <option value={m.id}>{m.name || m.id}</option>
+          {/each}
+        </select>
+        <span class="tip">Used for periodic background check-ins and wakeups. Defaults to Google: Gemini 4 Hydrogen.</span>
       </div>
 
       <!-- Local LM Studio Offline Engine / Backup Section -->
