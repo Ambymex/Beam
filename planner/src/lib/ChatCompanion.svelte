@@ -398,7 +398,15 @@
     return results?.length ? `${msg.content}\n\n[Actual tool results]\n${JSON.stringify(results)}` : msg.content;
   }
 
+  function isHiddenInternalMessage(msg: ChatMessage): boolean {
+    return Boolean(
+      msg?.id?.startsWith('search_res_') ||
+      (typeof msg?.content === 'string' && msg.content.startsWith('WEB SEARCH RESULTS for query'))
+    );
+  }
+
   let messages: ChatMessage[] = [];
+  $: visibleMessages = messages.filter((m) => !isHiddenInternalMessage(m));
   let draft = '';
   let isLoading = false;
   let loadingStage = '';
@@ -916,7 +924,7 @@
     registerChatAdapter({
       getUnsynced: (): ChatSyncMessage[] =>
         messages
-          .filter((m) => !m.synced && !m.id.startsWith('welcome_') && m.content)
+          .filter((m) => !m.synced && !m.id.startsWith('welcome_') && !isHiddenInternalMessage(m) && m.content)
           .map((m) => ({ id: m.id, role: m.role, content: m.content, timestamp: m.timestamp })),
       markSynced: (ids: string[]) => {
         const done = new Set(ids);
@@ -1908,13 +1916,14 @@ CURRENT REAL TIME & SCHEDULE:
     return html;
   }
 
-  async function submitBackgroundMessage(msg: ChatMessage, options: { roomOnly?: boolean; clearingOnly?: boolean } = {}): Promise<boolean> {
-    if (!options.roomOnly && !options.clearingOnly) {
+  async function submitBackgroundMessage(msg: ChatMessage, options: { roomOnly?: boolean; clearingOnly?: boolean; ephemeral?: boolean; loadingLabel?: string } = {}): Promise<boolean> {
+    const isEphemeral = Boolean(options.roomOnly || options.clearingOnly || options.ephemeral);
+    if (!isEphemeral) {
       messages = [...messages, msg];
       saveChat();
     }
     isLoading = true;
-    loadingStage = options.roomOnly ? 'Reading room…' : options.clearingOnly ? 'Visiting The Clearing…' : 'Thinking…';
+    loadingStage = options.loadingLabel || (options.roomOnly ? 'Reading room…' : options.clearingOnly ? 'Visiting The Clearing…' : 'Thinking…');
     errorMsg = '';
 
     try {
@@ -1927,10 +1936,12 @@ CURRENT REAL TIME & SCHEDULE:
 
       // For room or clearing visits, keep only the last 8 chat messages
       // plus the ephemeral snapshot, and use a lean system prompt
-      const cleanHistory = messages.filter((m) => !m.id?.startsWith('err_'));
+      const cleanHistory = messages.filter((m) => !m.id?.startsWith('err_') && !isHiddenInternalMessage(m));
       const historyWindow = (options.roomOnly || options.clearingOnly)
         ? [...cleanHistory.slice(-8), msg]
-        : cleanHistory.slice(-24);
+        : options.ephemeral
+          ? [...cleanHistory.slice(-24), msg]
+          : cleanHistory.slice(-24);
       const payloadMessages = historyWindow.map((m, idx) => ({
         role: m.role,
         content: messagePayload(m, idx === historyWindow.length - 1),
@@ -2372,14 +2383,9 @@ CURRENT REAL TIME & SCHEDULE:
   }
 
   async function runWebSearch(query: string) {
-    const searchStatusMsg: ChatMessage = {
-      id: 'search_log_' + Date.now(),
-      role: 'assistant',
-      content: `🔍 *Searching the web for:* "${query}"...`,
-      timestamp: new Date().toISOString()
-    };
-    messages = [...messages, searchStatusMsg];
-    saveChat();
+    isLoading = true;
+    loadingStage = `Searching the web for "${query}"…`;
+    errorMsg = '';
 
     try {
       const res = await fetch('https://api.tavily.com/search', {
@@ -2416,11 +2422,11 @@ CURRENT REAL TIME & SCHEDULE:
         timestamp: new Date().toISOString()
       };
 
-      messages = messages.filter(m => m.id !== searchStatusMsg.id);
-      await submitBackgroundMessage(finalSearchMsg);
+      await submitBackgroundMessage(finalSearchMsg, { ephemeral: true, loadingLabel: 'Reading search results…' });
     } catch (err: any) {
       console.error('[Companion] Tavily search execution failed:', err);
-      messages = messages.filter(m => m.id !== searchStatusMsg.id);
+      isLoading = false;
+      loadingStage = '';
       errorMsg = `Web search failed: ${err.message || err}`;
     }
   }
@@ -2441,7 +2447,7 @@ CURRENT REAL TIME & SCHEDULE:
     if (isLoading) return;
     let lastUserIdx = -1;
     for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].role === 'user') { lastUserIdx = i; break; }
+      if (messages[i].role === 'user' && !isHiddenInternalMessage(messages[i])) { lastUserIdx = i; break; }
     }
     if (lastUserIdx === -1) return;
     // trim the assistant tail after the last user message, then re-ask
@@ -2457,7 +2463,7 @@ CURRENT REAL TIME & SCHEDULE:
     let activeAttachments: PendingAttachment[] = [];
     if (regen) {
       // the last user message is already the tail after regenerate() trimmed
-      const lastUser = [...messages].reverse().find(m => m.role === 'user');
+      const lastUser = [...messages].reverse().find(m => m.role === 'user' && !isHiddenInternalMessage(m));
       if (!lastUser || isLoading) return;
       text = lastUser.content;
       if (lastUser.attachments?.length) {
@@ -3966,7 +3972,7 @@ CURRENT REAL TIME & SCHEDULE:
   {/if}
 
   <div class="chat-history" class:collapsed={showSettings} bind:this={scrollContainer}>
-    {#each messages as msg (msg.id)}
+    {#each visibleMessages as msg (msg.id)}
       <div class="message-wrap {msg.role}">
         <div class="avatar">
           {msg.role === 'assistant' ? '✦' : '✎'}
@@ -4047,7 +4053,7 @@ CURRENT REAL TIME & SCHEDULE:
           {/if}
 
           <!-- Provider / cache badge + Regenerate row under assistant replies (or trailing unanswered user message) -->
-          {#if (msg.role === 'assistant' && msg.provider) || (msg.id === messages[messages.length - 1]?.id && !isLoading)}
+          {#if (msg.role === 'assistant' && msg.provider) || (msg.id === visibleMessages[visibleMessages.length - 1]?.id && !isLoading)}
             <div class="msg-footer-bar">
               {#if msg.role === 'assistant' && msg.provider}
                 {@const badge = formatProviderBadge(msg.provider, msg.cachedTokens, msg.promptTokens, msg.cacheWriteTokens)}
@@ -4059,7 +4065,7 @@ CURRENT REAL TIME & SCHEDULE:
                   {/if}
                 </span>
               {/if}
-              {#if msg.id === messages[messages.length - 1]?.id && !isLoading}
+              {#if msg.id === visibleMessages[visibleMessages.length - 1]?.id && !isLoading}
                 <button class="regen-btn" on:click={regenerate} aria-label="Regenerate response">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
