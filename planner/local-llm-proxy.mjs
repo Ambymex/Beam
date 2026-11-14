@@ -14,6 +14,10 @@ export function localLlmMiddleware(options = {}) {
     if (!url.pathname.startsWith('/api/local-llm')) return next();
 
     const sendJson = (status, data) => {
+      if (res.headersSent) {
+        if (!res.writableEnded) res.end();
+        return;
+      }
       res.writeHead(status, {
         'content-type': 'application/json; charset=utf-8',
         'cache-control': 'no-store, no-cache, must-revalidate',
@@ -196,8 +200,16 @@ export function localLlmMiddleware(options = {}) {
           // Immediate ping to establish connection with zero idle delay
           res.write(': keepalive initial\n\n');
 
+          const abortController = new AbortController();
+          const onClientClose = () => abortController.abort();
+          res.on('close', onClientClose);
+
           // Send keep-alive heartbeat comment every 2.5 seconds during generation
           const keepAliveTimer = setInterval(() => {
+            if (res.writableEnded || res.destroyed) {
+              clearInterval(keepAliveTimer);
+              return;
+            }
             try {
               res.write(': keepalive\n\n');
             } catch {
@@ -211,20 +223,29 @@ export function localLlmMiddleware(options = {}) {
               method: 'POST',
               headers: { 'content-type': 'application/json' },
               body: JSON.stringify(body),
+              signal: abortController.signal,
             });
           } catch (fetchErr) {
             clearInterval(keepAliveTimer);
+            res.off('close', onClientClose);
             console.error('[local-llm-proxy] Fetch error connecting to LM Studio:', fetchErr.message);
-            res.write(`data: ${JSON.stringify({ error: { message: `LM Studio connection error: ${fetchErr.message}` } })}\n\n`);
-            return res.end();
+            if (!res.writableEnded && !res.destroyed) {
+              res.write(`data: ${JSON.stringify({ error: { message: `LM Studio connection error: ${fetchErr.message}` } })}\n\n`);
+              res.end();
+            }
+            return;
           }
 
           if (!lmResponse.ok) {
             clearInterval(keepAliveTimer);
+            res.off('close', onClientClose);
             const errText = await lmResponse.text();
             console.error(`[local-llm-proxy] LM Studio returned HTTP ${lmResponse.status}:`, errText);
-            res.write(`data: ${JSON.stringify({ error: { message: `LM Studio error ${lmResponse.status}: ${errText}` } })}\n\n`);
-            return res.end();
+            if (!res.writableEnded && !res.destroyed) {
+              res.write(`data: ${JSON.stringify({ error: { message: `LM Studio error ${lmResponse.status}: ${errText}` } })}\n\n`);
+              res.end();
+            }
+            return;
           }
 
           if (lmResponse.body) {
@@ -232,17 +253,27 @@ export function localLlmMiddleware(options = {}) {
             try {
               while (true) {
                 const { done, value } = await reader.read();
-                if (done) break;
+                if (done || res.writableEnded || res.destroyed) break;
                 res.write(value);
               }
               console.log('[local-llm-proxy] Streaming completed successfully.');
+            } catch (streamErr) {
+              if (!abortController.signal.aborted) {
+                console.error('[local-llm-proxy] Mid-stream read error from LM Studio:', streamErr?.message || streamErr);
+                if (!res.writableEnded && !res.destroyed) {
+                  res.write(`data: ${JSON.stringify({ error: { message: `LM Studio stream error: ${streamErr?.message || streamErr}` } })}\n\n`);
+                }
+              }
             } finally {
               clearInterval(keepAliveTimer);
-              res.end();
+              res.off('close', onClientClose);
+              try { reader.cancel().catch(() => {}); } catch {}
+              if (!res.writableEnded) res.end();
             }
           } else {
             clearInterval(keepAliveTimer);
-            res.end();
+            res.off('close', onClientClose);
+            if (!res.writableEnded) res.end();
           }
           return;
         }
@@ -258,6 +289,11 @@ export function localLlmMiddleware(options = {}) {
         const data = await lmResponse.json();
         return sendJson(status, data);
       } catch (err) {
+        if (res.headersSent) {
+          console.error('[local-llm-proxy] Post-header error:', err?.message || err);
+          if (!res.writableEnded) res.end();
+          return;
+        }
         return sendJson(503, {
           error: {
             message: `LM Studio communication failed: ${err.message}`,
