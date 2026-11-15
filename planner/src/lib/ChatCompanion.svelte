@@ -585,93 +585,132 @@
     temperature?: number;
     maxTokens?: number;
     timeoutMs?: number;
+    firstTokenTimeoutMs?: number;
     onStageUpdate?: (stage: string) => void;
   }): Promise<{ completionText: string; rawReasoning: string; promptTokens?: number }> {
-    const timeoutMs = options.timeoutMs ?? 180000;
+    const timeoutMs = options.timeoutMs ?? 120000;
+    const firstTokenTimeoutMs = options.firstTokenTimeoutMs ?? 45000;
     const targetModel = options.model || localLlmModel || 'gemma-4-26b-a4b-it-ultra-uncensored-heretic';
 
-    const lmRes = await fetchWithAbort('/api/local-llm/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: targetModel,
-        messages: options.messages,
-        ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
-        max_tokens: options.maxTokens ?? 2048,
-        stream: true,
-      }),
+    const controller = new AbortController();
+    activeRequestController = controller;
+    userExplicitlyCancelled = false;
+
+    const totalTimer = setTimeout(() => {
+      controller.abort(new Error(`Local LM Studio timed out after ${Math.round(timeoutMs / 1000)}s`));
     }, timeoutMs);
+    let firstTokenTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+      controller.abort(new Error(`Local LM Studio stayed on prompt processing past ${Math.round(firstTokenTimeoutMs / 1000)}s (likely VRAM/RAM swap or model too large)`));
+    }, firstTokenTimeoutMs);
+    const clearFirstTokenTimer = () => {
+      if (firstTokenTimer) {
+        clearTimeout(firstTokenTimer);
+        firstTokenTimer = null;
+      }
+    };
 
-    if (!lmRes.ok) {
-      const errText = await lmRes.text();
-      throw new Error(`Local LM Studio error: ${lmRes.status} ${errText}`);
-    }
+    let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+    try {
+      const lmRes = await fetch('/api/local-llm/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: targetModel,
+          messages: options.messages,
+          ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
+          max_tokens: options.maxTokens ?? 2048,
+          stream: true,
+        }),
+        signal: controller.signal,
+      });
 
-    const reader = lmRes.body?.getReader();
-    if (!reader) throw new Error('No readable stream from local LM Studio');
+      if (!lmRes.ok) {
+        const errText = await lmRes.text();
+        throw new Error(`Local LM Studio error: ${lmRes.status} ${errText}`);
+      }
 
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let completionText = '';
-    let rawReasoning = '';
-    let tokenCount = 0;
+      reader = lmRes.body?.getReader() ?? null;
+      if (!reader) throw new Error('No readable stream from local LM Studio');
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let completionText = '';
+      let rawReasoning = '';
+      let tokenCount = 0;
 
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        if (trimmed.startsWith(':')) {
-          // Keepalive heartbeat comment from proxy during prompt prefill
-          if (!rawReasoning && !completionText && options.onStageUpdate) {
-            options.onStageUpdate('Thinking (evaluating prompt on local Gemma 26B)…');
-          }
-          continue;
+      while (true) {
+        if (controller.signal.aborted) {
+          throw (controller.signal.reason instanceof Error
+            ? controller.signal.reason
+            : new Error(String(controller.signal.reason || 'Local stream aborted')));
         }
-        if (trimmed === 'data: [DONE]') continue;
-        if (trimmed.startsWith('data: ')) {
-          let parsedChunk: any;
-          try {
-            parsedChunk = JSON.parse(trimmed.slice(6));
-          } catch {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          if (trimmed.startsWith(':')) {
+            // Keepalive heartbeat comment from proxy during prompt prefill
+            if (!rawReasoning && !completionText && options.onStageUpdate) {
+              options.onStageUpdate('Thinking (evaluating prompt on local Gemma 26B)…');
+            }
             continue;
           }
-          if (parsedChunk?.error) {
-            const errVal = parsedChunk.error;
-            const errMsg = typeof errVal === 'string'
-              ? errVal
-              : (errVal?.message || JSON.stringify(errVal));
-            throw new Error(`LM Studio error: ${errMsg}`);
-          }
-          const delta = parsedChunk?.choices?.[0]?.delta;
-          if (delta?.reasoning_content) {
-            rawReasoning += delta.reasoning_content;
-            tokenCount++;
-            if (options.onStageUpdate) {
-              options.onStageUpdate(`Thinking… (${tokenCount} tokens)`);
+          if (trimmed === 'data: [DONE]') continue;
+          if (trimmed.startsWith('data: ')) {
+            let parsedChunk: any;
+            try {
+              parsedChunk = JSON.parse(trimmed.slice(6));
+            } catch {
+              continue;
             }
-          }
-          if (delta?.content) {
-            completionText += delta.content;
-            if (options.onStageUpdate) {
-              options.onStageUpdate('Drafting reply…');
+            if (parsedChunk?.error) {
+              const errVal = parsedChunk.error;
+              const errMsg = typeof errVal === 'string'
+                ? errVal
+                : (errVal?.message || JSON.stringify(errVal));
+              throw new Error(`LM Studio error: ${errMsg}`);
+            }
+            const delta = parsedChunk?.choices?.[0]?.delta;
+            if (delta?.reasoning_content) {
+              clearFirstTokenTimer();
+              rawReasoning += delta.reasoning_content;
+              tokenCount++;
+              if (options.onStageUpdate) {
+                options.onStageUpdate(`Thinking… (${tokenCount} tokens)`);
+              }
+            }
+            if (delta?.content) {
+              clearFirstTokenTimer();
+              completionText += delta.content;
+              if (options.onStageUpdate) {
+                options.onStageUpdate('Drafting reply…');
+              }
             }
           }
         }
       }
-    }
 
-    if (!completionText && rawReasoning && (rawReasoning.includes('"message"') || rawReasoning.includes('{'))) {
-      completionText = rawReasoning;
-    }
+      if (!completionText && rawReasoning && (rawReasoning.includes('"message"') || rawReasoning.includes('{'))) {
+        completionText = rawReasoning;
+      }
 
-    const promptTokens = Math.round(options.messages.reduce((acc, m) => acc + (typeof m.content === 'string' ? m.content.length : 100), 0) / 4);
-    return { completionText, rawReasoning, promptTokens };
+      const promptTokens = Math.round(options.messages.reduce((acc, m) => acc + (typeof m.content === 'string' ? m.content.length : 100), 0) / 4);
+      return { completionText, rawReasoning, promptTokens };
+    } finally {
+      clearTimeout(totalTimer);
+      clearFirstTokenTimer();
+      if (reader) {
+        try { reader.cancel().catch(() => {}); } catch {}
+      }
+      if (activeRequestController === controller) {
+        activeRequestController = null;
+      }
+    }
   }
 
   let showSettings = false;
