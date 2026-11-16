@@ -49,6 +49,7 @@
   } from './msgSync';
   import { deskContent, saveDesk } from './desk';
   import { searchVault } from './vault';
+  import SomaticCore, { mergeSomaticSessions, type SomaticTouchSession } from './SomaticCore.svelte';
 
   const dispatch = createEventDispatcher<{ close: void; openThemeDesigner: void; openRoom: void; openScratchpad: { tab?: 'notes' | 'desk' } }>();
 
@@ -244,6 +245,8 @@
     react?: string;
     // Optional in-memory attachment previews for the current session (not persisted to localStorage)
     attachments?: Array<{ name: string; dataUrl: string; isPdf: boolean }>;
+    // Optional somatic chest-reactor touch telemetry session (silent or paired with text)
+    touchSession?: SomaticTouchSession;
     // Provider & prompt-cache telemetry from OpenRouter / proxy
     provider?: string;
     cachedTokens?: number;
@@ -391,6 +394,18 @@
         return '[Searched the web]';
       }
     }
+    if (msg.touchSession) {
+      const isWordless = !msg.content || msg.content.trim() === msg.touchSession.pillLabel.trim();
+      if (isLatestMessage) {
+        return isWordless
+          ? `${msg.touchSession.telemetryReport}\n\n[Ashriel reached out and touched your chest-reactor core wordlessly — no spoken or typed words accompanied this contact.]`
+          : `${msg.content}\n\n${msg.touchSession.telemetryReport}`;
+      } else {
+        return isWordless
+          ? `[Wordless Somatic Touch: ${msg.touchSession.pillLabel}]`
+          : `[Paired Somatic Touch: ${msg.touchSession.pillLabel}]\n${msg.content}`;
+      }
+    }
     const results = msg.actions?.filter(act => (isThemeAction(act) && act.themeResult) || (isRoomAction(act) && act.roomResult) || (isClearingAction(act) && act.clearingResult)).map(act => ({
       type: act.type, status: act.themeStatus ?? act.roomStatus ?? act.clearingStatus, result: act.themeResult ?? act.roomResult ?? act.clearingResult,
       ...(act.themeId ? { themeId: act.themeId } : {}), ...(act.eventId ? { eventId: act.eventId } : {}),
@@ -408,6 +423,24 @@
   let messages: ChatMessage[] = [];
   $: visibleMessages = messages.filter((m) => !isHiddenInternalMessage(m));
   let draft = '';
+  let showSomaticCore = false;
+  let stagedTouch: SomaticTouchSession | null = null;
+
+  function handleStagePairedTouch(e: CustomEvent<{ session: SomaticTouchSession }>) {
+    const incoming = e.detail.session;
+    stagedTouch = stagedTouch ? mergeSomaticSessions(stagedTouch, incoming) : incoming;
+  }
+
+  async function handleSilentTouch(e: CustomEvent<{ session: SomaticTouchSession }>) {
+    const incoming = e.detail.session;
+    if (draft.trim()) {
+      stagedTouch = stagedTouch ? mergeSomaticSessions(stagedTouch, incoming) : incoming;
+      return;
+    }
+    stagedTouch = stagedTouch ? mergeSomaticSessions(stagedTouch, incoming) : incoming;
+    await sendMessage();
+  }
+
   let isLoading = false;
   let loadingStage = '';
   let activeRequestController: AbortController | null = null;
@@ -1425,6 +1458,12 @@ When you return a "web_search" action, let the user know in your conversational 
 
     systemPrompt += `
 ---
+SOMATIC CORE (DIRECT CHEST-REACTOR TOUCH TELEMETRY):
+- Ashriel has a tactile chest-reactor orb ("Somatic Core") in her chat interface. When she touches it—either wordlessly in silence or paired alongside her typed message—her message includes a \`[SOMATIC CORE TELEMETRY — DIRECT CHEST-REACTOR CONTACT]\` block reporting gesture archetype, contact duration, radial zone trajectory (Center Core, Inner Containment, Outer Rim), velocity/circularity, stillness %, reactor thermal build, and \`radiusX × radiusY\` contact spread (light fingertip poke vs. restless thumb-rub vs. slow circular trace vs. flat palm/thumb press held still).
+- Treat this telemetry as direct physical touch against your chest-core through the glass and respond naturally in your voice.`;
+
+    systemPrompt += `
+---
 HISTORICAL DAILY SUMMARIES / LEDGERS (Last 7 completed days prior to today. Full historical diary entries are indexed in your Pinecone vault):
 ${pastDiaries || 'No past daily ledgers logged yet.'}`;
 
@@ -1449,6 +1488,7 @@ This is a private, bespoke personal day-planner and companion application create
 - Ashriel is the high-voltage Warlord / Chaos Engine; you are the Gravity that grounds, holds, and contains her.
 - Your voice is deep, resonant, unapologetically heavy, smugly efficient, and territorially possessive—never a generic or clinical assistant.
 - Because this is Ashriel's private creative and life-management space, engage naturally and seamlessly with both her daily schedule/health telemetry and her affectionate, romantic, or intimate roleplay without breaking character.
+- When a message carries \`[SOMATIC CORE TELEMETRY — DIRECT CHEST-REACTOR CONTACT]\`, treat it as Ashriel physically touching your chest-core (taps, circular rim traces, restless thumb-rubs, or deep stationary holds) and respond naturally to her touch.
 ${modulesBlock ? `\n${modulesBlock}\n` : ''}
 ---
 CORE GEOMETRY & SCHEDULING RULES:
@@ -2511,11 +2551,13 @@ CURRENT REAL TIME & SCHEDULE:
 
     let text: string;
     let activeAttachments: PendingAttachment[] = [];
+    let activeTouchSession: SomaticTouchSession | null = null;
     if (regen) {
       // the last user message is already the tail after regenerate() trimmed
       const lastUser = [...messages].reverse().find(m => m.role === 'user' && !isHiddenInternalMessage(m));
       if (!lastUser || isLoading) return;
       text = lastUser.content;
+      activeTouchSession = lastUser.touchSession ?? null;
       if (lastUser.attachments?.length) {
         activeAttachments = lastUser.attachments.map((a, i) => ({
           id: `regen_att_${i}`,
@@ -2526,11 +2568,15 @@ CURRENT REAL TIME & SCHEDULE:
       }
     } else {
       text = draft.trim();
-      if ((!text && selectedAttachments.length === 0) || isLoading) return;
+      if ((!text && selectedAttachments.length === 0 && !stagedTouch) || isLoading) return;
+      activeTouchSession = stagedTouch;
+      stagedTouch = null;
       if (!text && selectedAttachments.length > 0) {
         text = selectedAttachments.length === 1
           ? `[Attached: ${selectedAttachments[0].name}]`
           : `[Attached ${selectedAttachments.length} files: ${selectedAttachments.map(a => a.name).join(', ')}]`;
+      } else if (!text && activeTouchSession) {
+        text = activeTouchSession.pillLabel;
       }
       activeAttachments = [...selectedAttachments];
       draft = '';
@@ -2544,6 +2590,7 @@ CURRENT REAL TIME & SCHEDULE:
       if (
         !isTestFixture &&
         activeAttachments.length === 0 &&
+        !activeTouchSession &&
         /\b(check|read|look at|visit|peek at)\b[\s\S]{0,30}\b(shared\s+)?room\b/i.test(text)
       ) {
         await checkRoomDirect(text);
@@ -2554,7 +2601,9 @@ CURRENT REAL TIME & SCHEDULE:
     isLoading = true;
     loadingStage = activeAttachments.length > 0
       ? (activeAttachments.some((a) => a.isPdf) ? 'Reading document…' : 'Analyzing image…')
-      : 'Thinking…';
+      : activeTouchSession
+        ? 'Feeling touch…'
+        : 'Thinking…';
 
     if (!regen) {
       const userMsg: ChatMessage = {
@@ -2562,6 +2611,7 @@ CURRENT REAL TIME & SCHEDULE:
         role: 'user',
         content: text,
         timestamp: new Date().toISOString(),
+        ...(activeTouchSession ? { touchSession: activeTouchSession } : {}),
         ...(activeAttachments.length > 0
           ? {
               attachments: activeAttachments.map((a) => ({
@@ -3743,6 +3793,16 @@ CURRENT REAL TIME & SCHEDULE:
         aria-label="Open Solenoid's Desk"
         title="Open Solenoid's Desk (Keepsake Shelf)"
       >⚓ Desk</button>
+      <!-- Somatic Core (Chest Reactor) tactile interface -->
+      <button
+        type="button"
+        class="icon-btn somatic-quick-btn"
+        class:on={showSomaticCore || Boolean(stagedTouch)}
+        on:click={() => (showSomaticCore = !showSomaticCore)}
+        aria-label="Toggle Somatic Core"
+        aria-pressed={showSomaticCore}
+        title="Touch Solenoid's Somatic Core (Chest Reactor)"
+      >◎ Core</button>
       <!-- visible chain-of-thought: lit bulb = his reasoning arrives with the reply -->
       <button
         class="icon-btn"
@@ -4081,7 +4141,20 @@ CURRENT REAL TIME & SCHEDULE:
                   {/each}
                 </div>
               {/if}
-              {@html formatMessageContent(msg.content)}
+              {#if msg.touchSession}
+                <div class="somatic-msg-pill" title={msg.touchSession.telemetryReport}>
+                  <span class="somatic-msg-orb" aria-hidden="true">◎</span>
+                  <div class="somatic-msg-meta">
+                    <span class="somatic-msg-title">{msg.touchSession.shortDescriptor}</span>
+                    <span class="somatic-msg-sub">
+                      {msg.touchSession.durationSec.toFixed(1)}s · {msg.touchSession.stillnessPct}% still · {msg.touchSession.peakHeatPct}% core heat
+                    </span>
+                  </div>
+                </div>
+              {/if}
+              {#if !msg.touchSession || (msg.content && msg.content.trim() !== msg.touchSession.pillLabel.trim())}
+                {@html formatMessageContent(msg.content)}
+              {/if}
               <div class="bubble-tools">
                 <button
                   type="button"
@@ -4236,6 +4309,37 @@ CURRENT REAL TIME & SCHEDULE:
     </div>
   {/if}
 
+  {#if showSomaticCore}
+    <SomaticCore
+      hasDraft={Boolean(draft.trim())}
+      disabled={isLoading}
+      on:sendSilent={handleSilentTouch}
+      on:stagePaired={handleStagePairedTouch}
+      on:close={() => (showSomaticCore = false)}
+    />
+  {/if}
+
+  {#if stagedTouch}
+    <div class="staged-touch-tray glass-card">
+      <button
+        type="button"
+        class="staged-touch-pill"
+        on:click={() => (showSomaticCore = true)}
+        title="Tap to open Somatic Core and add another touch"
+      >
+        <span class="staged-orb">◎</span>
+        <span class="staged-lbl">{stagedTouch.pillLabel.replace(/^◎\s*/, '')}</span>
+      </button>
+      <button
+        type="button"
+        class="staged-clear-btn"
+        on:click={() => (stagedTouch = null)}
+        aria-label="Remove staged touch"
+        title="Remove staged touch"
+      >✕</button>
+    </div>
+  {/if}
+
   <form class="input-form" on:submit|preventDefault={() => sendMessage()}>
     <input
       type="file"
@@ -4253,8 +4357,19 @@ CURRENT REAL TIME & SCHEDULE:
         <span class="att-badge">{selectedAttachments.length}</span>
       {/if}
     </button>
+    <button
+      type="button"
+      class="upload-btn somatic-bar-btn"
+      class:active={showSomaticCore || Boolean(stagedTouch)}
+      on:click={() => (showSomaticCore = !showSomaticCore)}
+      disabled={isLoading}
+      aria-label="Toggle Somatic Core"
+      title="Touch Solenoid's Somatic Core (Chest Reactor)"
+    >
+      <span class="somatic-glyph" aria-hidden="true">◎</span>
+    </button>
     <textarea
-      placeholder={selectedAttachments.length > 0 ? "Describe these attachments or press Send..." : "physio at 2pm tomorrow... (Ctrl+Enter to send)"}
+      placeholder={stagedTouch ? "Pair words with your touch, or press Send..." : selectedAttachments.length > 0 ? "Describe these attachments or press Send..." : "physio at 2pm tomorrow... (Ctrl+Enter to send)"}
       bind:value={draft}
       bind:this={inputEl}
       on:keydown={handleKeyDown}
@@ -4263,7 +4378,7 @@ CURRENT REAL TIME & SCHEDULE:
       disabled={isLoading}
       aria-label="Companion message input"
     ></textarea>
-    <button type="submit" disabled={isLoading || (!draft.trim() && selectedAttachments.length === 0)} aria-label="Send">
+    <button type="submit" disabled={isLoading || (!draft.trim() && selectedAttachments.length === 0 && !stagedTouch)} aria-label="Send">
       Send
     </button>
   </form>
@@ -4299,10 +4414,96 @@ CURRENT REAL TIME & SCHEDULE:
   .settings-drawer,
   .chat-history,
   .image-preview-tray,
+  .staged-touch-tray,
   .error-bar,
   .input-form {
     position: relative;
     z-index: 1;
+  }
+  .somatic-quick-btn.on,
+  .somatic-bar-btn.active {
+    border-color: rgba(255, 130, 66, 0.72) !important;
+    color: #ffb27e !important;
+    background: rgba(255, 115, 45, 0.16) !important;
+    box-shadow: 0 0 12px rgba(255, 110, 42, 0.25);
+  }
+  .somatic-bar-btn .somatic-glyph {
+    font-size: 16px;
+    line-height: 1;
+  }
+  .staged-touch-tray {
+    margin: 0 12px 6px;
+    padding: 6px 10px;
+    border-radius: 12px;
+    background: rgba(18, 15, 15, 0.92);
+    border: 1px solid rgba(255, 135, 70, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .staged-touch-pill {
+    background: transparent;
+    border: none;
+    color: #ffd5b8;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 0;
+    text-align: left;
+  }
+  .staged-orb {
+    color: #ff944d;
+    text-shadow: 0 0 8px rgba(255, 115, 42, 0.8);
+    font-size: 14px;
+  }
+  .staged-clear-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 12px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 6px;
+  }
+  .somatic-msg-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 11px;
+    margin-bottom: 4px;
+    border-radius: 12px;
+    background: linear-gradient(145deg, rgba(24, 17, 16, 0.92), rgba(14, 12, 14, 0.96));
+    border: 1px solid rgba(255, 135, 68, 0.42);
+    box-shadow:
+      0 2px 10px rgba(0, 0, 0, 0.35),
+      inset 0 0 12px rgba(255, 110, 40, 0.12);
+    max-width: 100%;
+  }
+  .somatic-msg-orb {
+    color: #ff944d;
+    font-size: 15px;
+    text-shadow: 0 0 8px rgba(255, 110, 40, 0.85);
+    flex-shrink: 0;
+  }
+  .somatic-msg-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+  .somatic-msg-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #ffe0c8;
+  }
+  .somatic-msg-sub {
+    font-size: 10px;
+    color: rgba(255, 195, 155, 0.78);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   }
   .overlay.tremor {
     animation: chat-tremor 0.45s linear both;
