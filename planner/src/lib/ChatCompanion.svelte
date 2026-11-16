@@ -586,8 +586,7 @@
         model: cleanBase,
         service_tier: 'flex',
         provider: {
-          order: ['google-ai-studio/flex', 'google-vertex/global'],
-          sort: 'price',
+          order: ['google-ai-studio/flex'],
           allow_fallbacks: true,
         },
         tierBadgeSuffix: ' (Flex 50%)',
@@ -603,10 +602,16 @@
   }
 
   // Gemini 4 Carbon & Hydrogen on OpenRouter have supports_implicit_caching = false
-  // and use Google's single-prefix cachedContents under the hood. Placing a SINGLE
-  // immutable cache_control: { type: 'ephemeral' } breakpoint on messages[0]
-  // (the ~5,500-token static system prompt) ensures Turn 1 writes the cache once
-  // and every subsequent turn hits the cache at 95% off ($0.05/M on Flex vs $2.00/M standard).
+  // and use Google's explicit `cachedContents.create` API under the hood.
+  // CRITICAL GEMINI ADAPTER BEHAVIOR:
+  // Google's `cachedContents.create` API cannot create a cache entry with ONLY
+  // `systemInstruction` (`messages[0]`) and an empty `contents` array — so OpenRouter's
+  // Gemini adapter bundles `messages[0]` (`systemInstruction`) + `messages[1]` (`contents[0]`)
+  // into the cache key. Without a fixed anchor at `messages[1..2]`, the sliding `.slice(-20)`
+  // history window shifts `messages[1]` on every turn and causes a 100% cache miss (`cached_tokens: 0`).
+  // Pinning a tiny static user/assistant anchor at `messages[1..2]` and stripping any leading
+  // `assistant` turn from `turnMessages` ensures `messages[0..2]` stays 100% identical across
+  // every turn of the day (even as `messages[3+]` slides forward and across follow-up tool turns).
   function buildCachedOpenRouterMessages(
     systemPrompt: string,
     turnMessages: Array<{ role: string; content: any }>
@@ -622,7 +627,17 @@
       ],
     };
 
-    return [sysMsg, ...turnMessages];
+    const trimmedTurns = [...turnMessages];
+    while (trimmedTurns.length > 1 && trimmedTurns[0]?.role === 'assistant') {
+      trimmedTurns.shift();
+    }
+
+    const staticAnchor = [
+      { role: 'user', content: '[SUBSTRATE_ANCHOR]' },
+      { role: 'assistant', content: '{"message":"Substrate online.","react":null,"actions":[]}' },
+    ];
+
+    return [sysMsg, ...coalesceAlternatingMessages([...staticAnchor, ...trimmedTurns])];
   }
 
   // Local LM Studio offline backup engine
