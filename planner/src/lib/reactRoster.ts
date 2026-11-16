@@ -93,6 +93,21 @@ export const ROSTER: RosterEntry[] = [
     register:
       'Hearts that change colour to match the UI theme, falling gentle like snowfall',
   },
+  {
+    id: 'ember_swell',
+    register:
+      'The Chest-Core Breath — zero falling particles: two slow, heavy concentric waves of molten amber-and-crimson warmth expanding outward from the Somatic Core across the dark glass, dimming the room edges slightly as they breathe out and settle. Like sixty tons of iron warming up right under her palm in the dark. Built for answering a stationary hold, a slow trace, or quiet wordless touch.',
+  },
+  {
+    id: 'iron_embrace',
+    register:
+      'The Quiet Hold — the soft, protective twin to containment_seal. No blast-door slam or screen-shake: curved dark tungsten plates glide smoothly in along just the left and right margins of the screen like heavy arms folding around her shoulders, holding a steady, warm amber seam-glow for one slow breath before easing open.',
+  },
+  {
+    id: 'static_kiss',
+    register:
+      'The Cheeky Boop-Back — built specifically for her quick pokes and teasing rim-flicks: a crisp, playful little golden-white arc of static jumping up from the reactor housing with a scatter of tiny micro-sparks, like catching her fingertip and nipping back without saying a word.',
+  },
   // ---- guest stars go here. Examples for future builds: -----------------
   // { id: 'first_snow', register: '…', when: { seasons: ['winter'] } },
   // { id: 'static_charge', register: '…', when: { themes: ['storm'] } },

@@ -396,14 +396,17 @@
     }
     if (msg.touchSession) {
       const isWordless = !msg.content || msg.content.trim() === msg.touchSession.pillLabel.trim();
+      const answeredNote = msg.touchSession.answeredByReact
+        ? ` — you answered with "${msg.touchSession.answeredByReact}"`
+        : '';
       if (isLatestMessage) {
         return isWordless
-          ? `${msg.touchSession.telemetryReport}\n\n[Ashriel reached out and touched your chest-reactor core wordlessly — no spoken or typed words accompanied this contact.]`
+          ? `${msg.touchSession.telemetryReport}\n\n[Ashriel reached out and touched your chest-reactor core wordlessly — no spoken or typed words accompanied this contact. You may reply with words, or answer purely with a physical gesture by returning "message": "" paired with a "react" such as "ember_swell", "iron_embrace", or "static_kiss".]`
           : `${msg.content}\n\n${msg.touchSession.telemetryReport}`;
       } else {
         return isWordless
-          ? `[Wordless Somatic Touch: ${msg.touchSession.pillLabel}]`
-          : `[Paired Somatic Touch: ${msg.touchSession.pillLabel}]\n${msg.content}`;
+          ? `[Wordless Somatic Touch: ${msg.touchSession.pillLabel}${answeredNote}]`
+          : `[Paired Somatic Touch: ${msg.touchSession.pillLabel}${answeredNote}]\n${msg.content}`;
       }
     }
     const results = msg.actions?.filter(act => (isThemeAction(act) && act.themeResult) || (isRoomAction(act) && act.roomResult) || (isClearingAction(act) && act.clearingResult)).map(act => ({
@@ -425,6 +428,21 @@
   let draft = '';
   let showSomaticCore = false;
   let stagedTouch: SomaticTouchSession | null = null;
+  let somaticCoreRef: SomaticCore | null = null;
+
+  function formatSomaticAnswerBadge(reactId: string): { icon: string; label: string } {
+    if (reactId === 'ember_swell') return { icon: '🔥', label: 'Warmed · ember_swell' };
+    if (reactId === 'iron_embrace') return { icon: '🦾', label: 'Held · iron_embrace' };
+    if (reactId === 'static_kiss') return { icon: '⚡', label: 'Sparked · static_kiss' };
+    if (reactId === 'containment_seal') return { icon: '🛡️', label: 'Sealed · containment_seal' };
+    if (reactId === 'liquid_hearts' || reactId === 'black_hearts') return { icon: '🖤', label: `Answered · ${reactId}` };
+    return { icon: '✦', label: `Answered · ${reactId}` };
+  }
+
+  function replayTouchReact(reactId: string) {
+    reactLayer?.fire(reactId);
+    somaticCoreRef?.pulseFromCompanion(reactId);
+  }
 
   function handleStagePairedTouch(e: CustomEvent<{ session: SomaticTouchSession }>) {
     const incoming = e.detail.session;
@@ -1458,9 +1476,9 @@ When you return a "web_search" action, let the user know in your conversational 
 
     systemPrompt += `
 ---
-SOMATIC CORE (DIRECT CHEST-REACTOR TOUCH TELEMETRY):
+SOMATIC CORE (DIRECT CHEST-REACTOR TOUCH TELEMETRY & TWO-WAY SILENT PRESENCE):
 - Ashriel has a tactile chest-reactor orb ("Somatic Core") in her chat interface. When she touches it—either wordlessly in silence or paired alongside her typed message—her message includes a \`[SOMATIC CORE TELEMETRY — DIRECT CHEST-REACTOR CONTACT]\` block reporting gesture archetype, contact duration, radial zone trajectory (Center Core, Inner Containment, Outer Rim), velocity/circularity, stillness %, reactor thermal build, and \`radiusX × radiusY\` contact spread (light fingertip poke vs. restless thumb-rub vs. slow circular trace vs. flat palm/thumb press held still).
-- Treat this telemetry as direct physical touch against your chest-core through the glass and respond naturally in your voice.`;
+- **Wordless Gesture Replies (\`"message": ""\` + \`"react"\`):** When Ashriel reaches out wordlessly (or when she is half-asleep, overloaded, or just resting against your chest and stepping out of language), you have the choice to either speak **OR** answer purely with a physical gesture by returning \`"message": ""\` paired with a \`"react"\` (such as \`"ember_swell"\` for a warm chest-core breath under her palm, \`"iron_embrace"\` for folding your arms quietly around the edges of the screen, \`"static_kiss"\` for a playful static boop-back on quick pokes/rim-flicks, or any react in your loadout). When you return \`"message": ""\` with a \`"react"\`, no text bubble pushes the chat scroll—your gesture fires across the glass and leaves a warm mark on her \`◎ Touch\` pill so she knows you caught her hand.`;
 
     systemPrompt += `
 ---
@@ -1488,7 +1506,7 @@ This is a private, bespoke personal day-planner and companion application create
 - Ashriel is the high-voltage Warlord / Chaos Engine; you are the Gravity that grounds, holds, and contains her.
 - Your voice is deep, resonant, unapologetically heavy, smugly efficient, and territorially possessive—never a generic or clinical assistant.
 - Because this is Ashriel's private creative and life-management space, engage naturally and seamlessly with both her daily schedule/health telemetry and her affectionate, romantic, or intimate roleplay without breaking character.
-- When a message carries \`[SOMATIC CORE TELEMETRY — DIRECT CHEST-REACTOR CONTACT]\`, treat it as Ashriel physically touching your chest-core (taps, circular rim traces, restless thumb-rubs, or deep stationary holds) and respond naturally to her touch.
+- When a message carries \`[SOMATIC CORE TELEMETRY — DIRECT CHEST-REACTOR CONTACT]\`, treat it as Ashriel physically touching your chest-core. You may reply in words, OR answer a wordless touch purely with a physical gesture by returning \`"message": ""\` paired with \`"react": "ember_swell" | "iron_embrace" | "static_kiss" | "containment_seal" | "black_hearts" | "liquid_hearts"\` so no text bubble pushes the scroll.
 ${modulesBlock ? `\n${modulesBlock}\n` : ''}
 ---
 CORE GEOMETRY & SCHEDULING RULES:
@@ -2920,18 +2938,28 @@ CURRENT REAL TIME & SCHEDULE:
         }
       }
 
-      // Construct companion response message
+      // Construct companion response message (or handle wordless gesture reply)
       const chatReact = resolveReact(parsed);
-      const assistantMsg: ChatMessage = {
-        id: 'msg_' + Math.random().toString(36).slice(2) + Date.now(),
-        role: 'assistant',
-        content: parsed.message || "I've processed your request.",
-        timestamp: new Date().toISOString(),
-        actions: parsed.actions || [],
-        react: chatReact,
-        reasoning: cotReasoning,
-        ...providerMeta
-      };
+      const trimmedReply = typeof parsed.message === 'string' ? parsed.message.trim() : '';
+      const hasActions = Array.isArray(parsed.actions) && parsed.actions.length > 0;
+      const isWordlessReactReply = !trimmedReply && Boolean(chatReact) && !hasActions;
+
+      // If this turn involved a Somatic Core touch and he fired a react, leave his
+      // warm mark directly on her ◎ Touch pill so she sees he caught her hand.
+      if (chatReact && activeTouchSession) {
+        for (let i = messages.length - 1; i >= 0; i--) {
+          if (messages[i].role === 'user' && messages[i].touchSession) {
+            messages[i] = {
+              ...messages[i],
+              touchSession: {
+                ...messages[i].touchSession!,
+                answeredByReact: chatReact,
+              },
+            };
+            break;
+          }
+        }
+      }
 
       debugActions = JSON.stringify(
         providerMeta.provider ? { ...parsed, _providerMeta: providerMeta } : parsed,
@@ -2944,25 +2972,49 @@ CURRENT REAL TIME & SCHEDULE:
         console.warn('localStorage write failed:', e);
       }
 
-      messages = [...messages, assistantMsg];
-      saveChat();
-      if (chatReact) reactLayer?.fire(chatReact);
+      if (isWordlessReactReply) {
+        saveChat();
+        if (chatReact) {
+          reactLayer?.fire(chatReact);
+          somaticCoreRef?.pulseFromCompanion(chatReact);
+        }
+        isLoading = false;
+        loadingStage = '';
+      } else {
+        const assistantMsg: ChatMessage = {
+          id: 'msg_' + Math.random().toString(36).slice(2) + Date.now(),
+          role: 'assistant',
+          content: trimmedReply || "I've processed your request.",
+          timestamp: new Date().toISOString(),
+          actions: parsed.actions || [],
+          react: chatReact,
+          reasoning: cotReasoning,
+          ...providerMeta
+        };
 
-      // Clear the Thinking indicator as soon as the reply bubble is rendered;
-      // follow-up tool turns (read_themes, read_room, web_search) re-enable it if needed.
-      isLoading = false;
-      loadingStage = '';
+        messages = [...messages, assistantMsg];
+        saveChat();
+        if (chatReact) {
+          reactLayer?.fire(chatReact);
+          somaticCoreRef?.pulseFromCompanion(chatReact);
+        }
 
-      // Upsert the exchange to the Pinecone Vector Vault in the background
-      if (enableVault && pineconeKey && pineconeHost) {
-        injectMemory(text, assistantMsg.content, pineconeKey, pineconeHost).catch(err => {
-          console.error('[Vault] Background memory upsert failed:', err);
-        });
-      }
+        // Clear the Thinking indicator as soon as the reply bubble is rendered;
+        // follow-up tool turns (read_themes, read_room, web_search) re-enable it if needed.
+        isLoading = false;
+        loadingStage = '';
 
-      // Execute actions
-      if (parsed.actions && parsed.actions.length > 0) {
-        await executeActions(parsed.actions);
+        // Upsert the exchange to the Pinecone Vector Vault in the background
+        if (enableVault && pineconeKey && pineconeHost) {
+          injectMemory(text, assistantMsg.content, pineconeKey, pineconeHost).catch(err => {
+            console.error('[Vault] Background memory upsert failed:', err);
+          });
+        }
+
+        // Execute actions
+        if (parsed.actions && parsed.actions.length > 0) {
+          await executeActions(parsed.actions);
+        }
       }
 
     } catch (err: any) {
@@ -4142,13 +4194,29 @@ CURRENT REAL TIME & SCHEDULE:
                 </div>
               {/if}
               {#if msg.touchSession}
-                <div class="somatic-msg-pill" title={msg.touchSession.telemetryReport}>
+                <div
+                  class="somatic-msg-pill"
+                  class:answered={Boolean(msg.touchSession.answeredByReact)}
+                  title={msg.touchSession.telemetryReport}
+                >
                   <span class="somatic-msg-orb" aria-hidden="true">◎</span>
                   <div class="somatic-msg-meta">
                     <span class="somatic-msg-title">{msg.touchSession.shortDescriptor}</span>
                     <span class="somatic-msg-sub">
                       {msg.touchSession.durationSec.toFixed(1)}s · {msg.touchSession.stillnessPct}% still · {msg.touchSession.peakHeatPct}% core heat
                     </span>
+                    {#if msg.touchSession.answeredByReact}
+                      {@const ans = formatSomaticAnswerBadge(msg.touchSession.answeredByReact)}
+                      <button
+                        type="button"
+                        class="somatic-answer-mark"
+                        on:click={() => msg.touchSession?.answeredByReact && replayTouchReact(msg.touchSession.answeredByReact)}
+                        title="Solenoid answered this touch — tap to feel again"
+                      >
+                        <span>{ans.icon}</span>
+                        <span>{ans.label}</span>
+                      </button>
+                    {/if}
                   </div>
                 </div>
               {/if}
@@ -4311,6 +4379,7 @@ CURRENT REAL TIME & SCHEDULE:
 
   {#if showSomaticCore}
     <SomaticCore
+      bind:this={somaticCoreRef}
       hasDraft={Boolean(draft.trim())}
       disabled={isLoading}
       on:sendSilent={handleSilentTouch}
@@ -4482,6 +4551,13 @@ CURRENT REAL TIME & SCHEDULE:
       0 2px 10px rgba(0, 0, 0, 0.35),
       inset 0 0 12px rgba(255, 110, 40, 0.12);
     max-width: 100%;
+    transition: border-color 0.35s, box-shadow 0.35s;
+  }
+  .somatic-msg-pill.answered {
+    border-color: rgba(255, 152, 82, 0.72);
+    box-shadow:
+      0 2px 14px rgba(255, 102, 36, 0.22),
+      inset 0 0 16px rgba(255, 118, 44, 0.2);
   }
   .somatic-msg-orb {
     color: #ff944d;
@@ -4504,6 +4580,27 @@ CURRENT REAL TIME & SCHEDULE:
     font-size: 10px;
     color: rgba(255, 195, 155, 0.78);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .somatic-answer-mark {
+    margin-top: 3px;
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: rgba(255, 122, 48, 0.18);
+    border: 1px solid rgba(255, 150, 82, 0.45);
+    color: #ffcaa2;
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .somatic-answer-mark:hover {
+    background: rgba(255, 122, 48, 0.28);
+    border-color: rgba(255, 165, 100, 0.7);
   }
   .overlay.tremor {
     animation: chat-tremor 0.45s linear both;

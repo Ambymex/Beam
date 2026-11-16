@@ -1,7 +1,7 @@
 <script context="module" lang="ts">
   // The react vocabulary. The companion picks one (or none) per message via
   // the top-level "react" field; anything not in this list is ignored.
-  export const REACT_IDS = ['black_hearts', 'sparks', 'tungsten_strike', 'liquid_hearts', 'cherry_blossoms', 'sleepy_stars', 'rose_throw', 'soft_wish', 'containment_seal', 'mood_ring'];
+  export const REACT_IDS = ['black_hearts', 'sparks', 'tungsten_strike', 'liquid_hearts', 'cherry_blossoms', 'sleepy_stars', 'rose_throw', 'soft_wish', 'containment_seal', 'mood_ring', 'ember_swell', 'iron_embrace', 'static_kiss'];
 </script>
 
 <script lang="ts">
@@ -608,8 +608,60 @@
           setTimeout(() => (seal = false), SEAL_TOTAL),
         ];
       });
+    } else if (type === 'ember_swell') {
+      clearTimeout(emberSwellTimer);
+      emberSwell = false;
+      requestAnimationFrame(() => {
+        emberSwell = true;
+        emberSwellTimer = setTimeout(() => {
+          emberSwell = false;
+        }, 4800);
+      });
+    } else if (type === 'iron_embrace') {
+      clearTimeout(ironEmbraceTimer);
+      ironEmbrace = false;
+      requestAnimationFrame(() => {
+        ironEmbrace = true;
+        ironEmbraceTimer = setTimeout(() => {
+          ironEmbrace = false;
+        }, 4900);
+      });
+    } else if (type === 'static_kiss') {
+      clearTimeout(staticKissTimer);
+      staticKiss = false;
+      const sparksArr: Array<{ id: number; dx: number; dy: number; size: number; delay: number; dur: number }> = [];
+      for (let i = 0; i < 16; i++) {
+        const angle = -Math.PI * (0.12 + Math.random() * 0.76); // upward & outward fan
+        const dist = 48 + Math.random() * 130;
+        sparksArr.push({
+          id: burstId++,
+          dx: Math.round(Math.cos(angle) * dist),
+          dy: Math.round(Math.sin(angle) * dist),
+          size: 4 + Math.random() * 5,
+          delay: +(Math.random() * 0.14).toFixed(3),
+          dur: +(0.48 + Math.random() * 0.42).toFixed(3),
+        });
+      }
+      staticKissSparks = sparksArr;
+      requestAnimationFrame(() => {
+        staticKiss = true;
+        staticKissTimer = setTimeout(() => {
+          staticKiss = false;
+          staticKissSparks = [];
+        }, 1600);
+      });
     }
   }
+
+  let emberSwell = false;
+  let emberSwellTimer: ReturnType<typeof setTimeout>;
+
+  let ironEmbrace = false;
+  let ironEmbraceTimer: ReturnType<typeof setTimeout>;
+
+  let staticKiss = false;
+  let staticKissSparks: Array<{ id: number; dx: number; dy: number; size: number; delay: number; dur: number }> = [];
+  let staticKissTimer: ReturnType<typeof setTimeout>;
 </script>
 
 <div class="react-layer" aria-hidden="true">
@@ -850,6 +902,73 @@
     </span>
     </span>
   {/each}
+
+  {#if emberSwell}
+    <!-- ember_swell: The Chest-Core Breath — two slow, heavy concentric waves of
+         molten amber-and-crimson warmth expanding outward across the dark glass -->
+    <div class="es-wrap">
+      <div class="es-vignette"></div>
+      <div class="es-core-bloom"></div>
+      <div class="es-wave es-w1"></div>
+      <div class="es-wave es-w2"></div>
+    </div>
+  {/if}
+
+  {#if ironEmbrace}
+    <!-- iron_embrace: The Quiet Hold — curved dark tungsten plates glide smoothly
+         in along the left and right margins like heavy arms folding around her shoulders -->
+    <div class="ie-wrap">
+      <div class="ie-veil"></div>
+      <div class="ie-arm ie-left">
+        <div class="ie-seam"></div>
+      </div>
+      <div class="ie-arm ie-right">
+        <div class="ie-seam"></div>
+      </div>
+    </div>
+  {/if}
+
+  {#if staticKiss}
+    <!-- static_kiss: The Cheeky Boop-Back — crisp golden-white arc of static
+         jumping up from the reactor housing with a scatter of micro-sparks -->
+    <div class="sk-wrap">
+      <div class="sk-flash"></div>
+      <svg class="sk-arc" viewBox="0 0 140 160" xmlns="http://www.w3.org/2000/svg">
+        <path
+          class="sk-bolt-glow"
+          d="M70 152 L58 118 L78 96 L54 66 L76 42 L68 14"
+          fill="none"
+          stroke="#ff9e44"
+          stroke-width="7"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+        <path
+          class="sk-bolt-core"
+          d="M70 152 L58 118 L78 96 L54 66 L76 42 L68 14"
+          fill="none"
+          stroke="#fff8e6"
+          stroke-width="2.6"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+        <path
+          class="sk-bolt-branch"
+          d="M54 66 L34 48 M78 96 L98 78"
+          fill="none"
+          stroke="#ffd996"
+          stroke-width="1.8"
+          stroke-linecap="round"
+        />
+      </svg>
+      {#each staticKissSparks as sp (sp.id)}
+        <span
+          class="sk-spark"
+          style="--dx:{sp.dx}px; --dy:{sp.dy}px; --size:{sp.size}px; --delay:{sp.delay}s; --dur:{sp.dur}s;"
+        ></span>
+      {/each}
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -859,6 +978,250 @@
     overflow: hidden;
     pointer-events: none;
     z-index: 60;
+  }
+
+  /* 1. ember_swell (The Chest-Core Breath) */
+  .es-wrap {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .es-vignette {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+      circle at 50% 62%,
+      rgba(255, 110, 38, 0.08) 0%,
+      rgba(12, 8, 9, 0.42) 68%,
+      rgba(5, 4, 6, 0.68) 100%
+    );
+    animation: es-vig-breath 4600ms ease-in-out both;
+  }
+  .es-core-bloom {
+    position: absolute;
+    left: 50%;
+    top: 62%;
+    width: 340px;
+    height: 340px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: radial-gradient(
+      circle,
+      rgba(255, 196, 120, 0.44) 0%,
+      rgba(255, 102, 36, 0.28) 38%,
+      rgba(185, 28, 14, 0.12) 68%,
+      transparent 100%
+    );
+    animation: es-bloom-pulse 4600ms cubic-bezier(0.22, 0.8, 0.28, 1) both;
+  }
+  .es-wave {
+    position: absolute;
+    left: 50%;
+    top: 62%;
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%) scale(0.2);
+    border: 3px solid rgba(255, 142, 68, 0.78);
+    box-shadow:
+      0 0 32px rgba(255, 96, 32, 0.55),
+      inset 0 0 28px rgba(205, 36, 18, 0.42);
+    opacity: 0;
+  }
+  .es-w1 {
+    animation: es-wave-expand 3600ms cubic-bezier(0.18, 0.76, 0.28, 1) 80ms both;
+  }
+  .es-w2 {
+    animation: es-wave-expand 3800ms cubic-bezier(0.18, 0.76, 0.28, 1) 860ms both;
+  }
+  @keyframes es-vig-breath {
+    0% { opacity: 0; }
+    24% { opacity: 1; }
+    68% { opacity: 0.92; }
+    100% { opacity: 0; }
+  }
+  @keyframes es-bloom-pulse {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.45); }
+    28% { opacity: 0.95; transform: translate(-50%, -50%) scale(1.25); }
+    56% { opacity: 1; transform: translate(-50%, -50%) scale(1.48); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(1.7); }
+  }
+  @keyframes es-wave-expand {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.25); }
+    18% { opacity: 0.9; }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(9.5); }
+  }
+
+  /* 2. iron_embrace (The Quiet Hold) */
+  .ie-wrap {
+    position: absolute;
+    inset: 0;
+  }
+  .ie-veil {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+      ellipse at 50% 50%,
+      transparent 44%,
+      rgba(8, 8, 12, 0.46) 100%
+    );
+    animation: ie-veil-fade 4800ms ease-in-out both;
+  }
+  .ie-arm {
+    position: absolute;
+    top: -3%;
+    bottom: -3%;
+    width: min(26vw, 118px);
+    background:
+      repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.022) 0 2px, transparent 2px 7px),
+      linear-gradient(180deg, #272730 0%, #1c1c24 52%, #14141a 100%);
+    box-shadow: 0 0 28px rgba(0, 0, 0, 0.68);
+  }
+  .ie-arm::after {
+    content: '';
+    position: absolute;
+    top: 12%;
+    bottom: 12%;
+    width: 18px;
+    background-image: radial-gradient(circle, #3c3c48 3px, transparent 3.6px);
+    background-size: 18px 42px;
+    opacity: 0.7;
+  }
+  .ie-left {
+    left: 0;
+    border-top-right-radius: 58% 42%;
+    border-bottom-right-radius: 52% 42%;
+    border-right: 2px solid rgba(255, 148, 78, 0.62);
+    animation:
+      ie-arm-l-in 1150ms cubic-bezier(0.22, 0.92, 0.32, 1) both,
+      ie-arm-l-out 1050ms cubic-bezier(0.45, 0, 0.78, 0.35) 3700ms forwards;
+  }
+  .ie-left::after { right: 14px; }
+  .ie-right {
+    right: 0;
+    border-top-left-radius: 58% 42%;
+    border-bottom-left-radius: 52% 42%;
+    border-left: 2px solid rgba(255, 148, 78, 0.62);
+    animation:
+      ie-arm-r-in 1150ms cubic-bezier(0.22, 0.92, 0.32, 1) both,
+      ie-arm-r-out 1050ms cubic-bezier(0.45, 0, 0.78, 0.35) 3700ms forwards;
+  }
+  .ie-right::after { left: 14px; }
+  .ie-seam {
+    position: absolute;
+    top: 8%;
+    bottom: 8%;
+    width: 20px;
+    pointer-events: none;
+    filter: blur(6px);
+    background: linear-gradient(
+      180deg,
+      transparent 0%,
+      rgba(255, 142, 66, 0.75) 28%,
+      rgba(255, 192, 118, 0.92) 50%,
+      rgba(255, 142, 66, 0.75) 72%,
+      transparent 100%
+    );
+    animation: ie-seam-breath 4800ms ease-in-out both;
+  }
+  .ie-left .ie-seam { right: -9px; }
+  .ie-right .ie-seam { left: -9px; }
+  @keyframes ie-veil-fade {
+    0% { opacity: 0; }
+    24% { opacity: 1; }
+    76% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  @keyframes ie-arm-l-in {
+    0% { transform: translateX(-108%); }
+    100% { transform: translateX(0); }
+  }
+  @keyframes ie-arm-l-out {
+    from { transform: translateX(0); }
+    to { transform: translateX(-108%); }
+  }
+  @keyframes ie-arm-r-in {
+    0% { transform: translateX(108%); }
+    100% { transform: translateX(0); }
+  }
+  @keyframes ie-arm-r-out {
+    from { transform: translateX(0); }
+    to { transform: translateX(108%); }
+  }
+  @keyframes ie-seam-breath {
+    0%, 16% { opacity: 0; }
+    42% { opacity: 0.95; }
+    64% { opacity: 1; }
+    82%, 100% { opacity: 0; }
+  }
+
+  /* 3. static_kiss (The Cheeky Boop-Back) */
+  .sk-wrap {
+    position: absolute;
+    left: 50%;
+    top: 66%;
+    width: 0;
+    height: 0;
+  }
+  .sk-flash {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 130px;
+    height: 130px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: radial-gradient(
+      circle,
+      rgba(255, 248, 220, 0.92) 0%,
+      rgba(255, 178, 82, 0.55) 38%,
+      transparent 72%
+    );
+    animation: sk-flash-pop 520ms ease-out both;
+  }
+  .sk-arc {
+    position: absolute;
+    left: -70px;
+    top: -145px;
+    width: 140px;
+    height: 160px;
+    overflow: visible;
+    filter: drop-shadow(0 0 10px rgba(255, 190, 92, 0.9));
+    animation: sk-arc-snap 620ms cubic-bezier(0.16, 0.9, 0.3, 1) both;
+  }
+  .sk-spark {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: var(--size);
+    height: var(--size);
+    margin-left: calc(var(--size) / -2);
+    margin-top: calc(var(--size) / -2);
+    border-radius: 50%;
+    background: #fff6dc;
+    box-shadow:
+      0 0 6px #ffd278,
+      0 0 12px #ff8c38;
+    animation: sk-spark-fly var(--dur) cubic-bezier(0.16, 0.86, 0.32, 1) var(--delay) both;
+  }
+  @keyframes sk-flash-pop {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+    22% { opacity: 1; transform: translate(-50%, -50%) scale(1.12); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(1.55); }
+  }
+  @keyframes sk-arc-snap {
+    0% { opacity: 0; transform: scaleY(0.2) translateY(24px); }
+    18% { opacity: 1; transform: scaleY(1.04) translateY(0); }
+    42% { opacity: 0.35; transform: scaleX(-0.96); }
+    62% { opacity: 0.95; transform: scaleX(1); }
+    100% { opacity: 0; transform: translateY(-10px) scale(0.92); }
+  }
+  @keyframes sk-spark-fly {
+    0% { opacity: 1; transform: translate(0, 0) scale(1.1); }
+    75% { opacity: 0.9; }
+    100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.2); }
   }
   .fall {
     position: absolute;

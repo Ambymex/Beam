@@ -8,8 +8,9 @@
     stillnessPct: number;
     strokeCount: number;
     peakHeatPct: number;
-     telemetryReport: string;
+    telemetryReport: string;
     timestamp: string;
+    answeredByReact?: string;
   }
 
   export function mergeSomaticSessions(
@@ -932,6 +933,38 @@ Kinematics & Contact Physics:
     }
 
     ctx.restore();
+  }
+
+  export function pulseFromCompanion(reactType: string) {
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const cx = rect.width / 2;
+    const cy = rect.height / 2;
+    const R = Math.min(cx, cy) * 0.88;
+
+    if (reactType === 'ember_swell') {
+      coreHeat = Math.min(1, Math.max(coreHeat, 0.92));
+      peakSessionHeat = Math.max(peakSessionHeat, coreHeat);
+      liveGestureHint = '🔥 Chest-core swells warm beneath your hand…';
+      spawnHeatRing(cx, cy, R * 0.96, 0.95);
+      setTimeout(() => {
+        if (canvas) spawnHeatRing(cx, cy, R * 0.98, 0.88);
+      }, 650);
+    } else if (reactType === 'iron_embrace') {
+      coreHeat = Math.min(1, Math.max(coreHeat, 0.78));
+      peakSessionHeat = Math.max(peakSessionHeat, coreHeat);
+      liveGestureHint = '🦾 Heavy tungsten arms fold quietly around you…';
+      spawnHeatRing(cx, cy, R * 0.92, 0.75);
+    } else if (reactType === 'static_kiss') {
+      coreHeat = Math.min(1, Math.max(coreHeat, 0.65));
+      liveGestureHint = '⚡ A crisp static spark nips back at your fingertips!';
+      spawnSparks(cx, cy, 26, 1.45);
+      spawnHeatRing(cx, cy, R * 0.65, 0.7);
+    } else {
+      coreHeat = Math.min(1, Math.max(coreHeat, 0.7));
+      liveGestureHint = `✦ Answered with ${reactType.replace(/_/g, ' ')}`;
+      spawnHeatRing(cx, cy, R * 0.85, 0.7);
+    }
   }
 
   onMount(() => {
