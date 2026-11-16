@@ -576,58 +576,37 @@
     provider?: Record<string, any>;
     tierBadgeSuffix: string;
   } {
-    const cleanBase = (baseModel || 'google/gemini-4-carbon').trim();
-    const isGeminiBatchable =
-      cleanBase.startsWith('google/gemini-4-') ||
-      cleanBase.startsWith('google/gemini-3');
+    // Strip :batch suffix — OpenRouter's :batch model IDs return 404 on /chat/completions
+    // ("cannot be used with the chat/completions endpoint"). Synchronous 50%-off Flex
+    // pricing uses the base model ID with `service_tier: "flex"` and `google-ai-studio/flex`.
+    const cleanBase = (baseModel || 'google/gemini-4-carbon').trim().replace(/:batch$/, '');
 
-    if (tier === 'vertex_flex' && !isFallbackAttempt) {
-      if (cleanBase.endsWith(':batch')) {
-        return {
-          model: cleanBase,
-          provider: { sort: 'price', allow_fallbacks: true },
-          tierBadgeSuffix: ' (Flex 50%)',
-        };
-      }
-      if (isGeminiBatchable) {
-        return {
-          model: `${cleanBase}:batch`,
-          provider: { sort: 'price', allow_fallbacks: true },
-          tierBadgeSuffix: ' (Vertex Flex 50%)',
-        };
-      }
+    if ((tier === 'vertex_flex' || tier === 'aistudio_flex') && !isFallbackAttempt) {
       return {
         model: cleanBase,
         service_tier: 'flex',
-        provider: { sort: 'price', allow_fallbacks: true },
-        tierBadgeSuffix: ' (Flex)',
-      };
-    }
-
-    if (tier === 'aistudio_flex' && !isFallbackAttempt) {
-      return {
-        model: cleanBase.replace(/:batch$/, ''),
-        service_tier: 'flex',
-        provider: { sort: 'price', allow_fallbacks: true },
+        provider: {
+          order: ['google-ai-studio/flex', 'google-vertex/global'],
+          sort: 'price',
+          allow_fallbacks: true,
+        },
         tierBadgeSuffix: ' (Flex 50%)',
       };
     }
 
-    // Standard tier (or fallback retry if :batch had a transient hiccup):
-    // sort by price so OpenRouter avoids the 1.8x Priority tier markup unless needed.
+    // Standard tier (or fallback retry): sort by price so OpenRouter avoids the 1.8x Priority markup.
     return {
-      model: isFallbackAttempt ? cleanBase.replace(/:batch$/, '') : cleanBase,
+      model: cleanBase,
       provider: { sort: 'price', allow_fallbacks: true },
-      tierBadgeSuffix: cleanBase.endsWith(':batch') && !isFallbackAttempt ? ' (Flex 50%)' : '',
+      tierBadgeSuffix: '',
     };
   }
 
-  // Gemini 4 Carbon & Hydrogen on OpenRouter have supports_implicit_caching = false.
-  // Attaching explicit cache_control: { type: 'ephemeral' } breakpoints to:
-  //   1) messages[0] (the ~6,000-token immutable static system prompt), and
-  //   2) the end of the prior conversation history (messages[N-2], right before the
-  //      final user message with liveTurnContext)
-  // unlocks the 95% cache-read discount ($0.05/M on Flex vs $1.00/M uncached).
+  // Gemini 4 Carbon & Hydrogen on OpenRouter have supports_implicit_caching = false
+  // and use Google's single-prefix cachedContents under the hood. Placing a SINGLE
+  // immutable cache_control: { type: 'ephemeral' } breakpoint on messages[0]
+  // (the ~5,500-token static system prompt) ensures Turn 1 writes the cache once
+  // and every subsequent turn hits the cache at 95% off ($0.05/M on Flex vs $2.00/M standard).
   function buildCachedOpenRouterMessages(
     systemPrompt: string,
     turnMessages: Array<{ role: string; content: any }>
@@ -643,34 +622,7 @@
       ],
     };
 
-    const msgs = turnMessages.map((m, idx) => {
-      // Place a second cache breakpoint on the last historical message before the current turn
-      if (turnMessages.length >= 3 && idx === turnMessages.length - 2) {
-        if (typeof m.content === 'string') {
-          return {
-            role: m.role,
-            content: [
-              {
-                type: 'text',
-                text: m.content,
-                cache_control: { type: 'ephemeral' },
-              },
-            ],
-          };
-        }
-        if (Array.isArray(m.content) && m.content.length > 0) {
-          const copyParts = m.content.map((p: any, pIdx: number) =>
-            pIdx === m.content.length - 1 && p?.type === 'text'
-              ? { ...p, cache_control: { type: 'ephemeral' } }
-              : p
-          );
-          return { role: m.role, content: copyParts };
-        }
-      }
-      return m;
-    });
-
-    return [sysMsg, ...msgs];
+    return [sysMsg, ...turnMessages];
   }
 
   // Local LM Studio offline backup engine
@@ -1038,11 +990,8 @@
   
   let modelsList: Array<{ id: string; name?: string }> = [
     { id: 'google/gemini-4-carbon', name: 'Google: Gemini 4 Carbon' },
-    { id: 'google/gemini-4-carbon:batch', name: 'Google: Gemini 4 Carbon (batch)' },
     { id: 'google/gemini-4-hydrogen', name: 'Google: Gemini 4 Hydrogen' },
-    { id: 'google/gemini-4-hydrogen:batch', name: 'Google: Gemini 4 Hydrogen (batch)' },
     { id: 'google/gemini-4-argon', name: 'Google: Gemini 4 Argon' },
-    { id: 'google/gemini-4-argon:batch', name: 'Google: Gemini 4 Argon (batch)' },
     { id: 'google/gemini-2.0-flash-001', name: 'Gemini 2.0 Flash' },
     { id: 'google/gemini-flash-1.5', name: 'Gemini 1.5 Flash' },
     { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
@@ -1084,7 +1033,9 @@
       })
       .then(json => {
         if (json && json.data && json.data.length > 0) {
-          const apiModels = json.data.map((m: any) => ({ id: m.id, name: m.name || m.id }));
+          const apiModels = json.data
+            .filter((m: any) => !String(m?.id || '').endsWith(':batch'))
+            .map((m: any) => ({ id: m.id, name: m.name || m.id }));
           const merged = [...apiModels];
           modelsList.forEach(def => {
             if (!merged.some(m => m.id === def.id)) merged.push(def);
