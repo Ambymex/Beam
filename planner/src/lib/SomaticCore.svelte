@@ -48,6 +48,9 @@
 
   export let hasDraft = false;
   export let disabled = false;
+  export let residualHeat = 0; // 0..1 cooling afterglow driven by companion reply
+
+  let prefersReducedMotion = false;
 
   const dispatch = createEventDispatcher<{
     sendSilent: { session: SomaticTouchSession };
@@ -767,10 +770,13 @@ Kinematics & Contact Physics:
     ctx.clip();
 
     const bgGrad = ctx.createRadialGradient(cx, cy, R * 0.04, cx, cy, R);
-    const breath = 0.5 + 0.5 * Math.sin(now * 0.0016); // slow 0.25Hz sub-bass breath
-    const emberLift = Math.min(1, 0.14 + breath * 0.1 + coreHeat * 0.65);
-    bgGrad.addColorStop(0, `rgba(${Math.round(58 + coreHeat * 140)}, ${Math.round(20 + coreHeat * 48)}, ${Math.round(14 + coreHeat * 18)}, 0.96)`);
-    bgGrad.addColorStop(0.38, `rgba(${Math.round(24 + coreHeat * 62)}, ${Math.round(14 + coreHeat * 20)}, 16, 0.97)`);
+    const breath = prefersReducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(now * 0.0016); // slow 0.25Hz sub-bass breath
+    const afterglowPulse = prefersReducedMotion ? 0.9 : 0.78 + 0.22 * Math.sin(now * 0.0021);
+    const afterglowLevel = Math.max(0, Math.min(1, residualHeat)) * afterglowPulse;
+    const effectiveHeat = Math.max(coreHeat, afterglowLevel * 0.78);
+    const emberLift = Math.min(1, 0.14 + breath * 0.1 + effectiveHeat * 0.65);
+    bgGrad.addColorStop(0, `rgba(${Math.round(58 + effectiveHeat * 145)}, ${Math.round(20 + effectiveHeat * 46)}, ${Math.round(14 + effectiveHeat * 18)}, 0.96)`);
+    bgGrad.addColorStop(0.38, `rgba(${Math.round(24 + effectiveHeat * 68)}, ${Math.round(14 + effectiveHeat * 20)}, 16, 0.97)`);
     bgGrad.addColorStop(0.75, 'rgba(13, 14, 18, 0.98)');
     bgGrad.addColorStop(1, 'rgba(8, 9, 12, 1)');
     ctx.fillStyle = bgGrad;
@@ -786,16 +792,30 @@ Kinematics & Contact Physics:
     }
 
     // 2. Center breathing reactor ember
-    const coreGlowRadius = R * (0.28 + breath * 0.05 + coreHeat * 0.36);
+    const coreGlowRadius = R * (0.28 + breath * 0.05 + effectiveHeat * 0.36);
     const emberGrad = ctx.createRadialGradient(cx, cy, 2, cx, cy, coreGlowRadius);
-    emberGrad.addColorStop(0, `rgba(255, ${Math.round(190 + coreHeat * 55)}, ${Math.round(110 + coreHeat * 80)}, ${0.42 + emberLift * 0.52})`);
-    emberGrad.addColorStop(0.35, `rgba(255, ${Math.round(98 + coreHeat * 45)}, 36, ${0.22 + emberLift * 0.45})`);
-    emberGrad.addColorStop(0.72, `rgba(195, 38, 18, ${0.08 + coreHeat * 0.25})`);
+    emberGrad.addColorStop(0, `rgba(255, ${Math.round(190 + effectiveHeat * 55)}, ${Math.round(110 + effectiveHeat * 80)}, ${0.42 + emberLift * 0.52})`);
+    emberGrad.addColorStop(0.35, `rgba(255, ${Math.round(98 + effectiveHeat * 45)}, 36, ${0.22 + emberLift * 0.45})`);
+    emberGrad.addColorStop(0.72, `rgba(195, 38, 18, ${0.08 + effectiveHeat * 0.28})`);
     emberGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
     ctx.fillStyle = emberGrad;
     ctx.beginPath();
     ctx.arc(cx, cy, coreGlowRadius, 0, Math.PI * 2);
     ctx.fill();
+
+    // 2b. Residual thermal afterglow mantle (iron remembering Solenoid's heat)
+    if (afterglowLevel > 0.01) {
+      const mantleR = R * (0.58 + afterglowLevel * 0.38);
+      const mantleGrad = ctx.createRadialGradient(cx, cy, R * 0.06, cx, cy, mantleR);
+      mantleGrad.addColorStop(0, `rgba(255, 162, 74, ${0.34 * afterglowLevel})`);
+      mantleGrad.addColorStop(0.45, `rgba(226, 68, 28, ${0.24 * afterglowLevel})`);
+      mantleGrad.addColorStop(0.82, `rgba(155, 22, 18, ${0.1 * afterglowLevel})`);
+      mantleGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = mantleGrad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, mantleR, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     // 3. Expanding heavy heat-rings (from stationary holds & taps)
     heatRings = heatRings.filter((hr) => now - hr.born < hr.duration);
@@ -881,7 +901,7 @@ Kinematics & Contact Physics:
     ctx.beginPath();
     ctx.arc(cx, cy, R * 0.36, 0, Math.PI * 2);
     ctx.setLineDash([4, 6]);
-    ctx.strokeStyle = `rgba(255, 138, 76, ${0.16 + coreHeat * 0.28})`;
+    ctx.strokeStyle = `rgba(255, 138, 76, ${0.16 + effectiveHeat * 0.28})`;
     ctx.lineWidth = 1;
     ctx.stroke();
 
@@ -889,14 +909,14 @@ Kinematics & Contact Physics:
     ctx.beginPath();
     ctx.arc(cx, cy, R * 0.74, 0, Math.PI * 2);
     ctx.setLineDash([]);
-    ctx.strokeStyle = `rgba(255, 150, 90, ${0.14 + coreHeat * 0.22})`;
+    ctx.strokeStyle = `rgba(255, 150, 90, ${0.14 + effectiveHeat * 0.22})`;
     ctx.lineWidth = 1;
     ctx.stroke();
 
     // Outer tungsten housing bezel
     ctx.beginPath();
     ctx.arc(cx, cy, R, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(255, 145, 85, ${0.28 + coreHeat * 0.42})`;
+    ctx.strokeStyle = `rgba(255, 145, 85, ${0.28 + effectiveHeat * 0.42})`;
     ctx.lineWidth = 2;
     ctx.stroke();
 
@@ -910,7 +930,7 @@ Kinematics & Contact Physics:
       ctx.moveTo(cx + Math.cos(a) * rIn, cy + Math.sin(a) * rIn);
       ctx.lineTo(cx + Math.cos(a) * rOut, cy + Math.sin(a) * rOut);
       ctx.strokeStyle = isMajor
-        ? `rgba(255, 175, 120, ${0.28 + coreHeat * 0.3})`
+        ? `rgba(255, 175, 120, ${0.28 + effectiveHeat * 0.3})`
         : 'rgba(255, 255, 255, 0.09)';
       ctx.lineWidth = isMajor ? 1.4 : 1;
       ctx.stroke();
@@ -960,6 +980,12 @@ Kinematics & Contact Physics:
       liveGestureHint = '⚡ A crisp static spark nips back at your fingertips!';
       spawnSparks(cx, cy, 26, 1.45);
       spawnHeatRing(cx, cy, R * 0.65, 0.7);
+    } else if (reactType === 'residual_warmth') {
+      coreHeat = Math.min(1, Math.max(coreHeat, 0.52));
+      liveGestureHint = '🔥 Iron holds the warmth of his reply…';
+      if (!prefersReducedMotion) {
+        spawnHeatRing(cx, cy, R * 0.82, 0.58);
+      }
     } else {
       coreHeat = Math.min(1, Math.max(coreHeat, 0.7));
       liveGestureHint = `✦ Answered with ${reactType.replace(/_/g, ' ')}`;
@@ -968,6 +994,9 @@ Kinematics & Contact Physics:
   }
 
   onMount(() => {
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    }
     rafId = requestAnimationFrame(renderLoop);
   });
 
@@ -976,12 +1005,19 @@ Kinematics & Contact Physics:
   });
 </script>
 
-<div class="somatic-drawer glass-card" class:disabled>
+<div
+  class="somatic-drawer glass-card"
+  class:disabled
+  class:afterglow={residualHeat > 0.01}
+  style="--residual-heat: {residualHeat.toFixed(3)};"
+>
   <div class="somatic-head">
     <div class="somatic-title-wrap">
-      <span class="core-dot" class:hot={isTouching || coreHeat > 0.25}>◎</span>
+      <span class="core-dot" class:hot={isTouching || coreHeat > 0.25 || residualHeat > 0.12}>◎</span>
       <span class="somatic-title">Somatic Core · Chest Reactor</span>
-      <span class="zone-pill">{isTouching ? currentZoneLabel : strokes.length > 0 ? 'SETTLING' : 'READY'}</span>
+      <span class="zone-pill" class:warm={residualHeat > 0.05 && !isTouching && strokes.length === 0}>
+        {isTouching ? currentZoneLabel : strokes.length > 0 ? 'SETTLING' : residualHeat > 0.05 ? 'AFTERGLOW' : 'READY'}
+      </span>
     </div>
     <button
       type="button"
@@ -993,18 +1029,20 @@ Kinematics & Contact Physics:
   </div>
 
   <div class="reactor-stage">
-    <canvas
-      bind:this={canvas}
-      class="reactor-canvas"
-      on:touchstart={onTouchStart}
-      on:touchmove={onTouchMove}
-      on:touchend={onTouchEnd}
-      on:touchcancel={onTouchEnd}
-      on:pointerdown={onPointerDown}
-      on:pointermove={onPointerMove}
-      on:pointerup={onPointerUp}
-      on:pointercancel={onPointerUp}
-    ></canvas>
+    <div class="reactor-orb-wrap" class:afterglow={residualHeat > 0.01}>
+      <canvas
+        bind:this={canvas}
+        class="reactor-canvas"
+        on:touchstart={onTouchStart}
+        on:touchmove={onTouchMove}
+        on:touchend={onTouchEnd}
+        on:touchcancel={onTouchEnd}
+        on:pointerdown={onPointerDown}
+        on:pointermove={onPointerMove}
+        on:pointerup={onPointerUp}
+        on:pointercancel={onPointerUp}
+      ></canvas>
+    </div>
 
     <div class="reactor-metrics">
       <div class="metric">
@@ -1017,7 +1055,7 @@ Kinematics & Contact Physics:
       </div>
       <div class="metric">
         <span class="m-lbl">CORE HEAT</span>
-        <span class="m-val">{Math.round(Math.max(coreHeat, peakSessionHeat) * 100)}%</span>
+        <span class="m-val">{Math.round(Math.max(coreHeat, peakSessionHeat, residualHeat * 0.78) * 100)}%</span>
       </div>
     </div>
   </div>
@@ -1069,15 +1107,18 @@ Kinematics & Contact Physics:
     padding: 10px 14px 12px;
     border-radius: 16px;
     background: linear-gradient(165deg, rgba(16, 17, 22, 0.95), rgba(9, 10, 14, 0.98));
-    border: 1px solid rgba(255, 130, 68, 0.25);
+    border: 1px solid rgba(255, 130, 68, calc(0.25 + var(--residual-heat, 0) * 0.42));
     box-shadow:
       0 10px 30px rgba(0, 0, 0, 0.55),
-      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      0 0 calc(22px * var(--residual-heat, 0)) rgba(232, 74, 28, calc(0.26 * var(--residual-heat, 0))),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      inset 0 0 calc(26px * var(--residual-heat, 0)) rgba(255, 118, 42, calc(0.18 * var(--residual-heat, 0)));
     display: flex;
     flex-direction: column;
     gap: 8px;
     user-select: none;
     -webkit-user-select: none;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
   }
   .somatic-drawer.disabled {
     opacity: 0.6;
@@ -1119,6 +1160,13 @@ Kinematics & Contact Physics:
     background: rgba(255, 120, 55, 0.13);
     border: 1px solid rgba(255, 120, 55, 0.28);
     color: #ffb07c;
+    transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+  .zone-pill.warm {
+    background: rgba(255, 108, 42, calc(0.16 + var(--residual-heat, 0) * 0.16));
+    border-color: rgba(255, 145, 72, calc(0.35 + var(--residual-heat, 0) * 0.4));
+    box-shadow: 0 0 calc(10px * var(--residual-heat, 0)) rgba(255, 105, 38, calc(0.35 * var(--residual-heat, 0)));
+    color: #ffd0a6;
   }
   .close-core-btn {
     background: transparent;
@@ -1139,13 +1187,54 @@ Kinematics & Contact Physics:
     justify-content: center;
     gap: 14px;
   }
+  .reactor-orb-wrap {
+    position: relative;
+    width: 176px;
+    height: 176px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .reactor-orb-wrap::before {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    pointer-events: none;
+    background: radial-gradient(
+      circle,
+      rgba(255, 152, 66, 0.36) 0%,
+      rgba(224, 62, 26, 0.24) 48%,
+      rgba(170, 22, 18, 0.08) 72%,
+      rgba(0, 0, 0, 0) 100%
+    );
+    opacity: calc(var(--residual-heat, 0) * 0.92);
+    will-change: opacity, transform;
+  }
+  .reactor-orb-wrap.afterglow::before {
+    animation: orb-afterglow-breathe 3.6s ease-in-out infinite;
+  }
+  @keyframes orb-afterglow-breathe {
+    0%, 100% {
+      transform: scale(0.97);
+    }
+    50% {
+      transform: scale(1.04);
+    }
+  }
   .reactor-canvas {
+    position: relative;
+    z-index: 1;
     width: 176px;
     height: 176px;
     border-radius: 50%;
     touch-action: none;
     cursor: pointer;
-    flex-shrink: 0;
+    display: block;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .reactor-orb-wrap.afterglow::before {
+      animation: none;
+    }
   }
   .reactor-metrics {
     display: flex;

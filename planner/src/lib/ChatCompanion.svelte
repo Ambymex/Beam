@@ -4,7 +4,7 @@
   // Sends user queries and history to the parse-command Edge Function,
   // then updates the planner state by directly mutating the `days` store.
 
-  import { onMount, createEventDispatcher } from 'svelte';
+  import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   import { days, currentKey, todayKey } from './days';
   import { glucoseContextSummary } from './glucose';
   import { novelDiaryContent, stripLeadingDiaryHeader, collapseDoubledDiaryHeaders } from './diaryDedupe';
@@ -430,6 +430,46 @@
   let stagedTouch: SomaticTouchSession | null = null;
   let somaticCoreRef: SomaticCore | null = null;
 
+  // Residual thermal afterglow (~14s ease-out iron cooling curve after Solenoid answers a touch)
+  const RESIDUAL_HEAT_DURATION_MS = 14000;
+  const SOMATIC_REACTS = new Set(['ember_swell', 'iron_embrace', 'static_kiss']);
+  let residualHeat = 0; // 0..1
+  let lastSomaticMsgId: string | null = null;
+  let residualHeatStartedAt = 0;
+  let residualHeatRaf: number | null = null;
+
+  function stopResidualHeatLoop() {
+    if (residualHeatRaf !== null) {
+      cancelAnimationFrame(residualHeatRaf);
+      residualHeatRaf = null;
+    }
+  }
+
+  function stokeResidualHeat(touchMsgId?: string | null) {
+    stopResidualHeatLoop();
+    if (touchMsgId) lastSomaticMsgId = touchMsgId;
+    residualHeatStartedAt = performance.now();
+    residualHeat = 1;
+
+    const tick = (now: number) => {
+      const progress = Math.min(1, (now - residualHeatStartedAt) / RESIDUAL_HEAT_DURATION_MS);
+      if (progress >= 1) {
+        residualHeat = 0;
+        residualHeatRaf = null;
+        return;
+      }
+      // Smooth ease-out cooling curve: brisk initial drop from molten peak, slow lingering ember tail
+      residualHeat = Math.pow(1 - progress, 1.85);
+      residualHeatRaf = requestAnimationFrame(tick);
+    };
+
+    residualHeatRaf = requestAnimationFrame(tick);
+  }
+
+  onDestroy(() => {
+    stopResidualHeatLoop();
+  });
+
   function formatSomaticAnswerBadge(reactId: string): { icon: string; label: string } {
     if (reactId === 'ember_swell') return { icon: '🔥', label: 'Warmed · ember_swell' };
     if (reactId === 'iron_embrace') return { icon: '🦾', label: 'Held · iron_embrace' };
@@ -439,9 +479,10 @@
     return { icon: '✦', label: `Answered · ${reactId}` };
   }
 
-  function replayTouchReact(reactId: string) {
+  function replayTouchReact(reactId: string, msgId?: string) {
     reactLayer?.fire(reactId);
     somaticCoreRef?.pulseFromCompanion(reactId);
+    stokeResidualHeat(msgId ?? null);
   }
 
   function handleStagePairedTouch(e: CustomEvent<{ session: SomaticTouchSession }>) {
@@ -3084,22 +3125,28 @@ CURRENT REAL TIME & SCHEDULE:
       const hasActions = Array.isArray(parsed.actions) && parsed.actions.length > 0;
       const isWordlessReactReply = !trimmedReply && Boolean(chatReact) && !hasActions;
 
-      // If this turn involved a Somatic Core touch and he fired a react, leave his
-      // warm mark directly on her ◎ Touch pill so she sees he caught her hand.
-      if (chatReact && activeTouchSession) {
+      // If this turn involved a Somatic Core touch, locate the user's touch pill
+      // (and stamp his warm answer mark if he fired a react).
+      let matchedTouchMsgId: string | null = null;
+      if (activeTouchSession) {
         for (let i = messages.length - 1; i >= 0; i--) {
           if (messages[i].role === 'user' && messages[i].touchSession) {
-            messages[i] = {
-              ...messages[i],
-              touchSession: {
-                ...messages[i].touchSession!,
-                answeredByReact: chatReact,
-              },
-            };
+            matchedTouchMsgId = messages[i].id;
+            if (chatReact) {
+              messages[i] = {
+                ...messages[i],
+                touchSession: {
+                  ...messages[i].touchSession!,
+                  answeredByReact: chatReact,
+                },
+              };
+            }
             break;
           }
         }
       }
+
+      const shouldStokeAfterglow = Boolean(activeTouchSession) || Boolean(chatReact && SOMATIC_REACTS.has(chatReact));
 
       debugActions = JSON.stringify(
         providerMeta.provider ? { ...parsed, _providerMeta: providerMeta } : parsed,
@@ -3117,6 +3164,9 @@ CURRENT REAL TIME & SCHEDULE:
         if (chatReact) {
           reactLayer?.fire(chatReact);
           somaticCoreRef?.pulseFromCompanion(chatReact);
+        }
+        if (shouldStokeAfterglow) {
+          stokeResidualHeat(matchedTouchMsgId);
         }
         isLoading = false;
         loadingStage = '';
@@ -3137,6 +3187,11 @@ CURRENT REAL TIME & SCHEDULE:
         if (chatReact) {
           reactLayer?.fire(chatReact);
           somaticCoreRef?.pulseFromCompanion(chatReact);
+        } else if (activeTouchSession) {
+          somaticCoreRef?.pulseFromCompanion('residual_warmth');
+        }
+        if (shouldStokeAfterglow) {
+          stokeResidualHeat(matchedTouchMsgId);
         }
 
         // Clear the Thinking indicator as soon as the reply bubble is rendered;
@@ -3990,6 +4045,8 @@ CURRENT REAL TIME & SCHEDULE:
         type="button"
         class="icon-btn somatic-quick-btn"
         class:on={showSomaticCore || Boolean(stagedTouch)}
+        class:afterglow={residualHeat > 0.01}
+        style="--residual-heat: {residualHeat.toFixed(3)};"
         on:click={() => (showSomaticCore = !showSomaticCore)}
         aria-label="Toggle Somatic Core"
         aria-pressed={showSomaticCore}
@@ -4356,6 +4413,8 @@ CURRENT REAL TIME & SCHEDULE:
                 <div
                   class="somatic-msg-pill"
                   class:answered={Boolean(msg.touchSession.answeredByReact)}
+                  class:cooling={residualHeat > 0.01 && msg.id === lastSomaticMsgId}
+                  style={residualHeat > 0.01 && msg.id === lastSomaticMsgId ? `--residual-heat: ${residualHeat.toFixed(3)};` : ''}
                   title={msg.touchSession.telemetryReport}
                 >
                   <span class="somatic-msg-orb" aria-hidden="true">◎</span>
@@ -4369,7 +4428,7 @@ CURRENT REAL TIME & SCHEDULE:
                       <button
                         type="button"
                         class="somatic-answer-mark"
-                        on:click={() => msg.touchSession?.answeredByReact && replayTouchReact(msg.touchSession.answeredByReact)}
+                        on:click={() => msg.touchSession?.answeredByReact && replayTouchReact(msg.touchSession.answeredByReact, msg.id)}
                         title="Solenoid answered this touch — tap to feel again"
                       >
                         <span>{ans.icon}</span>
@@ -4541,6 +4600,7 @@ CURRENT REAL TIME & SCHEDULE:
       bind:this={somaticCoreRef}
       hasDraft={Boolean(draft.trim())}
       disabled={isLoading}
+      {residualHeat}
       on:sendSilent={handleSilentTouch}
       on:stagePaired={handleStagePairedTouch}
       on:close={() => (showSomaticCore = false)}
@@ -4589,6 +4649,8 @@ CURRENT REAL TIME & SCHEDULE:
       type="button"
       class="upload-btn somatic-bar-btn"
       class:active={showSomaticCore || Boolean(stagedTouch)}
+      class:afterglow={residualHeat > 0.01}
+      style="--residual-heat: {residualHeat.toFixed(3)};"
       on:click={() => (showSomaticCore = !showSomaticCore)}
       disabled={isLoading}
       aria-label="Toggle Somatic Core"
@@ -4655,9 +4717,46 @@ CURRENT REAL TIME & SCHEDULE:
     background: rgba(255, 115, 45, 0.16) !important;
     box-shadow: 0 0 12px rgba(255, 110, 42, 0.25);
   }
+  .somatic-quick-btn.afterglow,
+  .somatic-bar-btn.afterglow {
+    position: relative;
+    border-color: rgba(255, 128, 62, calc(0.28 + var(--residual-heat, 0) * 0.56)) !important;
+    box-shadow:
+      0 0 calc(15px * var(--residual-heat, 0)) rgba(235, 76, 28, calc(0.42 * var(--residual-heat, 0))),
+      inset 0 0 calc(10px * var(--residual-heat, 0)) rgba(255, 132, 54, calc(0.26 * var(--residual-heat, 0)));
+    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+  }
+  .somatic-quick-btn.afterglow::after,
+  .somatic-bar-btn.afterglow::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: inherit;
+    pointer-events: none;
+    background: radial-gradient(
+      circle,
+      rgba(255, 140, 64, 0.34) 0%,
+      rgba(218, 56, 26, 0.16) 58%,
+      rgba(0, 0, 0, 0) 100%
+    );
+    opacity: calc(var(--residual-heat, 0) * 0.85);
+    animation: somatic-pill-ember 3.4s ease-in-out infinite;
+    will-change: opacity, transform;
+  }
   .somatic-bar-btn .somatic-glyph {
     font-size: 16px;
     line-height: 1;
+  }
+  .somatic-bar-btn.afterglow .somatic-glyph {
+    text-shadow: 0 0 calc(10px * var(--residual-heat, 0)) rgba(255, 126, 52, calc(0.9 * var(--residual-heat, 0)));
+  }
+  @keyframes somatic-pill-ember {
+    0%, 100% {
+      transform: scale(0.98);
+    }
+    50% {
+      transform: scale(1.04);
+    }
   }
   .staged-touch-tray {
     margin: 0 12px 6px;
@@ -4698,6 +4797,7 @@ CURRENT REAL TIME & SCHEDULE:
     border-radius: 6px;
   }
   .somatic-msg-pill {
+    position: relative;
     display: inline-flex;
     align-items: center;
     gap: 8px;
@@ -4717,6 +4817,18 @@ CURRENT REAL TIME & SCHEDULE:
     box-shadow:
       0 2px 14px rgba(255, 102, 36, 0.22),
       inset 0 0 16px rgba(255, 118, 44, 0.2);
+  }
+  .somatic-msg-pill.cooling {
+    border-color: rgba(255, 148, 76, calc(0.45 + var(--residual-heat, 0) * 0.48));
+    box-shadow:
+      0 2px calc(12px + 12px * var(--residual-heat, 0)) rgba(232, 76, 28, calc(0.18 + 0.32 * var(--residual-heat, 0))),
+      inset 0 0 calc(14px + 14px * var(--residual-heat, 0)) rgba(255, 122, 46, calc(0.14 + 0.24 * var(--residual-heat, 0)));
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .somatic-quick-btn.afterglow::after,
+    .somatic-bar-btn.afterglow::after {
+      animation: none;
+    }
   }
   .somatic-msg-orb {
     color: #ff944d;
