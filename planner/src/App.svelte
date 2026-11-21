@@ -105,6 +105,7 @@
 
 
   let showGallery = false;
+  let galleryTab: 'days' | 'art' = 'days';
   let showCapture = false;
   let showCycle = false;
   let showAlerts = false;
@@ -238,7 +239,7 @@
 </main>
 
 {#if showGallery}
-  <Gallery on:close={() => (showGallery = false)} />
+  <Gallery activeTab={galleryTab} on:close={() => (showGallery = false)} />
 {/if}
 {#if showCapture}
   <CaptureList on:close={() => (showCapture = false)} />
@@ -261,6 +262,10 @@
   on:openScratchpad={(e) => {
     scratchpadTab = e.detail?.tab || 'notes';
     showScratchpad = true;
+  }}
+  on:openGallery={(e) => {
+    galleryTab = e.detail?.tab || 'art';
+    showGallery = true;
   }}
 />
 {#if showSearch}

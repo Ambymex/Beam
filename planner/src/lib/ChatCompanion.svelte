@@ -49,9 +49,10 @@
   } from './msgSync';
   import { deskContent, saveDesk } from './desk';
   import { searchVault } from './vault';
+  import { saveArtToGallery } from './artGallery';
   import SomaticCore, { mergeSomaticSessions, type SomaticTouchSession } from './SomaticCore.svelte';
 
-  const dispatch = createEventDispatcher<{ close: void; openThemeDesigner: void; openRoom: void; openScratchpad: { tab?: 'notes' | 'desk' } }>();
+  const dispatch = createEventDispatcher<{ close: void; openThemeDesigner: void; openRoom: void; openScratchpad: { tab?: 'notes' | 'desk' }; openGallery: { tab?: 'days' | 'art' } }>();
 
   // The component stays mounted from app boot and merely hides when "closed"
   // (App.svelte drives this) — the heartbeat interval and scheduled-alert
@@ -4098,12 +4099,22 @@ CURRENT REAL TIME & SCHEDULE:
         throw new Error('Model returned no image data.');
       }
 
-      const safeName = (title || 'solenoid-image').replace(/[^\w\s-]/g, '').trim() || 'solenoid-image';
+      const displayTitle = (title || '').trim() || 'Solenoid Image';
+      const safeName = displayTitle.replace(/[^\w\s-]/g, '').trim() || 'solenoid-image';
       const attachment = {
         name: `${safeName}.png`,
         dataUrl: imageUrl,
         isPdf: false,
       };
+
+      // Archive permanently in IndexedDB so generated images survive reloads
+      saveArtToGallery({
+        title: displayTitle,
+        prompt,
+        modelLabel,
+        aspectRatio,
+        dataUrl: imageUrl,
+      }).catch((err) => console.warn('[ArtGallery] Background archive failed:', err));
 
       const targetIdx = targetMsgId ? messages.findIndex(m => m.id === targetMsgId) : -1;
       if (targetIdx !== -1) {
@@ -4182,7 +4193,7 @@ CURRENT REAL TIME & SCHEDULE:
       case 'generate_image': {
         const m = String(act.model || 'standard').toLowerCase();
         const mLbl = m === 'lite' ? 'Nano Banana 2 Lite' : m === 'pro' ? 'Nano Banana Pro' : 'Nano Banana 2';
-        return `Generated image (${mLbl})${act.title ? `: “${act.title}”` : ''}`;
+        return `Archived in Gallery (${mLbl})${act.title ? `: “${act.title}”` : ''}`;
       }
       default: return `Action: ${act.type}`;
     }
@@ -4202,7 +4213,11 @@ CURRENT REAL TIME & SCHEDULE:
       dispatch('openScratchpad', { tab: 'desk' });
       return;
     }
-    if (act.type === 'update_scratchpad' || act.type === 'update_diary' || act.type === 'read_scratchpad' || act.type === 'search_vault' || act.type === 'set_reasoning_effort' || act.type === 'generate_image') {
+    if (act.type === 'generate_image') {
+      dispatch('openGallery', { tab: 'art' });
+      return;
+    }
+    if (act.type === 'update_scratchpad' || act.type === 'update_diary' || act.type === 'read_scratchpad' || act.type === 'search_vault' || act.type === 'set_reasoning_effort') {
       return;
     }
     
@@ -4267,6 +4282,14 @@ CURRENT REAL TIME & SCHEDULE:
         aria-label="Open Solenoid's Desk"
         title="Open Solenoid's Desk (Keepsake Shelf)"
       >⚓ Desk</button>
+      <!-- Solenoid's Art Gallery quick access -->
+      <button
+        type="button"
+        class="icon-btn desk-quick-btn"
+        on:click={() => dispatch('openGallery', { tab: 'art' })}
+        aria-label="Open Solenoid's Art Gallery"
+        title="Open Solenoid's Art Gallery"
+      >🎨 Art</button>
       <!-- Somatic Core (Chest Reactor) tactile interface -->
       <button
         type="button"
