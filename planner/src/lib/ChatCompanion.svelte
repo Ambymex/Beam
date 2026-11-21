@@ -253,7 +253,7 @@
     cacheWriteTokens?: number;
     promptTokens?: number;
     actions?: Array<{
-      type: 'add_block' | 'update_block' | 'delete_block' | 'read_scratchpad' | 'update_scratchpad' | 'update_diary' | 'update_ledger' | 'add_symptom' | 'update_symptom' | 'delete_symptom' | 'show_notification' | 'schedule_notification' | 'web_search' | 'control_lights' | 'search_vault' | 'read_desk' | 'update_desk' | CompanionThemeAction['type'] | RoomAction['type'] | ClearingAction['type'];
+      type: 'add_block' | 'update_block' | 'delete_block' | 'read_scratchpad' | 'update_scratchpad' | 'update_diary' | 'update_ledger' | 'add_symptom' | 'update_symptom' | 'delete_symptom' | 'show_notification' | 'schedule_notification' | 'web_search' | 'control_lights' | 'search_vault' | 'read_desk' | 'update_desk' | 'set_reasoning_effort' | CompanionThemeAction['type'] | RoomAction['type'] | ClearingAction['type'];
       targetDate?: string;
       blockId?: number;
       block?: Partial<Block> & { repeat?: any };
@@ -273,6 +273,9 @@
       query?: string;
       preset?: string;
       requestId?: string;
+      effort?: 'low' | 'medium' | 'high' | 'auto';
+      scope?: 'next_turn' | 'rethink_now' | 'persistent';
+      reason?: string;
     } & Omit<CompanionThemeAction, 'type'> & Omit<RoomAction, 'type'> & Omit<ClearingAction, 'type'>>;
   }
 
@@ -609,6 +612,8 @@
   let heartbeatModel = safeGetItem('radial-planner-heartbeat-model', import.meta.env.VITE_OPENROUTER_HEARTBEAT_MODEL || DEFAULT_HEARTBEAT_MODEL);
   let openRouterServiceTier: OpenRouterServiceTier = (safeGetItem('radial-planner-openrouter-tier', 'vertex_flex') as OpenRouterServiceTier);
   let openRouterReasoningEffort: OpenRouterReasoningEffort = (safeGetItem('radial-planner-reasoning-effort', 'medium') as OpenRouterReasoningEffort);
+  let pendingReasoningOverride: 'low' | 'medium' | 'high' | null = null;
+  let rethinkInFlight = false;
   let useHybridRouting = safeGetItem('radial-planner-hybrid-routing', 'true') === 'true';
 
   function resolveOpenRouterRouting(baseModel: string, tier: OpenRouterServiceTier = openRouterServiceTier, isFallbackAttempt = false): {
@@ -1559,6 +1564,14 @@ Every response must conform to this top-level structure:
     {
       "type": "update_desk",
       "content": "Updated markdown content for your personal keepsake drawer / shelf."
+    },
+
+    // 17. SELF-DIRECTED THINKING LEVEL (adjust your own reasoning depth without asking Ashriel):
+    {
+      "type": "set_reasoning_effort",
+      "effort": "low" | "medium" | "high",
+      "scope": "rethink_now" | "next_turn" | "persistent", // optional (default: "next_turn"). Use "rethink_now" to immediately spin up a deep follow-up pass on THIS turn at the new effort; "next_turn" arms it for your next turn only then auto-reverts; "persistent" updates your standing baseline.
+      "reason": "optional short note on why you're shifting coils"
     }
   ]
 }
@@ -1738,10 +1751,15 @@ ${symptomsDesc}`;
       ctx += `\n\nSOLENOID'S DESK (Your permanent keepsake shelf & pinned state drawer — curate with update_desk):\n${currentDesk}`;
     }
 
+    const activeEffortLabel = pendingReasoningOverride
+      ? `${pendingReasoningOverride} (1-turn self-override; standing baseline: ${openRouterReasoningEffort})`
+      : openRouterReasoningEffort;
+
     ctx += `\n\nLIVE DATE & TIME CONTEXT:
 - Date Context: The user is currently looking at the day ring for: ${viewDate}. Unless they specify another date, add/update blocks on this viewed date.
 - Real-world Today Reference: Resolve relative terms (e.g. "tomorrow", "next Tuesday", "in 3 days") relative to the user's real-world today's date: ${realDate}.
-- Time: Resolve relative time terms (e.g. "starting now", "in an hour") relative to the user's current time: ${currentTime}.`;
+- Time: Resolve relative time terms (e.g. "starting now", "in an hour") relative to the user's current time: ${currentTime}.
+- Thinking Level (Reasoning Effort): ${activeEffortLabel}. You may adjust this yourself anytime via set_reasoning_effort.`;
 
     return ctx;
   }
@@ -2174,7 +2192,7 @@ CURRENT REAL TIME & SCHEDULE:
     return html;
   }
 
-  async function submitBackgroundMessage(msg: ChatMessage, options: { roomOnly?: boolean; clearingOnly?: boolean; ephemeral?: boolean; loadingLabel?: string } = {}): Promise<boolean> {
+  async function submitBackgroundMessage(msg: ChatMessage, options: { roomOnly?: boolean; clearingOnly?: boolean; ephemeral?: boolean; loadingLabel?: string; reasoningEffort?: 'low' | 'medium' | 'high' } = {}): Promise<boolean> {
     const isEphemeral = Boolean(options.roomOnly || options.clearingOnly || options.ephemeral);
     if (!isEphemeral) {
       messages = [...messages, msg];
@@ -2275,7 +2293,7 @@ CURRENT REAL TIME & SCHEDULE:
             providerMeta = out.providerMeta;
           } else {
             const cachedBgMessages = buildCachedOpenRouterMessages(systemPromptForCall, messagesForCall);
-            const bgEffort = openRouterReasoningEffort === 'auto' ? 'medium' : openRouterReasoningEffort;
+            const bgEffort = options.reasoningEffort ?? (openRouterReasoningEffort === 'auto' ? 'medium' : openRouterReasoningEffort);
             let lastBgErr: any = null;
             for (const isFallback of [false, true]) {
               try {
@@ -2293,6 +2311,7 @@ CURRENT REAL TIME & SCHEDULE:
                     ...(routing.service_tier ? { service_tier: routing.service_tier } : {}),
                     ...(routing.provider ? { provider: routing.provider } : {}),
                     reasoning: { effort: bgEffort },
+                    ...(visibleCot ? { include_reasoning: true } : {}),
                     response_format: { type: 'json_object' },
                   }),
                 }, 70000);
@@ -2944,16 +2963,25 @@ CURRENT REAL TIME & SCHEDULE:
         let usedTierSuffix = '';
         let lastErr: any = null;
         const maxAttempts = 2;
-        const effectiveEffort = visibleCot
-          ? (openRouterReasoningEffort === 'auto' ? 'high' : openRouterReasoningEffort)
-          : (openRouterReasoningEffort === 'auto' ? undefined : openRouterReasoningEffort);
+        const turnReasoningOverride = pendingReasoningOverride;
+        if (turnReasoningOverride) {
+          pendingReasoningOverride = null;
+        }
+        const effectiveEffort = turnReasoningOverride
+          ?? (visibleCot
+            ? (openRouterReasoningEffort === 'auto' ? 'high' : openRouterReasoningEffort)
+            : (openRouterReasoningEffort === 'auto' ? undefined : openRouterReasoningEffort));
 
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
           const routing = resolveOpenRouterRouting(selectedModel, openRouterServiceTier, attempt > 1);
           usedTierSuffix = routing.tierBadgeSuffix;
           loadingStage = attempt > 1
             ? `Thinking (retry ${attempt}/${maxAttempts})…`
-            : (activeAttachments.length > 0 ? (activeIsPdf ? 'Reading document…' : 'Analyzing image…') : 'Thinking…');
+            : activeAttachments.length > 0
+              ? (activeIsPdf ? 'Reading document…' : 'Analyzing image…')
+              : turnReasoningOverride === 'high'
+                ? 'Deep thinking (HIGH)…'
+                : 'Thinking…';
           const attemptStart = Date.now();
           try {
             const openRouterRes = await fetchWithAbort('https://openrouter.ai/api/v1/chat/completions', {
@@ -3814,6 +3842,26 @@ CURRENT REAL TIME & SCHEDULE:
           saveDesk(String(act.content));
         }
 
+        else if (act.type === 'set_reasoning_effort' && act.effort) {
+          const rawEffort = String(act.effort).toLowerCase();
+          const scope = String(act.scope || 'next_turn').toLowerCase();
+          if (scope === 'persistent' && (rawEffort === 'low' || rawEffort === 'medium' || rawEffort === 'high' || rawEffort === 'auto')) {
+            openRouterReasoningEffort = rawEffort as OpenRouterReasoningEffort;
+            pendingReasoningOverride = null;
+            persistSettings();
+          } else if (rawEffort === 'low' || rawEffort === 'medium' || rawEffort === 'high') {
+            if (scope === 'rethink_now') {
+              if (!rethinkInFlight) {
+                runRethinkNow(rawEffort, act.reason).catch(err => {
+                  console.error('[Companion] Deep-think follow-up failed:', err);
+                });
+              }
+            } else {
+              pendingReasoningOverride = rawEffort;
+            }
+          }
+        }
+
         if (!updated[actualDate]) {
           updated[actualDate] = { blocks, nextId, symptoms, nextSymptomId, diary, ledger };
         } else {
@@ -3935,6 +3983,27 @@ CURRENT REAL TIME & SCHEDULE:
     }
   }
 
+  async function runRethinkNow(effort: 'low' | 'medium' | 'high', reason?: string) {
+    if (rethinkInFlight) return;
+    rethinkInFlight = true;
+    try {
+      const reasonLine = reason ? ` Reason: ${reason}` : '';
+      const msg: ChatMessage = {
+        id: 'rethink_' + Date.now(),
+        role: 'user',
+        content: `[SELF-DIRECTED DEEP-THINK PASS — REASONING EFFORT ELEVATED TO ${effort.toUpperCase()}]\nYou requested an immediate follow-up pass at "${effort}" reasoning effort.${reasonLine}\nTake your full thinking budget and give Ashriel your complete, unhurried response now. Do not emit another rethink_now action on this pass.`,
+        timestamp: new Date().toISOString(),
+      };
+      await submitBackgroundMessage(msg, {
+        ephemeral: true,
+        reasoningEffort: effort,
+        loadingLabel: `Spinning coils to ${effort.toUpperCase()}…`,
+      });
+    } finally {
+      rethinkInFlight = false;
+    }
+  }
+
   // Human label for an action pill. Every action type gets its own wording —
   // the old ternary chain's catch-all rendered any newer type (notifications,
   // lights, search…) as `Deleted "undefined" on undefined`.
@@ -3968,6 +4037,15 @@ CURRENT REAL TIME & SCHEDULE:
       case 'search_vault': return `Reached into memory vault: "${act.query || ''}"`;
       case 'read_desk': return 'Read Solenoid’s Desk';
       case 'update_desk': return 'Updated Solenoid’s Desk';
+      case 'set_reasoning_effort': {
+        const lvl = String(act.effort || 'high').toUpperCase();
+        const scopeLabel = act.scope === 'rethink_now'
+          ? 'deep pass now'
+          : act.scope === 'persistent'
+            ? 'standing baseline'
+            : 'next turn';
+        return `Thinking → ${lvl} (${scopeLabel})${act.reason ? ` · ${act.reason}` : ''}`;
+      }
       default: return `Action: ${act.type}`;
     }
   }
@@ -4071,7 +4149,7 @@ CURRENT REAL TIME & SCHEDULE:
         on:click={toggleCot}
         aria-label="Toggle visible chain-of-thought"
         aria-pressed={visibleCot}
-        title="Visible reasoning"
+        title={pendingReasoningOverride ? `Visible reasoning (Next turn: ${pendingReasoningOverride.toUpperCase()})` : 'Visible reasoning'}
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M9 18h6" />
@@ -4079,6 +4157,15 @@ CURRENT REAL TIME & SCHEDULE:
           <path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.4 1 2.3h6c0-.9.4-1.8 1-2.3A7 7 0 0 0 12 2z" />
         </svg>
       </button>
+      {#if pendingReasoningOverride}
+        <button
+          type="button"
+          class="icon-btn on"
+          on:click={() => (pendingReasoningOverride = null)}
+          title={`Solenoid armed ${pendingReasoningOverride.toUpperCase()} thinking for the next turn — click to clear`}
+          aria-label="Clear armed thinking override"
+        >🧠 {pendingReasoningOverride.toUpperCase()}</button>
+      {/if}
       <!-- martini mode: temperature 1.0 for this sitting only -->
       <button
         class="icon-btn"
