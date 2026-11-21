@@ -617,12 +617,24 @@
     provider?: Record<string, any>;
     tierBadgeSuffix: string;
   } {
-    // Strip :batch suffix — OpenRouter's :batch model IDs return 404 on /chat/completions
-    // ("cannot be used with the chat/completions endpoint"). Synchronous 50%-off Flex
-    // pricing uses the base model ID with `service_tier: "flex"` and `google-ai-studio/flex`.
+    // Strip :batch suffix — OpenRouter's :batch model IDs return 404 on /chat/completions.
     const cleanBase = (baseModel || 'google/gemini-4-carbon').trim().replace(/:batch$/, '');
 
-    if ((tier === 'vertex_flex' || tier === 'aistudio_flex') && !isFallbackAttempt) {
+    // Google Vertex BYOK (draws from Ashriel's $426 GCP free trial credits at $0 OpenRouter cost,
+    // with ~80% prompt caching; must omit service_tier:'flex' because OpenRouter's Flex filter drops google-vertex/global).
+    if (tier === 'vertex_flex' && !isFallbackAttempt) {
+      return {
+        model: cleanBase,
+        provider: {
+          order: ['google-vertex/global'],
+          allow_fallbacks: true,
+        },
+        tierBadgeSuffix: ' (Vertex BYOK)',
+      };
+    }
+
+    // AI Studio Flex: synchronous 50%-off pricing via service_tier:'flex' + google-ai-studio/flex.
+    if (tier === 'aistudio_flex' && !isFallbackAttempt) {
       return {
         model: cleanBase,
         service_tier: 'flex',
@@ -4138,11 +4150,11 @@ CURRENT REAL TIME & SCHEDULE:
       <div class="field">
         <label for="or-service-tier">OpenRouter Service Tier (Pricing):</label>
         <select id="or-service-tier" bind:value={openRouterServiceTier} on:change={persistSettings}>
-          <option value="vertex_flex">Vertex Flex (:batch) — 50% Off (Auto-fallback to Standard)</option>
+          <option value="vertex_flex">Google Vertex BYOK — Free GCP Credits ($0 OpenRouter spend)</option>
           <option value="aistudio_flex">AI Studio Flex (service_tier: flex) — 50% Off</option>
           <option value="standard">Standard Tier (Sort by Price — avoids 1.8× Priority markup)</option>
         </select>
-        <span class="tip">Vertex Flex (:batch) and AI Studio Flex cut Gemini 4 Carbon &amp; Hydrogen token costs in half ($1.00/$5.00 vs $2.00/$10.00) and combine with 95%-off prompt caching ($0.05/M cache read).</span>
+        <span class="tip">Google Vertex BYOK routes through your Google Cloud trial credits at $0 OpenRouter spend with ~80% prompt caching. Switch to AI Studio Flex anytime after your trial credits finish for 50% off.</span>
       </div>
       <div class="field">
         <label for="or-reasoning-effort">Reasoning Effort (Output Token Control):</label>
