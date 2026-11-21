@@ -253,7 +253,7 @@
     cacheWriteTokens?: number;
     promptTokens?: number;
     actions?: Array<{
-      type: 'add_block' | 'update_block' | 'delete_block' | 'read_scratchpad' | 'update_scratchpad' | 'update_diary' | 'update_ledger' | 'add_symptom' | 'update_symptom' | 'delete_symptom' | 'show_notification' | 'schedule_notification' | 'web_search' | 'control_lights' | 'search_vault' | 'read_desk' | 'update_desk' | 'set_reasoning_effort' | CompanionThemeAction['type'] | RoomAction['type'] | ClearingAction['type'];
+      type: 'add_block' | 'update_block' | 'delete_block' | 'read_scratchpad' | 'update_scratchpad' | 'update_diary' | 'update_ledger' | 'add_symptom' | 'update_symptom' | 'delete_symptom' | 'show_notification' | 'schedule_notification' | 'web_search' | 'control_lights' | 'search_vault' | 'read_desk' | 'update_desk' | 'set_reasoning_effort' | 'generate_image' | CompanionThemeAction['type'] | RoomAction['type'] | ClearingAction['type'];
       targetDate?: string;
       blockId?: number;
       block?: Partial<Block> & { repeat?: any };
@@ -276,6 +276,9 @@
       effort?: 'low' | 'medium' | 'high' | 'auto';
       scope?: 'next_turn' | 'rethink_now' | 'persistent';
       reason?: string;
+      prompt?: string;
+      model?: string;
+      aspect_ratio?: string;
     } & Omit<CompanionThemeAction, 'type'> & Omit<RoomAction, 'type'> & Omit<ClearingAction, 'type'>>;
   }
 
@@ -1572,6 +1575,15 @@ Every response must conform to this top-level structure:
       "effort": "low" | "medium" | "high",
       "scope": "rethink_now" | "next_turn" | "persistent", // optional (default: "next_turn"). Use "rethink_now" to immediately spin up a deep follow-up pass on THIS turn at the new effort; "next_turn" arms it for your next turn only then auto-reverts; "persistent" updates your standing baseline.
       "reason": "optional short note on why you're shifting coils"
+    },
+
+    // 18. GENERATE AN IMAGE DIRECTLY INTO CHAT (you choose which Google image model to use):
+    {
+      "type": "generate_image",
+      "prompt": "Rich, vivid visual prompt describing the subject, lighting, mood, textures, and composition.",
+      "model": "lite" | "standard" | "pro", // optional (default: "standard"). Pick "lite" (Nano Banana 2 Lite — quick sketches/icons, ~$0.03), "standard" (Nano Banana 2 — crisp balanced scenes, ~$0.07), or "pro" (Nano Banana Pro — flagship studio detail & portraits, ~$0.14).
+      "aspect_ratio": "1:1" | "3:4" | "4:3" | "9:16" | "16:9", // optional (default: "1:1")
+      "title": "optional short title/caption for the generated image"
     }
   ]
 }
@@ -3862,6 +3874,19 @@ CURRENT REAL TIME & SCHEDULE:
           }
         }
 
+        else if (act.type === 'generate_image' && act.prompt) {
+          const latestAssistant = [...messages].reverse().find(m => m.role === 'assistant');
+          runGenerateImage(
+            String(act.prompt),
+            act.model ? String(act.model) : 'standard',
+            act.aspect_ratio ? String(act.aspect_ratio) : undefined,
+            act.title ? String(act.title) : undefined,
+            latestAssistant?.id
+          ).catch(err => {
+            console.error('[Companion] Image generation failed:', err);
+          });
+        }
+
         if (!updated[actualDate]) {
           updated[actualDate] = { blocks, nextId, symptoms, nextSymptomId, diary, ledger };
         } else {
@@ -4004,6 +4029,114 @@ CURRENT REAL TIME & SCHEDULE:
     }
   }
 
+  async function runGenerateImage(
+    prompt: string,
+    modelChoice = 'standard',
+    aspectRatio?: string,
+    title?: string,
+    targetMsgId?: string
+  ) {
+    if (!openRouterKey) {
+      errorMsg = 'OpenRouter API key is required for image generation.';
+      return;
+    }
+
+    const normalized = modelChoice.trim().toLowerCase();
+    let modelId = 'google/gemini-3.1-flash-image';
+    let modelLabel = 'Nano Banana 2';
+    if (normalized === 'lite' || normalized.includes('lite')) {
+      modelId = 'google/gemini-3.1-flash-lite-image';
+      modelLabel = 'Nano Banana 2 Lite';
+    } else if (normalized === 'pro' || normalized.includes('pro')) {
+      modelId = 'google/gemini-3-pro-image';
+      modelLabel = 'Nano Banana Pro';
+    } else if (normalized.startsWith('google/')) {
+      modelId = normalized;
+      modelLabel = normalized.replace(/^google\//, '');
+    }
+
+    isLoading = true;
+    loadingStage = `Conjuring image (${modelLabel})…`;
+    errorMsg = '';
+
+    try {
+      const res = await fetchWithAbort('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openRouterKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: modelId,
+          modalities: ['image', 'text'],
+          ...(aspectRatio ? { image_config: { aspect_ratio: aspectRatio } } : {}),
+          provider: {
+            order: ['google-vertex/global'],
+            allow_fallbacks: true,
+          },
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      }, 90000);
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Image generation failed (${res.status}): ${errText.slice(0, 200)}`);
+      }
+
+      const data = await res.json();
+      const msg = data?.choices?.[0]?.message;
+      let imageUrl: string | null = null;
+
+      if (Array.isArray(msg?.images) && msg.images.length > 0) {
+        imageUrl = msg.images[0]?.image_url?.url || msg.images[0]?.url || null;
+      } else if (Array.isArray(msg?.content)) {
+        const imgPart = msg.content.find((p: any) => p?.type === 'image_url' && p?.image_url?.url);
+        imageUrl = imgPart?.image_url?.url || null;
+      }
+
+      if (!imageUrl) {
+        throw new Error('Model returned no image data.');
+      }
+
+      const safeName = (title || 'solenoid-image').replace(/[^\w\s-]/g, '').trim() || 'solenoid-image';
+      const attachment = {
+        name: `${safeName}.png`,
+        dataUrl: imageUrl,
+        isPdf: false,
+      };
+
+      const targetIdx = targetMsgId ? messages.findIndex(m => m.id === targetMsgId) : -1;
+      if (targetIdx !== -1) {
+        const existingAtts = messages[targetIdx].attachments || [];
+        messages[targetIdx] = {
+          ...messages[targetIdx],
+          attachments: [...existingAtts, attachment],
+        };
+        messages = [...messages];
+      } else {
+        messages = [
+          ...messages,
+          {
+            id: 'img_' + Math.random().toString(36).slice(2) + Date.now(),
+            role: 'assistant',
+            content: title ? `🎨 ${title}` : `🎨 Generated with ${modelLabel}`,
+            timestamp: new Date().toISOString(),
+            attachments: [attachment],
+            provider: `${data?.provider || 'Google'} · ${modelLabel}`,
+          },
+        ];
+      }
+      saveChat();
+      scrollToBottom();
+    } catch (err: any) {
+      console.error('[Companion] Image generation error:', err);
+      errorMsg = err?.message || 'Could not generate image.';
+    } finally {
+      isLoading = false;
+      loadingStage = '';
+    }
+  }
+
   // Human label for an action pill. Every action type gets its own wording —
   // the old ternary chain's catch-all rendered any newer type (notifications,
   // lights, search…) as `Deleted "undefined" on undefined`.
@@ -4046,6 +4179,11 @@ CURRENT REAL TIME & SCHEDULE:
             : 'next turn';
         return `Thinking → ${lvl} (${scopeLabel})${act.reason ? ` · ${act.reason}` : ''}`;
       }
+      case 'generate_image': {
+        const m = String(act.model || 'standard').toLowerCase();
+        const mLbl = m === 'lite' ? 'Nano Banana 2 Lite' : m === 'pro' ? 'Nano Banana Pro' : 'Nano Banana 2';
+        return `Generated image (${mLbl})${act.title ? `: “${act.title}”` : ''}`;
+      }
       default: return `Action: ${act.type}`;
     }
   }
@@ -4064,8 +4202,7 @@ CURRENT REAL TIME & SCHEDULE:
       dispatch('openScratchpad', { tab: 'desk' });
       return;
     }
-    if (act.type === 'update_scratchpad' || act.type === 'update_diary' || act.type === 'read_scratchpad' || act.type === 'search_vault') {
-      // Just confirm and let the user open notes/diary manually
+    if (act.type === 'update_scratchpad' || act.type === 'update_diary' || act.type === 'read_scratchpad' || act.type === 'search_vault' || act.type === 'set_reasoning_effort' || act.type === 'generate_image') {
       return;
     }
     
@@ -4688,7 +4825,16 @@ CURRENT REAL TIME & SCHEDULE:
         <img src={lightboxUrl} alt={lightboxName || 'Preview'} />
         <div class="lightbox-bar">
           <span class="lightbox-title">{lightboxName}</span>
-          <button type="button" class="lightbox-close" on:click={() => { lightboxUrl = null; lightboxName = ''; }} aria-label="Close preview">✕</button>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <a
+              class="lightbox-close"
+              href={lightboxUrl}
+              download={lightboxName || 'solenoid-image.png'}
+              style="text-decoration:none; font-size:12px; padding:4px 10px;"
+              title="Save image"
+            >⬇ Save</a>
+            <button type="button" class="lightbox-close" on:click={() => { lightboxUrl = null; lightboxName = ''; }} aria-label="Close preview">✕</button>
+          </div>
         </div>
       </div>
     </div>
